@@ -3474,6 +3474,25 @@ body {
     grid-template-columns: 48px minmax(220px, 1.4fr) minmax(200px, 1fr);
   }
 
+  .leaders-registry--manage .leaders-registry-head,
+  .leaders-registry--manage .leaders-registry-row {
+    grid-template-columns: 48px minmax(200px, 1.2fr) minmax(180px, 1fr) 72px;
+  }
+
+  .leaders-col-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .leaders-registry-head .leaders-col-actions {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    padding: 0;
+    cursor: default;
+  }
+
   .staff-registry-head {
     display: grid;
     grid-template-columns: 48px minmax(200px, 1.2fr) minmax(160px, 0.9fr) minmax(160px, 0.9fr) minmax(180px, 1fr);

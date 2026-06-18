@@ -217,8 +217,107 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
 
     if not result and not warning:
         warning = (
-            "Лидеров пока нет. При входе в беседу «Руководство ЦА» бот автоматически "
-            "ставит флаг лидера (нужен /regrole leader в беседе)."
+            "Лидеров пока нет. Добавьте через форму выше или при входе в беседу "
+            "«Руководство ЦА» (/regrole leader)."
         )
 
     return result, warning
+
+
+def parse_vk_id(raw: str) -> int | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    import re
+
+    m = re.search(r"(?:vk\.com/|id)(\d+)", text, re.I)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+async def set_ca_leader(
+    server_id: int,
+    vk_id: int,
+    *,
+    faction: str = "",
+    updated_by: int | None = None,
+) -> dict:
+    user, _ = await User.get_or_create(vk_id=vk_id)
+    faction_clean = faction.strip()
+
+    access, _ = await UserServerAccess.get_or_create(
+        user_id=vk_id,
+        server_id=server_id,
+        defaults={"access_level": 0},
+    )
+
+    level = await get_access_level(vk_id, server_id)
+    if is_supervisor(level, access):
+        raise ValueError("Пользователь уже в реестре следящих — лидером не назначается")
+
+    access.is_leader = True
+    await access.save()
+
+    if faction_clean:
+        user.note = faction_clean
+        await user.save()
+        note, _ = await StaffNote.get_or_create(
+            vk_id=vk_id,
+            server_id=server_id,
+            defaults={"note": faction_clean},
+        )
+        note.note = faction_clean
+        note.updated_by = updated_by
+        await note.save()
+
+    nickname = access.nickname or user.nickname or user.username or str(vk_id)
+    panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    panel_note_text = (panel.note if panel else "") or faction_clean
+
+    return {
+        "vk_id": vk_id,
+        "nickname": nickname,
+        "display_name": nickname,
+        "faction": panel_note_text or (user.note or "").strip() or None,
+        "note": panel_note_text,
+        "is_leader_flag": True,
+    }
+
+
+async def remove_ca_leader(server_id: int, vk_id: int) -> bool:
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access or not access.is_leader:
+        return False
+    access.is_leader = False
+    await access.save()
+    return True
+
+
+async def update_ca_leader_faction(
+    server_id: int,
+    vk_id: int,
+    faction: str,
+    *,
+    updated_by: int | None = None,
+) -> None:
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access or not access.is_leader:
+        raise ValueError("Пользователь не является лидером")
+
+    faction_clean = faction.strip()
+    user = await User.get_or_none(vk_id=vk_id)
+    if user:
+        user.note = faction_clean
+        await user.save()
+
+    note, _ = await StaffNote.get_or_create(
+        vk_id=vk_id,
+        server_id=server_id,
+        defaults={"note": faction_clean},
+    )
+    note.note = faction_clean
+    note.updated_by = updated_by
+    await note.save()
