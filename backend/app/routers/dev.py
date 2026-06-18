@@ -5,10 +5,19 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from app.config import DEFAULT_SERVER_ID
 from app.models.panel import DevErrorLog
 from app.services.auth import get_session_payload, require_ca_user
 from app.services.dev_access import can_view_dev_panel
+from app.services.display_names import resolve_display_names, resolve_vk_photos
 from app.services.error_log import record_error
+from app.services.leadership_access import can_manage_leaders
+from app.services.staff import (
+    list_leadership_candidates,
+    remove_ca_leader,
+    set_ca_leader,
+    update_ca_leader_faction,
+)
 
 router = APIRouter(prefix="/api/dev", tags=["dev"])
 
@@ -35,6 +44,18 @@ async def require_dev_user(request: Request) -> dict:
     if not can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0)):
         raise HTTPException(status_code=403, detail="Раздел разработчика недоступен")
     return user
+
+
+async def require_leadership_manager(request: Request) -> dict:
+    user = await require_ca_user(request)
+    if not can_manage_leaders(user):
+        raise HTTPException(status_code=403, detail="Недостаточно прав (нужен ЗГС ГОС+)")
+    return user
+
+
+class LeadershipFlagUpdate(BaseModel):
+    is_leader: bool
+    faction: str = ""
 
 
 @router.post("/errors")
@@ -95,3 +116,70 @@ async def clear_errors(_user: dict = Depends(require_dev_user)):
     deleted = await DevErrorLog.all().count()
     await DevErrorLog.all().delete()
     return {"ok": True, "deleted": deleted}
+
+
+@router.get("/leadership")
+async def list_leadership_registry(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    q: str = Query(""),
+    _user: dict = Depends(require_leadership_manager),
+):
+    rows = await list_leadership_candidates(server_id)
+
+    if q:
+        ql = q.lower()
+        rows = [
+            r
+            for r in rows
+            if ql in r["nickname"].lower()
+            or ql in str(r["vk_id"])
+            or (r.get("faction") and ql in r["faction"].lower())
+        ]
+
+    vk_ids = {r["vk_id"] for r in rows}
+    names = await resolve_display_names(vk_ids, server_id)
+    photos = await resolve_vk_photos(vk_ids)
+    for r in rows:
+        r["display_name"] = names.get(r["vk_id"], r["nickname"])
+        r["avatar_url"] = photos.get(r["vk_id"])
+
+    leaders_count = sum(1 for r in rows if r["is_leader"])
+    return {
+        "server_id": server_id,
+        "total": len(rows),
+        "leaders_count": leaders_count,
+        "members": rows,
+    }
+
+
+@router.patch("/leadership/{vk_id}")
+async def patch_leadership_flag(
+    vk_id: int,
+    body: LeadershipFlagUpdate,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_leadership_manager),
+):
+    if body.is_leader:
+        try:
+            await set_ca_leader(
+                server_id,
+                vk_id,
+                faction=body.faction,
+                updated_by=user["vk_id"],
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if body.faction.strip():
+            try:
+                await update_ca_leader_faction(
+                    server_id,
+                    vk_id,
+                    body.faction,
+                    updated_by=user["vk_id"],
+                )
+            except ValueError:
+                pass
+    else:
+        await remove_ca_leader(server_id, vk_id)
+
+    return {"ok": True, "is_leader": body.is_leader}

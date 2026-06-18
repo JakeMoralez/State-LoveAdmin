@@ -4,6 +4,7 @@ import { Layout } from './components/Layout'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
 import { DevPage } from './pages/DevPage'
+import { DevLeadershipPage } from './pages/DevLeadershipPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/dev" element={<DevPage />} />
+        <Route path="/dev/leadership" element={<DevLeadershipPage />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -21,6 +21,7 @@ from app.config import (
 )
 from app.models.bot import AccessLevel
 from app.models.panel import DiscordLink
+from app.services.leadership_access import can_manage_leaders
 from app.services.access import can_use_ca_scope
 from app.services.display_names import resolve_vk_photos
 from app.services.dev_access import can_view_dev_panel
@@ -231,15 +232,6 @@ def _can_manage_discord_links(user: dict, level: int) -> bool:
     return level >= 7 or user.get("panel_role") in ("owner", "lead")
 
 
-def _can_manage_leaders(user: dict) -> bool:
-    level = int(user.get("access_level") or 0)
-    if level >= AccessLevel.ZGS_GOS:
-        return True
-    if level >= AccessLevel.SUPERVISOR and user.get("has_ca_access"):
-        return True
-    return user.get("panel_role") in ("owner", "lead")
-
-
 @router.get("/me")
 async def me(request: Request):
     user = await require_ca_user(request)
@@ -249,7 +241,7 @@ async def me(request: Request):
 
     level = int(user.get("access_level") or 0)
     user["can_manage_discord_links"] = _can_manage_discord_links(user, level)
-    user["can_manage_leaders"] = _can_manage_leaders(user)
+    user["can_manage_leaders"] = can_manage_leaders(user)
 
     link = await DiscordLink.get_or_none(vk_id=user["vk_id"])
     user["discord_id"] = link.discord_id if link else None

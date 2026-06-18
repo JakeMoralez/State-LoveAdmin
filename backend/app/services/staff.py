@@ -171,14 +171,6 @@ async def get_leadership_peer_id(server_id: int) -> int | None:
 
 
 async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
-    peer_id = await get_leadership_peer_id(server_id)
-    warning: str | None = None
-    if not peer_id:
-        warning = (
-            "Беседа «Руководство ЦА» не привязана — выполните /regrole leader в конференции. "
-            "Показаны лидеры из БД (флаг при входе в беседу)."
-        )
-
     notes = {
         (n.vk_id, n.server_id): n.note
         for n in await StaffNote.filter(server_id=server_id)
@@ -214,14 +206,7 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
         )
 
     result.sort(key=lambda r: r["nickname"].lower())
-
-    if not result and not warning:
-        warning = (
-            "Лидеров пока нет. Добавьте через форму выше или при входе в беседу "
-            "«Руководство ЦА» (/regrole leader)."
-        )
-
-    return result, warning
+    return result, None
 
 
 def parse_vk_id(raw: str) -> int | None:
@@ -321,3 +306,43 @@ async def update_ca_leader_faction(
     note.note = faction_clean
     note.updated_by = updated_by
     await note.save()
+
+
+async def list_leadership_candidates(server_id: int) -> list[dict]:
+    """Все пользователи БД с ником, кроме следящих и is_admin."""
+    access_rows = await UserServerAccess.filter(server_id=server_id).prefetch_related("user")
+    access_by_vk = {row.user_id: row for row in access_rows}
+
+    notes = {
+        (n.vk_id, n.server_id): n.note
+        for n in await StaffNote.filter(server_id=server_id)
+    }
+
+    result: list[dict] = []
+    for user in await User.all():
+        if user.is_admin:
+            continue
+        access = access_by_vk.get(user.vk_id)
+        level = await get_access_level(user.vk_id, server_id)
+        if is_supervisor(level, access):
+            continue
+
+        nickname = (access.nickname if access and access.nickname else None) or (
+            user.nickname or user.username or str(user.vk_id)
+        )
+        panel_note = notes.get((user.vk_id, server_id), "")
+        user_note = (user.note or "").strip()
+        faction = (panel_note or user_note).strip() or None
+
+        result.append(
+            {
+                "vk_id": user.vk_id,
+                "nickname": nickname,
+                "display_name": nickname,
+                "is_leader": bool(access and access.is_leader),
+                "faction": faction,
+            }
+        )
+
+    result.sort(key=lambda r: r["nickname"].lower())
+    return result

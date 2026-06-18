@@ -71,18 +71,17 @@ export const api = {
     const s = q.toString()
     return request<LeadersResponse>(`/staff/leaders${s ? `?${s}` : ''}`)
   },
-  addLeader: (data: { vk_id?: number; vk_ref?: string; faction?: string }) =>
-    request<{ ok: boolean; member: LeaderMember }>('/staff/leaders', {
-      method: 'POST',
+  devLeadership: (params?: { q?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    const s = q.toString()
+    return request<DevLeadershipResponse>(`/dev/leadership${s ? `?${s}` : ''}`)
+  },
+  updateDevLeadership: (vkId: number, data: { is_leader: boolean; faction?: string }) =>
+    request<{ ok: boolean; is_leader: boolean }>(`/dev/leadership/${vkId}`, {
+      method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  updateLeaderFaction: (vkId: number, faction: string) =>
-    request<{ ok: boolean; faction: string }>(`/staff/leaders/${vkId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ faction }),
-    }),
-  removeLeader: (vkId: number) =>
-    request<{ ok: boolean }>(`/staff/leaders/${vkId}`, { method: 'DELETE' }),
   staffExportUrl: () => `${API}/staff/export.csv`,
   updateStaffNote: (vkId: number, note: string) =>
     request(`/staff/${vkId}/note`, {
@@ -331,7 +330,22 @@ export interface LeadersResponse {
   total: number
   members: LeaderMember[]
   warning?: string | null
-  can_manage?: boolean
+}
+
+export interface LeadershipCandidate {
+  vk_id: number
+  nickname: string
+  display_name?: string
+  avatar_url?: string
+  is_leader: boolean
+  faction?: string | null
+}
+
+export interface DevLeadershipResponse {
+  server_id: number
+  total: number
+  leaders_count: number
+  members: LeadershipCandidate[]
 }
 
 export interface Project {

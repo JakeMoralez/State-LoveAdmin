@@ -39,7 +39,7 @@ const navCategories: NavCategory[] = [
     title: 'Команда',
     items: [
       { to: '/staff', label: 'Следящие', icon: Users },
-      { to: '/leaders', label: 'Лидеры', icon: Shield },
+      { to: '/leaders', label: 'Руководство', icon: Shield },
     ],
   },
   {
@@ -167,15 +167,23 @@ export function Layout() {
               </div>
             </div>
           ))}
-          {user?.can_dev_panel && (
+          {(user?.can_dev_panel || user?.can_manage_leaders) && (
             <div className="sidebar-nav-group sidebar-nav-group--spaced">
               <div className="sidebar-nav-category">Разработка</div>
               <div className="sidebar-nav-divider" aria-hidden />
               <div className="sidebar-nav-items">
-                <SidebarNavLink
-                  collapsed={collapsed}
-                  item={{ to: '/dev', label: 'Лог ошибок', icon: Bug }}
-                />
+                {user?.can_manage_leaders && (
+                  <SidebarNavLink
+                    collapsed={collapsed}
+                    item={{ to: '/dev/leadership', label: 'Флаги руководства', icon: Shield }}
+                  />
+                )}
+                {user?.can_dev_panel && (
+                  <SidebarNavLink
+                    collapsed={collapsed}
+                    item={{ to: '/dev', label: 'Лог ошибок', icon: Bug }}
+                  />
+                )}
               </div>
             </div>
           )}

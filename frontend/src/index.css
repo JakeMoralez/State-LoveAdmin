@@ -3485,11 +3485,37 @@ body {
     justify-content: flex-end;
   }
 
-  .leaders-registry-head .leaders-col-actions {
-    color: rgba(255, 255, 255, 0.45);
+  .dev-leadership-head,
+  .dev-leadership-row {
+    grid-template-columns: 48px minmax(200px, 1.2fr) minmax(160px, 1fr) 120px;
+  }
+
+  .dev-leadership-body {
+    max-height: min(70vh, 720px);
+  }
+
+  .dev-leadership-flag-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dev-leader-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 0.8125rem;
-    font-weight: 500;
-    padding: 0;
+    color: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+  }
+
+  .dev-leader-toggle input {
+    accent-color: var(--accent-gold);
+    width: 16px;
+    height: 16px;
+  }
+
+  .dev-leadership-head .staff-registry-th {
     cursor: default;
   }
 
