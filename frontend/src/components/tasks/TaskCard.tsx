@@ -37,12 +37,12 @@ function TaskCardContent({ task }: { task: Task }) {
 
   return (
     <>
-      <div className="mb-1 flex items-start justify-between gap-2">
-        <span className="line-clamp-2 text-sm font-medium leading-snug">{task.title}</span>
+      <div className="mb-1 flex min-w-0 items-start justify-between gap-2">
+        <span className="line-clamp-2 min-w-0 break-words text-sm font-medium leading-snug">{task.title}</span>
         <span className="shrink-0 text-[10px] text-white/30">#{task.id}</span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         {task.task_type && task.task_type !== 'assignment' && (
           <span className={cn('badge-pill text-[10px]', taskTypeBadgeClass(task.task_type))}>
             {TASK_TYPE_LABELS[task.task_type] || task.task_type}
@@ -75,8 +75,8 @@ function TaskCardContent({ task }: { task: Task }) {
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-white/40">
-        <span className="truncate">{assigneeLine(task)}</span>
+      <div className="mt-2 flex min-w-0 items-center justify-between gap-2 text-xs text-white/40">
+        <span className="min-w-0 flex-1 truncate">{assigneeLine(task)}</span>
         {commentCount > 0 && (
           <span className="flex shrink-0 items-center gap-1.5" title={name ? `Последний: ${name}` : undefined}>
             {avatar && (
@@ -127,7 +127,7 @@ export function TaskCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'task-card flex gap-2',
+        'task-card flex min-w-0 gap-2 overflow-hidden',
         `task-card--${priority}`,
         isDragging && 'opacity-40',
         selected && 'task-card--selected',
@@ -145,7 +145,7 @@ export function TaskCard({
       </button>
       <button
         type="button"
-        className="flex-1 text-left border-0 bg-transparent p-0 text-inherit"
+        className="min-w-0 flex-1 border-0 bg-transparent p-0 text-left text-inherit"
         onClick={(e) => onSelect(task, e)}
       >
         <TaskCardContent task={task} />

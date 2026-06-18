@@ -50,16 +50,6 @@ class User(Model):
         app = "bot"
 
 
-class Server(Model):
-    id = fields.IntField(pk=True)
-    slug = fields.CharField(max_length=64)
-    name = fields.CharField(max_length=128)
-
-    class Meta:
-        table = "servers"
-        app = "bot"
-
-
 class UserServerAccess(Model):
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField("bot.User", related_name="server_accesses")
@@ -78,4 +68,16 @@ class UserServerAccess(Model):
 
     class Meta:
         table = "user_server_access"
+        app = "bot"
+
+
+class RoleChat(Model):
+    id = fields.IntField(pk=True)
+    role = fields.CharField(max_length=32)
+    server_id = fields.IntField()
+    peer_id = fields.BigIntField()
+    registered_by = fields.BigIntField(null=True)
+
+    class Meta:
+        table = "role_chats"
         app = "bot"

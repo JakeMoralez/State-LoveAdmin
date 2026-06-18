@@ -25,6 +25,7 @@ PANEL_DATABASE_URL: str = os.getenv(
 
 DEFAULT_SERVER_ID: int = int(os.getenv("DEFAULT_SERVER_ID", "30"))
 MAIN_ADMIN_ID: int = int(os.getenv("MAIN_ADMIN_ID", "0"))
+CA_LEADERSHIP_PEER_ID: int = int(os.getenv("CA_LEADERSHIP_PEER_ID", "0"))
 
 VK_APP_ID: str = os.getenv("VK_APP_ID", "")
 VK_APP_SECRET: str = os.getenv("VK_APP_SECRET", "")

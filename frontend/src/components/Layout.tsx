@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   User,
+  Shield,
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -36,7 +37,10 @@ const navCategories: NavCategory[] = [
   },
   {
     title: 'Команда',
-    items: [{ to: '/staff', label: 'Следящие', icon: Users }],
+    items: [
+      { to: '/staff', label: 'Следящие', icon: Users },
+      { to: '/leaders', label: 'Лидеры', icon: Shield },
+    ],
   },
   {
     title: 'Работа',
@@ -183,7 +187,7 @@ export function Layout() {
         </button>
       </aside>
 
-      <main key={location.pathname} className="flex-1 overflow-y-auto p-6 md:p-8 ll-scroll page-enter">
+      <main key={location.pathname} className="flex-1 min-w-0 overflow-y-auto p-6 md:p-8 ll-scroll page-enter">
         <Outlet />
       </main>
     </div>

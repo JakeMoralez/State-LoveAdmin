@@ -16,7 +16,7 @@ from app.services.auth import require_ca_user
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
 from app.services.display_names import resolve_display_names, resolve_vk_photos
-from app.services.staff import list_staff
+from app.services.staff import get_leadership_peer_id, list_ca_leaders, list_staff
 
 router = APIRouter(prefix="/api/staff", tags=["staff"])
 
@@ -88,6 +88,43 @@ async def get_staff(
         "total": len(rows),
         "groups": [{"level": lv, "members": grouped[lv]} for lv in levels],
         "members": rows,
+    }
+
+
+@router.get("/leaders")
+async def get_ca_leaders(
+    request: Request,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    q: str = Query(""),
+    user: dict = Depends(require_ca_user),
+):
+    rows, warning = await list_ca_leaders(server_id)
+
+    if q:
+        ql = q.lower()
+        rows = [
+            r
+            for r in rows
+            if ql in r["nickname"].lower()
+            or ql in str(r["vk_id"])
+            or (r.get("faction") and ql in r["faction"].lower())
+        ]
+
+    vk_ids = {r["vk_id"] for r in rows}
+    names = await resolve_display_names(vk_ids, server_id)
+    photos = await resolve_vk_photos(vk_ids)
+    for r in rows:
+        r["display_name"] = names.get(r["vk_id"], r["nickname"])
+        r["avatar_url"] = photos.get(r["vk_id"])
+
+    peer_id = await get_leadership_peer_id(server_id)
+
+    return {
+        "server_id": server_id,
+        "peer_id": peer_id,
+        "total": len(rows),
+        "members": rows,
+        "warning": warning,
     }
 
 

@@ -227,7 +227,7 @@ export function ChecklistPage() {
           )}
         </div>
       ) : (
-        <div className="flex flex-col flex-1 min-h-0 gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div className="checklist-toolbar shrink-0">
             <div className="checklist-view-toggle">
               <button
@@ -259,8 +259,9 @@ export function ChecklistPage() {
                       type="button"
                       className={`checklist-member-pill ${active ? 'checklist-member-pill--active' : ''}`}
                       onClick={() => setActiveMemberId(m.vk_id)}
+                      title={m.display_name}
                     >
-                      <span className="truncate">{m.display_name}</span>
+                      <span className="min-w-0 truncate">{m.display_name}</span>
                       {isSelf && <span className="checklist-member-pill-tag">я</span>}
                       {m.access_level_name && (
                         <span className="checklist-member-pill-level">{m.access_level_name}</span>
@@ -283,7 +284,7 @@ export function ChecklistPage() {
           </div>
 
           {viewMode === 'single' && activeMember && (
-            <p className="text-xs text-white/40 m-0 shrink-0">
+            <p className="text-xs text-white/40 m-0 shrink-0 truncate" title={activeMember.display_name}>
               {activeMember.vk_id === data.current_vk_id
                 ? 'Ваша колонка — заполняйте ячейки за неделю.'
                 : data.can_edit_all

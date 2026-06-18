@@ -10,6 +10,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { StaffPage } from './pages/StaffPage'
+import { LeadersPage } from './pages/LeadersPage'
 import { TasksPage } from './pages/TasksPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -38,6 +39,7 @@ function AppRoutes() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/staff" element={<StaffPage />} />
+        <Route path="/leaders" element={<LeadersPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/tasks/:taskId" element={<TasksPage />} />
         <Route path="/checklist" element={<ChecklistPage />} />

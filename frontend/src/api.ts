@@ -65,6 +65,12 @@ export const api = {
     const s = q.toString()
     return request<StaffResponse>(`/staff${s ? `?${s}` : ''}`)
   },
+  leaders: (params?: { q?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    const s = q.toString()
+    return request<LeadersResponse>(`/staff/leaders${s ? `?${s}` : ''}`)
+  },
   staffExportUrl: () => `${API}/staff/export.csv`,
   updateStaffNote: (vkId: number, note: string) =>
     request(`/staff/${vkId}/note`, {
@@ -294,6 +300,24 @@ export interface StaffResponse {
   total: number
   groups: { level: number; members: StaffMember[] }[]
   members: StaffMember[]
+}
+
+export interface LeaderMember {
+  vk_id: number
+  nickname: string
+  display_name?: string
+  avatar_url?: string
+  faction?: string | null
+  note?: string
+  is_leader_flag?: boolean
+}
+
+export interface LeadersResponse {
+  server_id: number
+  peer_id: number | null
+  total: number
+  members: LeaderMember[]
+  warning?: string | null
 }
 
 export interface Project {
