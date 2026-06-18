@@ -1,4 +1,4 @@
-"""VK OAuth and session endpoints."""
+"""Discord OAuth and session endpoints."""
 
 from __future__ import annotations
 
@@ -20,9 +20,16 @@ from app.config import (
     VK_REDIRECT_URI,
 )
 from app.models.bot import AccessLevel
+from app.models.panel import DiscordLink
 from app.services.access import can_use_ca_scope
 from app.services.display_names import resolve_vk_photos
 from app.services.dev_access import can_view_dev_panel
+from app.services.discord_links import link_by_discord_id, upsert_discord_profile
+from app.services.discord_oauth import (
+    build_authorize_url,
+    discord_oauth_configured,
+    exchange_code,
+)
 from app.services.auth import (
     clear_session_cookie,
     require_ca_user,
@@ -45,6 +52,13 @@ def _access_level_options() -> list[dict]:
         {"value": level, "label": AccessLevel.title(level)}
         for level in sorted(AccessLevel.NAMES.keys())
     ]
+
+
+def _login_redirect(error: str | None = None) -> RedirectResponse:
+    url = f"{PANEL_BASE_URL.rstrip('/')}/login"
+    if error:
+        url = f"{url}?{urllib.parse.urlencode({'error': error})}"
+    return RedirectResponse(url)
 
 
 async def _dev_login_response(
@@ -78,25 +92,20 @@ async def _dev_login_response(
     return response
 
 
-@router.get("/vk")
-async def vk_login():
+@router.get("/discord")
+async def discord_login():
     if DEV_MODE and DEV_VK_ID:
         return RedirectResponse("/api/auth/dev-login")
-    if not VK_APP_ID:
-        raise HTTPException(status_code=503, detail="VK OAuth не настроен")
+    if not discord_oauth_configured():
+        raise HTTPException(status_code=503, detail="Discord OAuth не настроен")
     state = secrets.token_urlsafe(16)
     _oauth_states[state] = True
-    params = urllib.parse.urlencode(
-        {
-            "client_id": VK_APP_ID,
-            "redirect_uri": VK_REDIRECT_URI,
-            "response_type": "code",
-            "scope": "",
-            "state": state,
-            "v": "5.199",
-        }
-    )
-    return RedirectResponse(f"https://oauth.vk.com/authorize?{params}")
+    return RedirectResponse(build_authorize_url(state))
+
+
+@router.get("/vk")
+async def vk_login():
+    raise HTTPException(status_code=410, detail="Вход через VK отключён. Используйте Discord.")
 
 
 @router.get("/config")
@@ -105,7 +114,7 @@ async def auth_config():
         "dev_mode": DEV_MODE,
         "dev_skip_ca": DEV_SKIP_CA,
         "dev_vk_id": DEV_VK_ID if DEV_MODE else None,
-        "vk_configured": bool(VK_APP_ID),
+        "discord_configured": discord_oauth_configured(),
         "access_levels": _access_level_options() if DEV_MODE else [],
     }
 
@@ -135,6 +144,35 @@ async def dev_login_post(body: DevLoginBody):
         vk_id=body.vk_id,
         json_response=True,
     )
+
+
+@router.get("/discord/callback")
+async def discord_callback(code: str | None = None, state: str | None = None):
+    if not code:
+        return _login_redirect("oauth")
+    if state not in _oauth_states:
+        return _login_redirect("oauth")
+    del _oauth_states[state]
+
+    try:
+        user_data = await exchange_code(code)
+    except ValueError:
+        return _login_redirect("oauth")
+
+    discord_id = str(user_data["id"])
+    link = await link_by_discord_id(discord_id)
+    if not link:
+        return _login_redirect("not_linked")
+
+    vk_id = int(link.vk_id)
+    await upsert_discord_profile(link, user_data)
+
+    if not await can_use_ca_scope(vk_id):
+        return _login_redirect("no_access")
+
+    response = RedirectResponse(f"{PANEL_BASE_URL}/dashboard")
+    await set_session_cookie(response, vk_id)
+    return response
 
 
 @router.get("/vk/callback")
@@ -189,10 +227,22 @@ async def logout(response: Response):
     return {"ok": True}
 
 
+def _can_manage_discord_links(user: dict, level: int) -> bool:
+    return level >= 7 or user.get("panel_role") in ("owner", "lead")
+
+
 @router.get("/me")
 async def me(request: Request):
     user = await require_ca_user(request)
     photos = await resolve_vk_photos({user["vk_id"]})
     user["avatar_url"] = photos.get(user["vk_id"]) or "https://vk.com/images/camera_100.png"
     user["can_dev_panel"] = can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0))
+
+    level = int(user.get("access_level") or 0)
+    user["can_manage_discord_links"] = _can_manage_discord_links(user, level)
+
+    link = await DiscordLink.get_or_none(vk_id=user["vk_id"])
+    user["discord_id"] = link.discord_id if link else None
+    user["discord_username"] = link.discord_username if link else None
+    user["discord_display_name"] = link.discord_display_name if link else None
     return user

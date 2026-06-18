@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { api, type StaffMember } from '../api'
+import { api, ApiError, type StaffMember } from '../api'
+import { useAuth } from '../context/AuthContext'
 
-type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
+type SortKey = 'index' | 'nickname' | 'role' | 'sphere' | 'discord'
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
@@ -16,7 +17,82 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   )
 }
 
+function discordLabel(member: StaffMember): string {
+  if (member.discord_display_name) return member.discord_display_name
+  if (member.discord_username) return member.discord_username
+  return member.discord_id ?? ''
+}
+
+function StaffDiscordCell({
+  member,
+  canEdit,
+  onSaved,
+}: {
+  member: StaffMember
+  canEdit: boolean
+  onSaved: (vkId: number, discord_id: string | null) => void
+}) {
+  const [value, setValue] = useState(member.discord_id ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setValue(member.discord_id ?? '')
+  }, [member.discord_id])
+
+  const save = async () => {
+    const trimmed = value.trim()
+    const current = member.discord_id ?? ''
+    if (trimmed === current) return
+
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await api.updateStaffDiscord(member.vk_id, trimmed || null)
+      onSaved(member.vk_id, res.discord_id)
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения'
+      setError(msg)
+      setValue(current)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!canEdit) {
+    if (!member.discord_id) return <span className="staff-discord-empty">—</span>
+    return (
+      <span className="staff-discord-read" title={member.discord_id}>
+        {discordLabel(member)}
+        <span className="staff-discord-id">{member.discord_id}</span>
+      </span>
+    )
+  }
+
+  return (
+    <div className="staff-discord-edit">
+      <input
+        type="text"
+        inputMode="numeric"
+        className="control staff-discord-input"
+        placeholder="Discord ID"
+        value={value}
+        disabled={saving}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur()
+          }
+        }}
+      />
+      {error && <span className="staff-discord-error">{error}</span>}
+    </div>
+  )
+}
+
 export function StaffPage() {
+  const { user } = useAuth()
   const [members, setMembers] = useState<StaffMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
@@ -24,7 +100,9 @@ export function StaffPage() {
   const [sortKey, setSortKey] = useState<SortKey>('index')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
-  useEffect(() => {
+  const canManageDiscord = Boolean(user?.can_manage_discord_links)
+
+  const loadStaff = useCallback(() => {
     setLoading(true)
     api
       .staff({ q: q || undefined })
@@ -34,6 +112,16 @@ export function StaffPage() {
       })
       .finally(() => setLoading(false))
   }, [q])
+
+  useEffect(() => {
+    loadStaff()
+  }, [loadStaff])
+
+  const handleDiscordSaved = (vkId: number, discord_id: string | null) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.vk_id === vkId ? { ...m, discord_id, discord_username: null, discord_display_name: null } : m)),
+    )
+  }
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -64,6 +152,9 @@ export function StaffPage() {
         )
         return ar * dir
       }
+      if (sortKey === 'discord') {
+        return (a.discord_id || '').localeCompare(b.discord_id || '', 'ru') * dir
+      }
       return (a.sphere || '—').localeCompare(b.sphere || '—', 'ru') * dir
     })
 
@@ -75,6 +166,7 @@ export function StaffPage() {
     { key: 'nickname', label: 'Ник', className: 'staff-col-nick' },
     { key: 'role', label: 'Доступ', className: 'staff-col-role' },
     { key: 'sphere', label: 'Сфера', className: 'staff-col-sphere' },
+    { key: 'discord', label: 'Discord', className: 'staff-col-discord' },
   ]
 
   return (
@@ -82,12 +174,15 @@ export function StaffPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Следящие</h1>
-          <p className="page-subtitle">{total} человек в реестре</p>
+          <p className="page-subtitle">
+            {total} человек в реестре
+            {canManageDiscord ? ' · можно редактировать Discord ID' : ''}
+          </p>
         </div>
         <div className="flex gap-2">
           <input
             type="search"
-            placeholder="Поиск по нику или VK ID…"
+            placeholder="Поиск по нику, VK или Discord…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="control w-56"
@@ -142,6 +237,13 @@ export function StaffPage() {
                 </div>
                 <div className="staff-col-role">{m.access_role_title || m.access_level_name}</div>
                 <div className="staff-col-sphere">{m.sphere || '—'}</div>
+                <div className="staff-col-discord">
+                  <StaffDiscordCell
+                    member={m}
+                    canEdit={canManageDiscord}
+                    onSaved={handleDiscordSaved}
+                  />
+                </div>
               </div>
             ))}
           </div>

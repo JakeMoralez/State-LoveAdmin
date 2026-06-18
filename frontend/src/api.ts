@@ -71,6 +71,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ note }),
     }),
+  updateStaffDiscord: (vkId: number, discord_id: string | null) =>
+    request<{ ok: boolean; discord_id: string | null }>(`/staff/${vkId}/discord`, {
+      method: 'PATCH',
+      body: JSON.stringify({ discord_id }),
+    }),
   projects: () => request<{ projects: Project[] }>('/projects'),
   project: (id: number) => request<ProjectDetail>(`/projects/${id}`),
   createProject: (data: { title: string; description?: string }) =>
@@ -215,7 +220,7 @@ export interface AuthConfig {
   dev_mode: boolean
   dev_skip_ca: boolean
   dev_vk_id?: number | null
-  vk_configured: boolean
+  discord_configured: boolean
   access_levels?: { value: number; label: string }[]
 }
 
@@ -231,6 +236,10 @@ export interface UserProfile {
   server_id: number
   dev_persona?: boolean
   can_dev_panel?: boolean
+  can_manage_discord_links?: boolean
+  discord_id?: string | null
+  discord_username?: string | null
+  discord_display_name?: string | null
 }
 
 export interface DevErrorItem {
@@ -276,6 +285,9 @@ export interface StaffMember {
   granted_by: number | null
   granted_at: string | null
   note: string
+  discord_id?: string | null
+  discord_username?: string | null
+  discord_display_name?: string | null
 }
 
 export interface StaffResponse {

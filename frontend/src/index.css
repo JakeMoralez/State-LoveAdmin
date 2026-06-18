@@ -2118,6 +2118,26 @@ body {
     box-shadow: 0 8px 24px rgba(201, 162, 39, 0.38);
   }
 
+  .btn-discord {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    background: #5865f2;
+    color: #fff;
+    border: none;
+    box-shadow: 0 6px 20px rgba(88, 101, 242, 0.35);
+    font-weight: 700;
+  }
+
+  .btn-discord:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: 0 8px 24px rgba(88, 101, 242, 0.45);
+  }
+
+  .btn-discord:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   .login-footer {
     margin: 2rem 0 0;
     padding-top: 1.25rem;
@@ -3436,7 +3456,7 @@ body {
 
   .staff-registry-head {
     display: grid;
-    grid-template-columns: 48px minmax(220px, 1.4fr) minmax(180px, 1fr) minmax(200px, 1.2fr);
+    grid-template-columns: 48px minmax(200px, 1.2fr) minmax(160px, 0.9fr) minmax(160px, 0.9fr) minmax(180px, 1fr);
     gap: 1rem;
     padding: 0 1rem 0.25rem;
     color: rgba(255, 255, 255, 0.45);
@@ -3482,7 +3502,7 @@ body {
 
   .staff-registry-row {
     display: grid;
-    grid-template-columns: 48px minmax(220px, 1.4fr) minmax(180px, 1fr) minmax(200px, 1.2fr);
+    grid-template-columns: 48px minmax(200px, 1.2fr) minmax(160px, 0.9fr) minmax(160px, 0.9fr) minmax(180px, 1fr);
     gap: 1rem;
     align-items: center;
     padding: 0.75rem 1rem;
@@ -3562,6 +3582,47 @@ body {
     color: rgba(255, 255, 255, 0.72);
   }
 
+  .staff-col-discord {
+    min-width: 0;
+    font-size: 0.8125rem;
+  }
+
+  .staff-discord-read {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .staff-discord-id {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.42);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .staff-discord-empty {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .staff-discord-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .staff-discord-input {
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .staff-discord-error {
+    font-size: 0.6875rem;
+    color: #f87171;
+    line-height: 1.3;
+  }
+
   .staff-registry-empty {
     padding: 3rem 1rem;
     text-align: center;
@@ -3578,12 +3639,14 @@ body {
     }
 
     .staff-col-role,
-    .staff-col-sphere {
+    .staff-col-sphere,
+    .staff-col-discord {
       grid-column: 2;
     }
 
     .staff-registry-head .staff-col-role,
-    .staff-registry-head .staff-col-sphere {
+    .staff-registry-head .staff-col-sphere,
+    .staff-registry-head .staff-col-discord {
       display: none;
     }
 
@@ -3594,6 +3657,11 @@ body {
 
     .staff-col-sphere::before {
       content: 'Сфера: ';
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .staff-col-discord::before {
+      content: 'Discord: ';
       color: rgba(255, 255, 255, 0.4);
     }
   }

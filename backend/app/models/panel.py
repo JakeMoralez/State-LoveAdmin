@@ -29,6 +29,18 @@ class PanelAuditLog(Model):
         table = "panel_audit_log"
 
 
+class DiscordLink(Model):
+    vk_id = fields.BigIntField(pk=True)
+    discord_id = fields.CharField(max_length=32, unique=True)
+    discord_username = fields.CharField(max_length=128, null=True)
+    discord_display_name = fields.CharField(max_length=128, null=True)
+    linked_by = fields.BigIntField(null=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "discord_links"
+
+
 class StaffNote(Model):
     id = fields.IntField(pk=True)
     vk_id = fields.BigIntField(index=True)

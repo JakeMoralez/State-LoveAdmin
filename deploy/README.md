@@ -15,9 +15,9 @@ git clone <repo> /opt/State-Love-Admin
 cd /opt/State-Love-Admin
 
 cp .env.example .env
-# Заполнить: VK_APP_*, SESSION_SECRET, BOT_DATABASE_URL, SLED_BOT_SECRET
+# Заполнить: DISCORD_CLIENT_*, SESSION_SECRET, BOT_DATABASE_URL, SLED_BOT_SECRET
 # PANEL_BASE_URL=https://love.vlesnix.site
-# VK_REDIRECT_URI=https://love.vlesnix.site/api/auth/vk/callback
+# DISCORD_REDIRECT_URI=https://love.vlesnix.site/api/auth/discord/callback
 
 cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 cd ../frontend && npm ci && npm run build

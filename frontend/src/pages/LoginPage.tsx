@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { BrandLogo } from '../components/BrandLogo'
 import { Select } from '../components/ui/Select'
 import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLevels'
+
+const LOGIN_ERRORS: Record<string, string> = {
+  not_linked:
+    'Этот Discord не привязан к аккаунту следящего. Попросите ЗГС ЦА+ указать ваш Discord ID в реестре.',
+  no_access: 'У привязанного аккаунта нет доступа ЦА.',
+  oauth: 'Не удалось войти через Discord. Попробуйте ещё раз.',
+}
 
 function formatAuthError(message: string): string {
   const m = message.toLowerCase()
@@ -20,14 +27,23 @@ function formatAuthError(message: string): string {
 export function LoginPage() {
   const { user, loading, error, refresh } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [devMode, setDevMode] = useState(false)
   const [devSkipCa, setDevSkipCa] = useState(false)
+  const [discordConfigured, setDiscordConfigured] = useState(false)
   const [devVkId, setDevVkId] = useState('')
   const [accessLevel, setAccessLevel] = useState('10')
   const [hasCaAccess, setHasCaAccess] = useState(true)
   const [levelOptions, setLevelOptions] = useState(ACCESS_LEVEL_OPTIONS)
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error')
+    if (oauthError && LOGIN_ERRORS[oauthError]) {
+      setLocalError(LOGIN_ERRORS[oauthError])
+    }
+  }, [searchParams])
 
   useEffect(() => {
     api
@@ -35,6 +51,7 @@ export function LoginPage() {
       .then((cfg) => {
         setDevMode(cfg.dev_mode)
         setDevSkipCa(cfg.dev_skip_ca)
+        setDiscordConfigured(cfg.discord_configured)
         if (cfg.dev_vk_id) setDevVkId(String(cfg.dev_vk_id))
         setLevelOptions(mergeAccessLevelOptions(cfg.access_levels))
         const dev = (cfg.access_levels ?? []).find((l) => l.value === 10)
@@ -67,12 +84,12 @@ export function LoginPage() {
     }
   }
 
-  const handleVkLogin = () => {
+  const handleDiscordLogin = () => {
     if (devMode) {
       void handleDevLogin()
       return
     }
-    window.location.href = '/api/auth/vk'
+    window.location.href = '/api/auth/discord'
   }
 
   if (loading) {
@@ -86,6 +103,7 @@ export function LoginPage() {
   if (user) return <Navigate to="/dashboard" replace />
 
   const showError = localError || (error ? formatAuthError(error) : null)
+  const canLogin = devMode || discordConfigured
 
   return (
     <div className="login-shell">
@@ -136,9 +154,17 @@ export function LoginPage() {
         )}
 
         <div className="flex flex-col gap-2">
-          <button type="button" onClick={handleVkLogin} disabled={busy} className="btn btn-vk">
-            {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через ВКонтакте'}
+          <button
+            type="button"
+            onClick={handleDiscordLogin}
+            disabled={busy || !canLogin}
+            className="btn btn-discord"
+          >
+            {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через Discord'}
           </button>
+          {!devMode && !discordConfigured && (
+            <p className="login-dev-hint">Discord OAuth не настроен на сервере.</p>
+          )}
         </div>
 
         {showError && (
@@ -147,7 +173,9 @@ export function LoginPage() {
           </p>
         )}
 
-        <p className="login-footer">Нет доступа? Обратитесь к ЗГС ЦА+</p>
+        <p className="login-footer">
+          Нет доступа? Обратитесь к ЗГС ЦА+ — привяжут ваш Discord ID к аккаунту.
+        </p>
       </div>
     </div>
   )

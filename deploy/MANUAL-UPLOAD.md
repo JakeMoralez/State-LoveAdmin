@@ -37,9 +37,9 @@ nano .env
 
 ```env
 PANEL_BASE_URL=https://love.vlesnix.site
-VK_REDIRECT_URI=https://love.vlesnix.site/api/auth/vk/callback
-VK_APP_ID=...
-VK_APP_SECRET=...
+DISCORD_REDIRECT_URI=https://love.vlesnix.site/api/auth/discord/callback
+DISCORD_CLIENT_ID=...
+DISCORD_CLIENT_SECRET=...
 SESSION_SECRET=<случайная длинная строка>
 
 BOT_DATABASE_URL=sqlite:////opt/State-LoveBot/bot.db
@@ -93,8 +93,10 @@ curl -s https://love.vlesnix.site/api/health
 systemctl status state-love-admin
 ```
 
-VK: в настройках приложения redirect URI  
-`https://love.vlesnix.site/api/auth/vk/callback`
+Discord Developer Portal → OAuth2 → Redirects:  
+`https://love.vlesnix.site/api/auth/discord/callback`
+
+После деплоя в разделе **Следящие** (уровень 7+) привяжите Discord ID каждому аккаунту.
 
 ---
 

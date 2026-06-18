@@ -33,6 +33,13 @@ VK_REDIRECT_URI: str = os.getenv(
     f"{PANEL_BASE_URL.rstrip('/')}/api/auth/vk/callback",
 )
 
+DISCORD_CLIENT_ID: str = os.getenv("DISCORD_CLIENT_ID", "")
+DISCORD_CLIENT_SECRET: str = os.getenv("DISCORD_CLIENT_SECRET", "")
+DISCORD_REDIRECT_URI: str = os.getenv(
+    "DISCORD_REDIRECT_URI",
+    f"{PANEL_BASE_URL.rstrip('/')}/api/auth/discord/callback",
+)
+
 SESSION_SECRET: str = os.getenv("SESSION_SECRET", "change-me-in-production")
 SESSION_TTL_HOURS: int = int(os.getenv("SESSION_TTL_HOURS", "24"))
 SESSION_COOKIE_NAME: str = "sled_session"
