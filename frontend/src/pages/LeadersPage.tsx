@@ -82,7 +82,7 @@ export function LeadersPage() {
             Лидеры
           </h1>
           <p className="page-subtitle">
-            {total} человек в беседе «Руководство ЦА» · без следящих
+            {total} лидеров в реестре · без следящих · из БД бота
           </p>
         </div>
         <div className="flex gap-2">

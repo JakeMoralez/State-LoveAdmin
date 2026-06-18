@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from tortoise.expressions import Q
 
-from app.config import CA_LEADERSHIP_PEER_ID
 from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
-from app.services.sled_client import fetch_chat_members
 
 LEADER_ROLE = "leader"
 
@@ -164,6 +162,8 @@ def is_supervisor(level: int, access: UserServerAccess | None) -> bool:
 
 
 async def get_leadership_peer_id(server_id: int) -> int | None:
+    from app.config import CA_LEADERSHIP_PEER_ID
+
     if CA_LEADERSHIP_PEER_ID:
         return CA_LEADERSHIP_PEER_ID
     chat = await RoleChat.get_or_none(server_id=server_id, role=LEADER_ROLE)
@@ -172,19 +172,11 @@ async def get_leadership_peer_id(server_id: int) -> int | None:
 
 async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
     peer_id = await get_leadership_peer_id(server_id)
+    warning: str | None = None
     if not peer_id:
-        return [], (
-            "Беседа «Руководство ЦА» не привязана. "
-            "В конференции VK выполните /regrole leader."
-        )
-
-    member_ids, fetch_err = await fetch_chat_members(peer_id)
-    if fetch_err:
-        return [], fetch_err
-    if not member_ids:
-        return [], (
-            "Участники беседы не получены — проверьте VK_USER_TOKEN у бота "
-            "и что бот состоит в конференции «Руководство ЦА»."
+        warning = (
+            "Беседа «Руководство ЦА» не привязана — выполните /regrole leader в конференции. "
+            "Показаны лидеры из БД (флаг при входе в беседу)."
         )
 
     notes = {
@@ -192,19 +184,22 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
         for n in await StaffNote.filter(server_id=server_id)
     }
 
+    rows = await UserServerAccess.filter(
+        server_id=server_id,
+        is_leader=True,
+    ).prefetch_related("user")
+
     result: list[dict] = []
-    for vk_id in member_ids:
-        user = await User.get_or_none(vk_id=vk_id)
-        access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    for access in rows:
+        user = access.user
+        vk_id = user.vk_id
         level = await get_access_level(vk_id, server_id)
         if is_supervisor(level, access):
             continue
 
-        nickname = (access.nickname if access and access.nickname else None) or (
-            user.nickname if user else None
-        ) or (user.username if user else None) or str(vk_id)
+        nickname = (access.nickname or user.nickname or user.username or str(vk_id))
         panel_note = notes.get((vk_id, server_id), "")
-        user_note = (user.note if user else None) or ""
+        user_note = (user.note or "").strip()
         faction = (panel_note or user_note).strip() or None
 
         result.append(
@@ -214,9 +209,16 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
                 "display_name": nickname,
                 "faction": faction,
                 "note": panel_note,
-                "is_leader_flag": bool(access and access.is_leader),
+                "is_leader_flag": True,
             }
         )
 
     result.sort(key=lambda r: r["nickname"].lower())
-    return result, None
+
+    if not result and not warning:
+        warning = (
+            "Лидеров пока нет. При входе в беседу «Руководство ЦА» бот автоматически "
+            "ставит флаг лидера (нужен /regrole leader в беседе)."
+        )
+
+    return result, warning
