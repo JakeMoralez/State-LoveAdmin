@@ -1,0 +1,16 @@
+[Unit]
+Description=State Love Admin Panel API
+After=network.target state-lovebot.service
+
+[Service]
+Type=simple
+User=lovebot
+Group=lovebot
+WorkingDirectory=/opt/State-Love-Admin/backend
+EnvironmentFile=/opt/State-Love-Admin/.env
+ExecStart=/opt/State-Love-Admin/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

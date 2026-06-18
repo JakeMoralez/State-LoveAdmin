@@ -1,0 +1,152 @@
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { api, type StaffMember } from '../api'
+
+type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
+type SortDir = 'asc' | 'desc'
+
+const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) return <ArrowUpDown size={14} className="staff-sort-icon staff-sort-icon--idle" />
+  return dir === 'asc' ? (
+    <ArrowUp size={14} className="staff-sort-icon" />
+  ) : (
+    <ArrowDown size={14} className="staff-sort-icon" />
+  )
+}
+
+export function StaffPage() {
+  const [members, setMembers] = useState<StaffMember[]>([])
+  const [total, setTotal] = useState(0)
+  const [q, setQ] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<SortKey>('index')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  useEffect(() => {
+    setLoading(true)
+    api
+      .staff({ q: q || undefined })
+      .then((res) => {
+        setMembers(res.members)
+        setTotal(res.total)
+      })
+      .finally(() => setLoading(false))
+  }, [q])
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir(key === 'index' ? 'asc' : 'asc')
+    }
+  }
+
+  const sorted = useMemo(() => {
+    const list = [...members]
+    const dir = sortDir === 'asc' ? 1 : -1
+
+    list.sort((a, b) => {
+      if (sortKey === 'index') {
+        const lvl = b.access_level - a.access_level
+        if (lvl !== 0) return lvl * dir
+        return (a.display_name || a.nickname).localeCompare(b.display_name || b.nickname, 'ru') * dir
+      }
+      if (sortKey === 'nickname') {
+        return (a.display_name || a.nickname).localeCompare(b.display_name || b.nickname, 'ru') * dir
+      }
+      if (sortKey === 'role') {
+        const ar = (a.access_role_title || a.access_level_name).localeCompare(
+          b.access_role_title || b.access_level_name,
+          'ru',
+        )
+        return ar * dir
+      }
+      return (a.sphere || '—').localeCompare(b.sphere || '—', 'ru') * dir
+    })
+
+    return list
+  }, [members, sortKey, sortDir])
+
+  const columns: { key: SortKey; label: string; className: string }[] = [
+    { key: 'index', label: '#', className: 'staff-col-num' },
+    { key: 'nickname', label: 'Ник', className: 'staff-col-nick' },
+    { key: 'role', label: 'Доступ', className: 'staff-col-role' },
+    { key: 'sphere', label: 'Сфера', className: 'staff-col-sphere' },
+  ]
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Следящие</h1>
+          <p className="page-subtitle">{total} человек в реестре</p>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="search"
+            placeholder="Поиск по нику или VK ID…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            className="control w-56"
+          />
+        </div>
+      </div>
+
+      <div className="staff-registry">
+        <div className="staff-registry-head">
+          {columns.map((col) => (
+            <button
+              key={col.key}
+              type="button"
+              className={`staff-registry-th ${col.className}`}
+              onClick={() => toggleSort(col.key)}
+            >
+              <span>{col.label}</span>
+              <SortIcon active={sortKey === col.key} dir={sortDir} />
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="staff-registry-empty">Загрузка…</div>
+        ) : sorted.length === 0 ? (
+          <div className="staff-registry-empty">Никого не найдено</div>
+        ) : (
+          <div className="staff-registry-body ll-scroll">
+            {sorted.map((m, i) => (
+              <div key={m.vk_id} className="staff-registry-row">
+                <div className="staff-col-num">{sortKey === 'index' ? i + 1 : i + 1}</div>
+                <div className="staff-col-nick">
+                  <span className="staff-avatar-wrap">
+                    <img
+                      src={m.avatar_url || DEFAULT_AVATAR}
+                      alt=""
+                      className="staff-avatar"
+                      loading="lazy"
+                    />
+                  </span>
+                  <a
+                    href={`https://vk.com/id${m.vk_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="staff-nick link-gold"
+                  >
+                    {m.display_name || m.nickname}
+                  </a>
+                  {m.badges.length > 0 && (
+                    <span className="staff-badges">{m.badges.join(' ')}</span>
+                  )}
+                </div>
+                <div className="staff-col-role">{m.access_role_title || m.access_level_name}</div>
+                <div className="staff-col-sphere">{m.sphere || '—'}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

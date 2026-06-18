@@ -1,0 +1,73 @@
+# Deploy: love.vlesnix.site
+
+## Требования
+
+- VPS с nginx, certbot, Python 3.11+, Node 20+
+- State-LoveBot запущен с `SLED_BOT_SECRET` и internal API на `127.0.0.1:8081`
+- DNS: `love.vlesnix.site` → IP VPS
+
+## Установка
+
+```bash
+sudo mkdir -p /opt/State-Love-Admin
+sudo chown $USER:$USER /opt/State-Love-Admin
+git clone <repo> /opt/State-Love-Admin
+cd /opt/State-Love-Admin
+
+cp .env.example .env
+# Заполнить: VK_APP_*, SESSION_SECRET, BOT_DATABASE_URL, SLED_BOT_SECRET
+# PANEL_BASE_URL=https://love.vlesnix.site
+# VK_REDIRECT_URI=https://love.vlesnix.site/api/auth/vk/callback
+
+cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
+cd ../frontend && npm ci && npm run build
+
+sudo cp deploy/nginx-love.conf /etc/nginx/sites-available/love.vlesnix.site
+sudo ln -sf /etc/nginx/sites-available/love.vlesnix.site /etc/nginx/sites-enabled/
+sudo certbot --nginx -d love.vlesnix.site
+
+sudo cp deploy/state-love-admin.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now state-love-admin
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+## Проверка
+
+```bash
+curl -s https://love.vlesnix.site/api/health
+systemctl status state-love-admin
+```
+
+## Обновление
+
+```bash
+cd /opt/State-Love-Admin
+git pull
+cd frontend && npm ci && npm run build
+cd ../backend && ./venv/bin/pip install -r requirements.txt
+sudo systemctl restart state-love-admin
+```
+
+## Docker (локально / тест)
+
+```bash
+cp .env.example .env
+# поправить BOT_DATABASE_URL и пути
+
+docker compose up -d --build
+# UI: http://localhost:8080  API: http://localhost:8000
+```
+
+## Раздел разработчика
+
+В `.env` на проде:
+
+```
+DEV_MODE=false
+MAIN_ADMIN_ID=<ваш vk_id>
+# или DEV_PANEL_VK_IDS=123,456
+```
+
+В сайдбаре появится **Разработка → Лог ошибок**: клиентские JS-ошибки, 500 API и падения React.
+Хранится до `DEV_ERROR_RETENTION` записей (по умолчанию 500).

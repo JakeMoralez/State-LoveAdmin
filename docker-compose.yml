@@ -1,0 +1,26 @@
+services:
+  panel-api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ../State-LoveBot/bot.db:/bot/bot.db:ro
+    environment:
+      BOT_DATABASE_URL: sqlite:////bot/bot.db
+      PANEL_DATABASE_URL: sqlite:////app/data/panel.db
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  panel-web:
+    image: nginx:alpine
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./deploy/nginx-docker.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - panel-api
+    restart: unless-stopped

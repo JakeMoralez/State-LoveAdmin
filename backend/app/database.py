@@ -1,0 +1,21 @@
+"""Database lifecycle."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from tortoise import Tortoise
+
+from app.config import PANEL_DATABASE_URL, TORTOISE_ORM
+
+
+async def init_db() -> None:
+    db_path = PANEL_DATABASE_URL.replace("sqlite://", "")
+    if db_path and not db_path.startswith(":"):
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    await Tortoise.init(config=TORTOISE_ORM)
+    await Tortoise.generate_schemas(safe=True)
+
+
+async def close_db() -> None:
+    await Tortoise.close_connections()
