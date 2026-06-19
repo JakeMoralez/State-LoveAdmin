@@ -172,7 +172,7 @@ export function TaskDrawer({
     return (
       <div className="fixed inset-0 z-50 flex justify-end">
         <div className="absolute inset-0 bg-black/50 overlay-backdrop" onClick={onClose} />
-        <div className="drawer-panel items-center justify-center text-white/40">Загрузка…</div>
+        <div className="drawer-panel items-center justify-center page-loading">Загрузка…</div>
       </div>
     )
   }

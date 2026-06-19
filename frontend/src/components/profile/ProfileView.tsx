@@ -123,7 +123,7 @@ export function ProfileView({
   ]
 
   return (
-    <div className="profile-page page-enter--stagger max-w-3xl">
+    <div className="profile-page w-full min-w-0">
       <div className="page-header">
         <div>
           {backTo && (
@@ -176,17 +176,17 @@ export function ProfileView({
               ))}
               {profile.dev_persona && <span className="badge-pill">dev</span>}
             </div>
+          </div>
 
-            <div className="profile-actions">
-              <a href={vkUrl} target="_blank" rel="noreferrer" className="btn btn-gold btn-sm no-underline">
-                <ExternalLink size={14} />
-                Открыть VK
-              </a>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyVkId()}>
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? 'Скопировано' : 'VK ID'}
-              </button>
-            </div>
+          <div className="profile-actions">
+            <a href={vkUrl} target="_blank" rel="noreferrer" className="btn btn-gold btn-sm no-underline">
+              <ExternalLink size={14} />
+              Открыть VK
+            </a>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyVkId()}>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? 'Скопировано' : 'VK ID'}
+            </button>
           </div>
         </div>
       </section>

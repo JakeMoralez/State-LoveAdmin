@@ -132,10 +132,10 @@ export function StaffProfileModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+    <div className="modal-viewport fixed inset-0 z-[130] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/55 overlay-backdrop" onClick={onClose} />
       <div
-        className="glass-card staff-profile-modal modal-pop relative z-10 flex max-h-[90vh] w-full max-w-md flex-col"
+        className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-md flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
@@ -307,7 +307,7 @@ export function StaffProfileModal({
           )}
         </div>
 
-        <div className="flex flex-wrap justify-end gap-2 border-t border-white/[0.06] px-6 py-4">
+        <div className="staff-profile-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
             {hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
           </button>

@@ -21,6 +21,16 @@ import { cn } from '../lib/utils'
 
 const KANBAN_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done']
 
+const TASKS_VIEW_KEY = 'sl-tasks-view'
+
+function getInitialTaskView(): 'kanban' | 'list' {
+  if (typeof window === 'undefined') return 'kanban'
+  const saved = sessionStorage.getItem(TASKS_VIEW_KEY)
+  if (saved === 'kanban' || saved === 'list') return saved
+  if (window.matchMedia('(max-width: 767px)').matches) return 'list'
+  return 'kanban'
+}
+
 interface TasksWorkspaceProps {
   projectId?: number
   title?: string
@@ -38,13 +48,13 @@ export function TasksWorkspace({
 }: TasksWorkspaceProps) {
   const navigate = useNavigate()
 
-  const [filters, setFilters] = useState<TaskFilters>({
+  const [filters, setFilters] = useState<TaskFilters>(() => ({
     mine: false,
     assigneeVkId: '',
     priority: '',
     projectId: projectId ? String(projectId) : '',
-    view: 'kanban',
-  })
+    view: getInitialTaskView(),
+  }))
   const [listTasks, setListTasks] = useState<TaskDetail[]>([])
   const [columns, setColumns] = useState<Record<string, TaskDetail[]>>({})
   const [staff, setStaff] = useState<StaffMember[]>([])
@@ -190,13 +200,13 @@ export function TasksWorkspace({
   }
 
   return (
-    <div className={`${filters.view === 'kanban' ? 'content-fixed' : ''}`}>
-      <div className="page-header shrink-0">
+    <div className={filters.view === 'kanban' ? 'content-fixed' : ''}>
+      <div className="page-header tasks-page-header shrink-0">
         <div>
           <h1 className="page-title">{title}</h1>
           {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
-        <button type="button" onClick={() => setCreateOpen(true)} className="btn btn-gold">
+        <button type="button" onClick={() => setCreateOpen(true)} className="btn btn-gold tasks-page-create">
           <Plus size={16} />
           Задача
         </button>
@@ -204,12 +214,19 @@ export function TasksWorkspace({
 
       <TasksToolbar
         filters={filters}
-        onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+        onChange={(patch) => {
+          setFilters((f) => {
+            const next = { ...f, ...patch }
+            if (patch.view) sessionStorage.setItem(TASKS_VIEW_KEY, patch.view)
+            return next
+          })
+        }}
         staff={staff}
         projects={projects}
         shown={allTasks.length}
         total={allTasks.length}
         hideProjectFilter={projectId != null}
+        onCreate={() => setCreateOpen(true)}
       />
 
       {selectedIds.size > 0 && filters.view === 'kanban' && (
@@ -223,7 +240,7 @@ export function TasksWorkspace({
       )}
 
       {loading ? (
-        <div className="text-white/40 py-8">Загрузка…</div>
+        <div className="page-loading">Загрузка…</div>
       ) : filters.view === 'list' ? (
         <div className="flex flex-col gap-2">
           {listTasks.length === 0 ? (
@@ -233,7 +250,11 @@ export function TasksWorkspace({
           )}
         </div>
       ) : (
-        <DndContext
+        <>
+          <p className="kanban-scroll-hint" aria-hidden>
+            Листайте колонки →
+          </p>
+          <DndContext
           sensors={sensors}
           collisionDetection={rectIntersection}
           onDragStart={(e) => setActiveId(Number(e.active.id))}
@@ -253,6 +274,7 @@ export function TasksWorkspace({
           </div>
           <DragOverlay>{activeTask ? <TaskCardPreview task={activeTask} /> : null}</DragOverlay>
         </DndContext>
+        </>
       )}
 
       <TaskCreateModal

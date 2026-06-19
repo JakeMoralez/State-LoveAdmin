@@ -160,7 +160,7 @@ export function TaskListRow({ task, onSelect }: { task: TaskDetail; onSelect: (t
     <button
       type="button"
       onClick={() => onSelect(task)}
-      className="glass-card p-4 w-full text-left text-white hover:bg-white/[0.02] border-0 cursor-pointer flex justify-between items-center gap-4"
+      className="task-list-row glass-card p-4 w-full text-left text-white hover:bg-white/[0.02] border-0 cursor-pointer flex justify-between items-center gap-4"
     >
       <div className="min-w-0">
         <div className="font-medium text-sm truncate">{task.title}</div>

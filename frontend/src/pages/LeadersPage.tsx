@@ -98,13 +98,13 @@ export function LeadersPage() {
           </h1>
           <p className="page-subtitle">{total} в реестре · ник — профиль, ⚙ — настройки</p>
         </div>
-        <div className="flex gap-2">
+        <div className="page-header-actions w-full max-w-sm">
           <input
             type="search"
             placeholder="Поиск по нику, должности или заметке…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="control w-56"
+            className="control w-full"
           />
         </div>
       </div>
@@ -131,7 +131,7 @@ export function LeadersPage() {
         </div>
 
         {loading ? (
-          <div className="staff-registry-empty">Загрузка…</div>
+          <div className="staff-registry-empty page-loading">Загрузка…</div>
         ) : sorted.length === 0 ? (
           <div className="staff-registry-empty">Никого не найдено</div>
         ) : (

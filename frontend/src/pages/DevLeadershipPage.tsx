@@ -66,7 +66,7 @@ export function DevLeadershipPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 page-enter">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-[var(--accent-gold)] mb-1">
@@ -90,7 +90,7 @@ export function DevLeadershipPage() {
           placeholder="Поиск по нику или VK…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="control w-72"
+          className="control w-full max-w-sm"
         />
         <label className="ui-checkbox-label text-sm text-white/55">
           <input
@@ -114,7 +114,7 @@ export function DevLeadershipPage() {
         </div>
 
         {loading && visible.length === 0 ? (
-          <div className="staff-registry-empty">Загрузка…</div>
+          <div className="staff-registry-empty page-loading">Загрузка…</div>
         ) : visible.length === 0 ? (
           <div className="staff-registry-empty">Никого не найдено</div>
         ) : (

@@ -9,7 +9,7 @@ export function DashboardPage() {
     api.dashboard().then(setData)
   }, [])
 
-  if (!data) return <div className="text-white/40">Загрузка…</div>
+  if (!data) return <div className="page-loading">Загрузка…</div>
 
   const cards = [
     { label: 'Мои открытые задачи', value: data.my_open_tasks, to: '/tasks?mine=1', warn: false },
@@ -19,7 +19,7 @@ export function DashboardPage() {
   ]
 
   return (
-    <div className="page-enter--stagger">
+    <div>
       <div className="page-header">
         <div>
           <div className="text-sm text-white/35">State Love</div>
@@ -27,7 +27,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8 page-enter--stagger">
         {cards.map((c) => (
           <Link
             key={c.label}

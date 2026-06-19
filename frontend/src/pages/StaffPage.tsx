@@ -108,13 +108,13 @@ export function StaffPage() {
             {total} человек в реестре · ник — профиль, ⚙ — настройки
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="page-header-actions w-full max-w-sm">
           <input
             type="search"
             placeholder="Поиск по нику, VK или Discord…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="control w-56"
+            className="control w-full"
           />
         </div>
       </div>
@@ -141,7 +141,7 @@ export function StaffPage() {
         </div>
 
         {loading ? (
-          <div className="staff-registry-empty">Загрузка…</div>
+          <div className="staff-registry-empty page-loading">Загрузка…</div>
         ) : sorted.length === 0 ? (
           <div className="staff-registry-empty">Никого не найдено</div>
         ) : (

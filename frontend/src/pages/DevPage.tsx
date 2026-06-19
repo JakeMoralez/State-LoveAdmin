@@ -53,7 +53,7 @@ export function DevPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 page-enter">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-[var(--accent-gold)] mb-1">
@@ -95,7 +95,7 @@ export function DevPage() {
 
       <div className="dev-log-list">
         {loading && items.length === 0 ? (
-          <div className="text-white/35 text-sm py-12 text-center">Загрузка…</div>
+          <div className="page-loading text-center py-12">Загрузка…</div>
         ) : items.length === 0 ? (
           <div className="text-white/35 text-sm py-12 text-center">Ошибок пока нет</div>
         ) : (

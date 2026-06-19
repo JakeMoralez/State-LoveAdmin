@@ -90,10 +90,10 @@ export function TaskCreateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="modal-viewport fixed inset-0 z-[120] flex items-center justify-center p-4">
       <div className="absolute inset-0 cursor-pointer bg-black/55 overlay-backdrop" onClick={onClose} />
       <div
-        className="glass-card modal-pop relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col shadow-2xl"
+        className="glass-card task-create-modal modal-pop relative z-10 flex w-full max-w-lg flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 p-6 pb-4">

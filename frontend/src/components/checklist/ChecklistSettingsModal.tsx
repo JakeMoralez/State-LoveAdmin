@@ -179,10 +179,10 @@ export function ChecklistSettingsModal({
   if (manageOnly && !loading && !canManage) return null
 
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
+    <div className="modal-viewport fixed inset-0 z-[130] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/55 overlay-backdrop" onClick={onClose} />
       <div
-        className="glass-card checklist-settings modal-pop relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col"
+        className="glass-card checklist-settings modal-pop relative z-10 flex w-full max-w-2xl flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">

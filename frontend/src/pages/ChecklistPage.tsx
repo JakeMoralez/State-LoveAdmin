@@ -190,7 +190,7 @@ export function ChecklistPage() {
       </div>
 
       {loading ? (
-        <div className="text-white/40">Загрузка…</div>
+        <div className="page-loading">Загрузка…</div>
       ) : error ? (
         <div className="glass-card p-6 max-w-lg">
           <p className="text-red-400 mb-3">{error}</p>
