@@ -25,3 +25,11 @@ async def ensure_defaults() -> None:
         await conn.execute_query("ALTER TABLE checklist_cells ADD COLUMN proof_urls JSON DEFAULT '[]'")
     if not await _column_exists("checklist_cells", "proof_video_url"):
         await conn.execute_query("ALTER TABLE checklist_cells ADD COLUMN proof_video_url VARCHAR(1024) NULL")
+    if not await _column_exists("staff_notes", "leader_position"):
+        await conn.execute_query(
+            "ALTER TABLE staff_notes ADD COLUMN leader_position TEXT NOT NULL DEFAULT ''"
+        )
+    if not await _column_exists("staff_notes", "leader_note"):
+        await conn.execute_query(
+            "ALTER TABLE staff_notes ADD COLUMN leader_note TEXT NOT NULL DEFAULT ''"
+        )
