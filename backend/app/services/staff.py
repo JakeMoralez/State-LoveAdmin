@@ -7,7 +7,7 @@ from tortoise.expressions import Q
 from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
-from app.services.display_names import invalidate_display_names
+from app.services.display_names import invalidate_display_names, resolve_bot_nickname
 
 LEADER_ROLE = "leader"
 
@@ -126,12 +126,15 @@ async def list_staff(server_id: int) -> list[dict]:
         if access and (access.is_judge or access.is_congress_speaker or access.is_leader):
             continue
         eff_level = max(level, await get_access_level(user.vk_id, server_id))
-        nickname = (access.nickname if access and access.nickname else None) or user.nickname
+        nickname = await resolve_bot_nickname(
+            user.vk_id, server_id, access=access, user=user
+        )
         display = nickname or user.username or str(user.vk_id)
         panel_note = notes.get((user.vk_id, server_id), "")
         result.append(
             {
                 "vk_id": user.vk_id,
+                "bot_nickname": nickname,
                 "nickname": nickname or user.username or str(user.vk_id),
                 "display_name": display,
                 "username": user.username,
@@ -209,7 +212,8 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
         if is_supervisor(level, access):
             continue
 
-        nickname = (access.nickname or user.nickname or user.username or str(vk_id))
+        bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+        nickname = bot_nickname or user.username or str(vk_id)
         panel = notes.get((vk_id, server_id))
         user_note = (user.note or "").strip()
         position, note = leader_registry_fields(panel, user_note)
@@ -217,6 +221,7 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
         result.append(
             {
                 "vk_id": vk_id,
+                "bot_nickname": bot_nickname,
                 "nickname": nickname,
                 "display_name": nickname,
                 "username": user.username,
@@ -247,10 +252,12 @@ async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
     panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
     user_note = (user.note or "").strip()
     position, note = leader_registry_fields(panel, user_note)
-    nickname = access.nickname or user.nickname or user.username or str(vk_id)
+    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    nickname = bot_nickname or user.username or str(vk_id)
 
     return {
         "vk_id": vk_id,
+        "bot_nickname": bot_nickname,
         "nickname": nickname,
         "display_name": nickname,
         "username": user.username,
@@ -310,7 +317,8 @@ async def set_ca_leader(
         note_row.updated_by = updated_by
         await note_row.save()
 
-    nickname = access.nickname or user.nickname or user.username or str(vk_id)
+    nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    nickname = nickname or user.username or str(vk_id)
     panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
     user_note = (user.note or "").strip()
     leader_position, leader_note = leader_registry_fields(panel, user_note)
@@ -335,18 +343,48 @@ async def remove_ca_leader(server_id: int, vk_id: int) -> bool:
     return True
 
 
-async def clear_member_nickname(server_id: int, vk_id: int) -> None:
-    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if access:
-        access.nickname = None
-        await access.save()
-
+async def _persist_member_nickname(
+    vk_id: int,
+    server_id: int,
+    nickname: str | None,
+) -> None:
+    """Записать ник на server_id и синхронизировать на все серверы + users.nickname."""
     user = await User.get_or_none(vk_id=vk_id)
-    if user:
-        user.nickname = None
-        await user.save()
+    if not user:
+        raise ValueError("Пользователь не найден")
 
+    nick = nickname.strip() if nickname else ""
+    value = nick or None
+
+    if nick:
+        if len(nick) > 64:
+            raise ValueError("Ник слишком длинный (макс. 64)")
+        taken = await UserServerAccess.filter(
+            server_id=server_id,
+            nickname__iexact=nick,
+        ).exclude(user_id=vk_id).exists()
+        if taken:
+            raise ValueError("Этот ник уже занят")
+
+    access, _ = await UserServerAccess.get_or_create(
+        user_id=vk_id,
+        server_id=server_id,
+        defaults={"access_level": 0},
+    )
+    access.nickname = value
+    await access.save()
+
+    for row in await UserServerAccess.filter(user_id=vk_id).exclude(id=access.id):
+        row.nickname = value
+        await row.save()
+
+    user.nickname = value
+    await user.save()
     invalidate_display_names(vk_id)
+
+
+async def clear_member_nickname(server_id: int, vk_id: int) -> None:
+    await _persist_member_nickname(vk_id, server_id, "")
 
 
 async def clear_ca_leader_nickname(server_id: int, vk_id: int) -> None:
@@ -432,9 +470,8 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
         if is_supervisor(level, access):
             continue
 
-        nickname = (access.nickname if access and access.nickname else None) or (
-            user.nickname or user.username or str(user.vk_id)
-        )
+        nickname = await resolve_bot_nickname(user.vk_id, server_id, access=access, user=user)
+        nickname = nickname or user.username or str(user.vk_id)
         panel = notes.get((user.vk_id, server_id))
         user_note = (user.note or "").strip()
         position, note = leader_registry_fields(panel, user_note)
@@ -511,23 +548,7 @@ async def update_staff_member(
     )
 
     if nickname is not None:
-        nick = nickname.strip()
-        if not nick:
-            access.nickname = None
-            user.nickname = None
-            await user.save()
-        else:
-            if len(nick) > 64:
-                raise ValueError("Ник слишком длинный (макс. 64)")
-            taken = await UserServerAccess.filter(
-                server_id=server_id,
-                nickname__iexact=nick,
-            ).exclude(user_id=vk_id).exists()
-            if taken:
-                raise ValueError("Этот ник уже занят")
-            access.nickname = nick
-        await access.save()
-        invalidate_display_names(vk_id)
+        await _persist_member_nickname(vk_id, server_id, nickname)
 
     if access_level is not None:
         access.access_level = access_level

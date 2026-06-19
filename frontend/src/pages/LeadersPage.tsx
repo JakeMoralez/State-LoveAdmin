@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type LeaderMember, type LeaderMemberDetail } from '../api'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
+import { staffLabel } from '../lib/staff'
 
 type SortKey = 'index' | 'nickname' | 'position'
 type SortDir = 'asc' | 'desc'
@@ -59,7 +60,7 @@ export function LeadersPage() {
 
     list.sort((a, b) => {
       if (sortKey === 'index' || sortKey === 'nickname') {
-        return (a.display_name || a.nickname).localeCompare(b.display_name || b.nickname, 'ru') * dir
+        return staffLabel(a).localeCompare(staffLabel(b), 'ru') * dir
       }
       return (a.position || '—').localeCompare(b.position || '—', 'ru') * dir
     })
@@ -152,13 +153,13 @@ export function LeadersPage() {
                     to={`/leaders/${m.vk_id}`}
                     className="staff-nick staff-nick-btn link-gold no-underline"
                   >
-                    {m.display_name || m.nickname}
+                    {staffLabel(m)}
                   </Link>
                   <button
                     type="button"
                     className="staff-settings-btn"
                     title="Настройки"
-                    aria-label={`Настройки: ${m.display_name || m.nickname}`}
+                    aria-label={`Настройки: ${staffLabel(m)}`}
                     disabled={settingsLoadingVkId === m.vk_id}
                     onClick={() => void openSettings(m)}
                   >

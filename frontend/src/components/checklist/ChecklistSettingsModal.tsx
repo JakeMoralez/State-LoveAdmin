@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, Plus, Trash2, User, Users, X } from 'lucide-react'
 import { ApiError, api, type ChecklistSettings } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import { ModalViewport } from '../ui/ModalViewport'
 
 interface ChecklistSettingsModalProps {
   open: boolean
@@ -179,8 +180,7 @@ export function ChecklistSettingsModal({
   if (manageOnly && !loading && !canManage) return null
 
   return (
-    <div className="modal-viewport fixed inset-0 z-[130] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/55 overlay-backdrop" onClick={onClose} />
+    <ModalViewport open={open} onBackdropClick={onClose}>
       <div
         className="glass-card checklist-settings modal-pop relative z-10 flex w-full max-w-2xl flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -383,6 +383,6 @@ export function ChecklistSettingsModal({
           )}
         </div>
       </div>
-    </div>
+    </ModalViewport>
   )
 }

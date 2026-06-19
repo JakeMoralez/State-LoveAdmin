@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type StaffMember, type StaffMemberDetail } from '../api'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
+import { staffLabel } from '../lib/staff'
 
 type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
 type SortDir = 'asc' | 'desc'
@@ -61,10 +62,10 @@ export function StaffPage() {
       if (sortKey === 'index') {
         const lvl = b.access_level - a.access_level
         if (lvl !== 0) return lvl * dir
-        return (a.display_name || a.nickname).localeCompare(b.display_name || b.nickname, 'ru') * dir
+        return staffLabel(a).localeCompare(staffLabel(b), 'ru') * dir
       }
       if (sortKey === 'nickname') {
-        return (a.display_name || a.nickname).localeCompare(b.display_name || b.nickname, 'ru') * dir
+        return staffLabel(a).localeCompare(staffLabel(b), 'ru') * dir
       }
       if (sortKey === 'role') {
         const ar = (a.access_role_title || a.access_level_name).localeCompare(
@@ -162,13 +163,13 @@ export function StaffPage() {
                     to={`/staff/${m.vk_id}`}
                     className="staff-nick staff-nick-btn link-gold no-underline"
                   >
-                    {m.display_name || m.nickname}
+                    {staffLabel(m)}
                   </Link>
                   <button
                     type="button"
                     className="staff-settings-btn"
                     title="Настройки"
-                    aria-label={`Настройки: ${m.display_name || m.nickname}`}
+                    aria-label={`Настройки: ${staffLabel(m)}`}
                     disabled={settingsLoadingVkId === m.vk_id}
                     onClick={() => void openSettings(m)}
                   >

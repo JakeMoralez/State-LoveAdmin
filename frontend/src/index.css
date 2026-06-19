@@ -3649,6 +3649,10 @@ body {
     animation: fade-up var(--motion-slow) var(--ease-out-expo) both;
   }
 
+  .page-enter-fade {
+    animation: fade-in var(--motion-slow) var(--ease-out-expo) both;
+  }
+
   .page-enter--stagger > * {
     animation: fade-up var(--motion-slow) var(--ease-out-expo) both;
   }
@@ -3681,6 +3685,7 @@ body {
     .login-marquee-track,
     .login-emblem,
     .page-enter,
+    .page-enter-fade,
     .page-enter--stagger > *,
     .modal-pop,
     .drawer-panel,
@@ -3689,6 +3694,7 @@ body {
     }
 
     .page-enter,
+    .page-enter-fade,
     .page-enter--stagger > *,
     .modal-pop,
     .drawer-panel,
@@ -3965,6 +3971,12 @@ body {
     max-width: 28rem;
     max-height: min(90vh, 100dvh);
     max-height: min(90vh, 100vh);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .staff-profile-header {
+    flex-shrink: 0;
   }
 
   .staff-profile-footer {
@@ -4376,6 +4388,10 @@ body {
     overflow: hidden;
   }
 
+  body.modal-open {
+    overflow: hidden;
+  }
+
   .app-shell {
     min-height: 100dvh;
     min-height: 100vh;
@@ -4565,6 +4581,102 @@ body {
     .checklist-table td {
       padding: 8px 10px;
     }
+
+    .checklist-board--single .checklist-table-wrap {
+      overflow: visible;
+    }
+
+    .checklist-board--single .checklist-table thead {
+      display: none;
+    }
+
+    .checklist-board--single .checklist-table tbody tr {
+      display: block;
+      margin-bottom: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      background: rgba(15, 15, 25, 0.45);
+      overflow: hidden;
+    }
+
+    .checklist-board--single .checklist-table tbody tr.checklist-row-header {
+      background: rgba(201, 162, 39, 0.1);
+    }
+
+    .checklist-board--single .checklist-table td {
+      display: block;
+      width: 100%;
+      border: none;
+      padding: 0;
+    }
+
+    .checklist-board--single .checklist-sticky-col {
+      position: static;
+      width: 100%;
+      max-width: none;
+      min-width: 0;
+      padding: 0.75rem 0.875rem;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.35;
+      box-shadow: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      background: transparent;
+    }
+
+    .checklist-board--single .checklist-cell {
+      padding: 0.75rem;
+    }
+
+    .checklist-board--single .checklist-row-header .checklist-sticky-col {
+      color: var(--accent-gold);
+      border-bottom: none;
+    }
+
+    .page-header--checklist .page-header-toolbar {
+      width: 100%;
+    }
+
+    .page-header--checklist .checklist-header-settings {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .checklist-week-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    .checklist-week-label {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.8125rem;
+    }
+
+    .checklist-week-btn {
+      flex-shrink: 0;
+      min-width: 2.5rem;
+      padding-left: 0.65rem;
+      padding-right: 0.65rem;
+    }
+
+    .checklist-view-toggle {
+      width: 100%;
+    }
+
+    .checklist-view-btn {
+      flex: 1;
+      justify-content: center;
+      padding: 8px 10px;
+    }
+
+    .checklist-member-pill {
+      max-width: 180px;
+      padding: 7px 12px;
+      font-size: 0.75rem;
+    }
   }
 
   @media (max-width: 639px) {
@@ -4578,6 +4690,15 @@ body {
       justify-content: center;
     }
 
+    .page-header-toolbar .btn {
+      width: auto;
+    }
+
+    .page-header--checklist .checklist-header-settings {
+      width: 100%;
+      justify-content: center;
+    }
+
     .page-header-actions {
       width: 100%;
       max-width: none;
@@ -4586,6 +4707,7 @@ body {
     .modal-viewport {
       padding: 0;
       align-items: stretch;
+      justify-content: stretch;
     }
 
     .modal-viewport .staff-profile-modal,
@@ -4597,6 +4719,11 @@ body {
       height: 100dvh;
       height: 100vh;
       border-radius: 0;
+      margin: 0;
+    }
+
+    .staff-profile-header {
+      padding-top: calc(1rem + env(safe-area-inset-top, 0px));
     }
 
     .staff-profile-footer {

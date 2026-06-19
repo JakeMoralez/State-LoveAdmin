@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { api, ApiError, type LeaderMemberDetail } from '../../api'
+import { staffLabel } from '../../lib/staff'
+import { ModalViewport } from '../ui/ModalViewport'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -17,6 +19,10 @@ export interface LeaderProfileModalProps {
   onSaved: (result?: { removed?: boolean }) => void
 }
 
+function memberNickname(member: LeaderMemberDetail): string {
+  return member.bot_nickname ?? member.nickname ?? ''
+}
+
 export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderProfileModalProps) {
   const [nickname, setNickname] = useState('')
   const [position, setPosition] = useState('')
@@ -27,7 +33,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
 
   useEffect(() => {
     if (!member) return
-    setNickname(member.nickname ?? '')
+    setNickname(memberNickname(member))
     setPosition(member.position ?? '')
     setNote(member.note ?? '')
     setDiscordId(member.discord_id ?? '')
@@ -36,11 +42,13 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
 
   if (!open || !member) return null
 
-  const displayName = member.display_name || member.nickname
+  const displayName = staffLabel(member)
   const perms = member.permissions
 
+  const savedNickname = memberNickname(member)
+
   const hasChanges =
-    (perms.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) ||
+    (perms.edit_nickname && nickname.trim() !== savedNickname.trim()) ||
     (perms.edit_position && position.trim() !== (member.position ?? '').trim()) ||
     (perms.edit_note && note.trim() !== (member.note ?? '').trim()) ||
     (perms.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
@@ -63,7 +71,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     setError(null)
     try {
       const body: Record<string, unknown> = {}
-      if (perms.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) {
+      if (perms.edit_nickname && nickname.trim() !== savedNickname.trim()) {
         body.nickname = nickname.trim()
       }
       if (perms.edit_position) body.position = position.trim()
@@ -111,13 +119,12 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
   }
 
   return (
-    <div className="modal-viewport fixed inset-0 z-[130] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/55 overlay-backdrop" onClick={onClose} />
+    <ModalViewport open={open} onBackdropClick={onClose}>
       <div
         className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-md flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
+        <div className="staff-profile-header flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
@@ -130,7 +137,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
           </button>
         </div>
 
-        <div className="staff-profile-body ll-scroll px-6 py-4">
+        <div className="staff-profile-body ll-scroll min-h-0 flex-1 px-6 py-4">
           <dl className="staff-profile-meta">
             <div>
               <dt>VK ID</dt>
@@ -290,6 +297,6 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
           )}
         </div>
       </div>
-    </div>
+    </ModalViewport>
   )
 }

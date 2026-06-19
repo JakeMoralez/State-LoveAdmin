@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
 import { ACCESS_LEVEL_OPTIONS } from '../../lib/accessLevels'
+import { staffLabel } from '../../lib/staff'
 import { Select } from '../ui/Select'
+import { ModalViewport } from '../ui/ModalViewport'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -18,6 +20,10 @@ export interface StaffProfileModalProps {
   onClose: () => void
   onSaved: (result?: { removed?: boolean }) => void
   permissions: StaffMemberPermissions
+}
+
+function memberNickname(member: StaffMemberDetail): string {
+  return member.bot_nickname ?? member.nickname ?? ''
 }
 
 export function StaffProfileModal({
@@ -37,7 +43,7 @@ export function StaffProfileModal({
 
   useEffect(() => {
     if (!member) return
-    setNickname(member.nickname ?? '')
+    setNickname(memberNickname(member))
     setAccessLevel(String(member.access_level))
     setHasCaAccess(member.has_ca_access)
     setSphere(member.note ?? '')
@@ -55,7 +61,7 @@ export function StaffProfileModal({
 
   if (!open || !member) return null
 
-  const displayName = member.display_name || member.nickname
+  const displayName = staffLabel(member)
   const sphereAuto = !member.note?.trim()
 
   const canEditAnything =
@@ -66,8 +72,10 @@ export function StaffProfileModal({
     permissions.edit_discord ||
     permissions.revoke_staff_access
 
+  const savedNickname = memberNickname(member)
+
   const hasChanges =
-    (permissions.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) ||
+    (permissions.edit_nickname && nickname.trim() !== savedNickname.trim()) ||
     (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) ||
     (permissions.edit_ca_access && hasCaAccess !== member.has_ca_access) ||
     (permissions.edit_sphere && sphere.trim() !== (member.note ?? '').trim()) ||
@@ -79,7 +87,7 @@ export function StaffProfileModal({
     try {
       const body: Record<string, unknown> = {}
 
-      if (permissions.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) {
+      if (permissions.edit_nickname && nickname.trim() !== savedNickname.trim()) {
         body.nickname = nickname.trim()
       }
       if (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) {
@@ -132,13 +140,12 @@ export function StaffProfileModal({
   }
 
   return (
-    <div className="modal-viewport fixed inset-0 z-[130] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/55 overlay-backdrop" onClick={onClose} />
+    <ModalViewport open={open} onBackdropClick={onClose}>
       <div
         className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-md flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
+        <div className="staff-profile-header flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
@@ -154,7 +161,7 @@ export function StaffProfileModal({
           </button>
         </div>
 
-        <div className="staff-profile-body ll-scroll px-6 py-4">
+        <div className="staff-profile-body ll-scroll min-h-0 flex-1 px-6 py-4">
           <dl className="staff-profile-meta">
             <div>
               <dt>VK ID</dt>
@@ -323,6 +330,6 @@ export function StaffProfileModal({
           )}
         </div>
       </div>
-    </div>
+    </ModalViewport>
   )
 }

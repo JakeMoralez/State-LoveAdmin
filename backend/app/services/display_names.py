@@ -16,56 +16,109 @@ def invalidate_display_names(vk_ids: int | set[int]) -> None:
     for vid in vk_ids:
         _cache.pop(vid, None)
 
-async def _vk_full_name(vk_id: int) -> str | None:
-    if not VK_SERVICE_TOKEN:
-        return None
+
+async def resolve_bot_nickname(
+    vk_id: int,
+    server_id: int = DEFAULT_SERVER_ID,
+    *,
+    access: UserServerAccess | None = None,
+    user: User | None = None,
+) -> str | None:
+    """Ник из /setnick: сначала на server_id, затем на любом сервере, затем legacy users.nickname."""
+    if access is None:
+        access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if access and access.nickname and access.nickname.strip():
+        return access.nickname.strip()
+
+    any_access = (
+        await UserServerAccess.filter(user_id=vk_id)
+        .exclude(nickname=None)
+        .exclude(nickname="")
+        .first()
+    )
+    if any_access and any_access.nickname:
+        return any_access.nickname.strip()
+
+    if user is None:
+        user = await User.get_or_none(vk_id=vk_id)
+    if user and user.nickname and user.nickname.strip():
+        return user.nickname.strip()
+    return None
+
+
+async def _vk_full_names(vk_ids: set[int]) -> dict[int, str]:
+    if not vk_ids or not VK_SERVICE_TOKEN:
+        return {}
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.get(
                 "https://api.vk.com/method/users.get",
                 params={
-                    "user_ids": vk_id,
+                    "user_ids": ",".join(str(i) for i in vk_ids),
                     "access_token": VK_SERVICE_TOKEN,
                     "v": "5.199",
                 },
             )
             data = res.json()
-            items = data.get("response") or []
-            if items:
-                u = items[0]
+            out: dict[int, str] = {}
+            for u in data.get("response") or []:
+                vid = int(u["id"])
                 name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
-                return name or None
+                if name:
+                    out[vid] = name
+            return out
     except Exception:
-        pass
-    return None
+        return {}
+
+
+async def resolve_display_names(
+    vk_ids: set[int],
+    server_id: int = DEFAULT_SERVER_ID,
+) -> dict[int, str]:
+    """Имя для UI: всегда сверяем ник в БД (бот мог обновить /setnick без сброса кэша панели)."""
+    if not vk_ids:
+        return {}
+
+    result: dict[int, str] = {}
+    id_list = list(vk_ids)
+
+    for acc in await UserServerAccess.filter(user_id__in=id_list, server_id=server_id):
+        nick = (acc.nickname or "").strip()
+        if nick:
+            result[acc.user_id] = nick
+
+    missing = vk_ids - result.keys()
+    if missing:
+        for acc in await UserServerAccess.filter(user_id__in=list(missing)):
+            nick = (acc.nickname or "").strip()
+            if nick and acc.user_id not in result:
+                result[acc.user_id] = nick
+
+    missing = vk_ids - result.keys()
+    if missing:
+        for user in await User.filter(vk_id__in=list(missing)):
+            if user.nickname and user.nickname.strip():
+                result[user.vk_id] = user.nickname.strip()
+            elif user.username and user.username.strip():
+                result[user.vk_id] = user.username.strip().lstrip("@")
+
+    missing = vk_ids - result.keys()
+    if missing:
+        for vid, name in (await _vk_full_names(missing)).items():
+            result[vid] = name
+
+    for vid in vk_ids - result.keys():
+        result[vid] = f"id{vid}"
+
+    for vid, name in result.items():
+        _cache[vid] = name
+
+    return {vid: result[vid] for vid in vk_ids}
 
 
 async def resolve_display_name(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> str:
-    if vk_id in _cache:
-        return _cache[vk_id]
-
-    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if access and access.nickname and access.nickname.strip():
-        _cache[vk_id] = access.nickname.strip()
-        return _cache[vk_id]
-
-    user = await User.get_or_none(vk_id=vk_id)
-    if user:
-        if user.nickname and user.nickname.strip():
-            _cache[vk_id] = user.nickname.strip()
-            return _cache[vk_id]
-        if user.username and user.username.strip():
-            _cache[vk_id] = user.username.strip().lstrip("@")
-            return _cache[vk_id]
-
-    vk_name = await _vk_full_name(vk_id)
-    if vk_name:
-        _cache[vk_id] = vk_name
-        return vk_name
-
-    fallback = f"id{vk_id}"
-    _cache[vk_id] = fallback
-    return fallback
+    names = await resolve_display_names({vk_id}, server_id)
+    return names[vk_id]
 
 
 _VK_PHOTO_CACHE: dict[int, str | None] = {}
@@ -105,59 +158,3 @@ async def resolve_vk_photos(vk_ids: set[int]) -> dict[int, str]:
         photo = _VK_PHOTO_CACHE.get(vid)
         result[vid] = photo or _DEFAULT_AVATAR
     return result
-
-
-async def resolve_display_names(
-    vk_ids: set[int],
-    server_id: int = DEFAULT_SERVER_ID,
-) -> dict[int, str]:
-    missing = {vid for vid in vk_ids if vid not in _cache}
-    if not missing:
-        return {vid: _cache[vid] for vid in vk_ids}
-
-    accesses = await UserServerAccess.filter(
-        user_id__in=list(missing),
-        server_id=server_id,
-    )
-    for acc in accesses:
-        if acc.nickname and acc.nickname.strip():
-            _cache[acc.user_id] = acc.nickname.strip()
-            missing.discard(acc.user_id)
-
-    if missing:
-        users = await User.filter(vk_id__in=list(missing))
-        for u in users:
-            if u.vk_id in _cache:
-                continue
-            if u.nickname and u.nickname.strip():
-                _cache[u.vk_id] = u.nickname.strip()
-                missing.discard(u.vk_id)
-            elif u.username and u.username.strip():
-                _cache[u.vk_id] = u.username.strip().lstrip("@")
-                missing.discard(u.vk_id)
-
-    if missing and VK_SERVICE_TOKEN:
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                res = await client.get(
-                    "https://api.vk.com/method/users.get",
-                    params={
-                        "user_ids": ",".join(str(i) for i in missing),
-                        "access_token": VK_SERVICE_TOKEN,
-                        "v": "5.199",
-                    },
-                )
-                data = res.json()
-                for u in data.get("response") or []:
-                    vid = int(u["id"])
-                    name = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
-                    if name:
-                        _cache[vid] = name
-                        missing.discard(vid)
-        except Exception:
-            pass
-
-    for vid in missing:
-        _cache.setdefault(vid, f"id{vid}")
-
-    return {vid: _cache[vid] for vid in vk_ids}

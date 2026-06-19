@@ -45,9 +45,12 @@ export function ChecklistPage() {
   const [settingsTab, setSettingsTab] = useState<'tasks' | 'members'>('tasks')
   const [activeMemberId, setActiveMemberId] = useState<number | null>(null)
   const [enablingSelf, setEnablingSelf] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    () => (localStorage.getItem('sl-checklist-view') as ViewMode) || 'all',
-  )
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem('sl-checklist-view') as ViewMode | null
+    if (saved === 'all' || saved === 'single') return saved
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) return 'single'
+    return 'all'
+  })
 
   const setMode = (mode: ViewMode) => {
     setViewMode(mode)
@@ -148,7 +151,7 @@ export function ChecklistPage() {
 
   return (
     <div className="content-fixed">
-      <div className="page-header shrink-0">
+      <div className="page-header page-header--checklist shrink-0">
         <div>
           <h1 className="page-title flex items-center gap-2">
             <ClipboardCheck size={22} className="text-[var(--accent-gold)]" />
@@ -160,11 +163,11 @@ export function ChecklistPage() {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="page-header-toolbar flex flex-wrap items-center gap-2">
           {data?.can_edit_all && (
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
+              className="btn btn-secondary btn-sm checklist-header-settings"
               onClick={() => {
                 setSettingsTab('tasks')
                 setSettingsOpen(true)
@@ -174,18 +177,20 @@ export function ChecklistPage() {
               Настройки
             </button>
           )}
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setWeek((w) => addDays(w, -7))}>
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-sm text-white/55 min-w-[160px] text-center">
-            {data ? formatWeekRu(data.week_start, data.week_end) : week}
-          </span>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setWeek((w) => addDays(w, 7))}>
-            <ChevronRight size={16} />
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <div className="checklist-week-nav">
+            <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={() => setWeek((w) => addDays(w, -7))}>
+              <ChevronLeft size={16} />
+            </button>
+            <span className="checklist-week-label text-sm text-white/55 text-center">
+              {data ? formatWeekRu(data.week_start, data.week_end) : week}
+            </span>
+            <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={() => setWeek((w) => addDays(w, 7))}>
+              <ChevronRight size={16} />
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={load} disabled={loading}>
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -297,7 +302,7 @@ export function ChecklistPage() {
             {grouped.map((day) => (
               <section key={day.day_offset} className="mb-6">
                 <h2 className="checklist-day-head">{day.day_label}</h2>
-                <div className={`checklist-board ${viewMode === 'all' ? 'checklist-board--wide' : ''}`}>
+                <div className={`checklist-board ${viewMode === 'all' ? 'checklist-board--wide' : 'checklist-board--single'}`}>
                   <div className="checklist-table-wrap">
                     <table className="checklist-table">
                       <thead>

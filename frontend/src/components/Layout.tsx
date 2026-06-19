@@ -311,7 +311,7 @@ export function Layout() {
 
         <main
           key={location.pathname}
-          className="app-main flex-1 min-w-0 overflow-y-auto p-4 md:p-6 lg:p-8 ll-scroll page-enter"
+          className="app-main flex-1 min-w-0 overflow-y-auto p-4 md:p-6 lg:p-8 ll-scroll page-enter-fade"
         >
           <Outlet />
         </main>

@@ -304,6 +304,7 @@ export interface DashboardSummary {
 export interface StaffMember {
   vk_id: number
   nickname: string
+  bot_nickname?: string | null
   display_name?: string
   avatar_url?: string
   username: string | null
@@ -362,6 +363,7 @@ export interface StaffResponse {
 export interface LeaderMember {
   vk_id: number
   nickname: string
+  bot_nickname?: string | null
   display_name?: string
   avatar_url?: string
   username?: string | null

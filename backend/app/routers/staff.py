@@ -16,7 +16,11 @@ from app.services.access import get_access_level
 from app.services.auth import require_ca_user
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
-from app.services.display_names import resolve_display_names, resolve_vk_photos
+from app.services.display_names import (
+    resolve_bot_nickname,
+    resolve_display_names,
+    resolve_vk_photos,
+)
 from app.services.staff import (
     clear_ca_leader_nickname,
     get_ca_leader,
@@ -115,7 +119,7 @@ async def get_staff(
     names = await resolve_display_names(vk_ids, server_id)
     photos = await resolve_vk_photos(vk_ids)
     for r in rows:
-        r["display_name"] = names.get(r["vk_id"], r["nickname"])
+        r["display_name"] = r.get("bot_nickname") or names.get(r["vk_id"], r["nickname"])
         r["avatar_url"] = photos.get(r["vk_id"])
 
     grouped: dict[int, list] = {}
@@ -155,7 +159,7 @@ async def get_ca_leaders(
     names = await resolve_display_names(vk_ids, server_id)
     photos = await resolve_vk_photos(vk_ids)
     for r in rows:
-        r["display_name"] = names.get(r["vk_id"], r["nickname"])
+        r["display_name"] = r.get("bot_nickname") or names.get(r["vk_id"], r["nickname"])
         r["avatar_url"] = photos.get(r["vk_id"])
 
     peer_id = await get_leadership_peer_id(server_id)
@@ -343,12 +347,16 @@ async def export_staff_csv(
 
 async def _enrich_staff_row(row: dict, server_id: int) -> dict:
     vk_id = row["vk_id"]
+    bot_nick = row.get("bot_nickname")
+    if bot_nick is None:
+        bot_nick = await resolve_bot_nickname(vk_id, server_id)
     names = await resolve_display_names({vk_id}, server_id)
     photos = await resolve_vk_photos({vk_id})
     links = await links_for_vk_ids({vk_id})
     link = links.get(vk_id)
     row = {**row}
-    row["display_name"] = names.get(vk_id, row["nickname"])
+    row["bot_nickname"] = bot_nick
+    row["display_name"] = bot_nick or names.get(vk_id, row["nickname"])
     row["avatar_url"] = photos.get(vk_id)
     row["discord_id"] = link.discord_id if link else None
     row["discord_username"] = link.discord_username if link else None
