@@ -15,7 +15,7 @@ from tortoise.contrib.fastapi import register_tortoise
 
 from app.config import PANEL_BASE_URL, PANEL_DATABASE_URL, TORTOISE_ORM, UPLOAD_DIR
 from app.routers.uploads import regenerate_all_gallery_pages
-from app.routers import auth, checklist, dashboard, dev, profile, projects, staff, tasks, uploads
+from app.routers import auth, checklist, dashboard, dev, internal, profile, projects, staff, tasks, uploads
 from app.services.bootstrap import ensure_defaults
 from app.services.error_log import record_server_exception
 
@@ -69,6 +69,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(internal.router)
 app.include_router(staff.router)
 app.include_router(projects.router)
 app.include_router(tasks.router)

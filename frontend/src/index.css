@@ -2173,6 +2173,13 @@ body {
     border-radius: 4px;
   }
 
+  .login-alt-hint {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.42);
+    line-height: 1.5;
+  }
+
   .login-footer {
     margin: 2rem 0 0;
     padding-top: 1.25rem;

@@ -8,12 +8,12 @@ import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLeve
 
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
-    'Этот Discord не привязан к аккаунту следящего. Попросите ЗГС ЦА+ указать ваш Discord ID в реестре.',
-  no_access: 'У привязанного аккаунта нет доступа ЦА.',
+    'Этот Discord не привязан к вашему аккаунту. Укажите ID в боте: /editmydiscord или попросите ЗГС ЦА+ в реестре.',
+  no_access: 'У аккаунта нет доступа к порталу след. ЦА.',
   oauth: 'Не удалось войти через Discord. Попробуйте ещё раз.',
-  invalid_token: 'Ссылка входа недействительна. Запросите новую через /panel в боте.',
-  expired: 'Ссылка входа истекла (5 мин). Напишите боту /panel ещё раз.',
-  used: 'Эта ссылка уже использована. Запросите новую через /panel в боте.',
+  invalid_token: 'Ссылка недействительна. Запросите новую: /panel в ЛС бота.',
+  expired: 'Ссылка истекла (5 минут). Напишите боту /panel ещё раз.',
+  used: 'Ссылка уже использована. Запросите новую: /panel в ЛС бота.',
 }
 
 function formatAuthError(message: string): string {
@@ -182,10 +182,11 @@ export function LoginPage() {
 
         {showBotAlt && (
           <div className="login-alt">
-            <div className="login-alt-title">Нет Discord?</div>
+            <div className="login-alt-title">Другой способ входа</div>
             <p className="login-alt-text">
-              Напишите боту команду <code className="login-alt-code">/panel</code> в личные сообщения.
-              Бот пришлёт одноразовую ссылку — откройте её в этом браузере.
+              Нет Discord или не привязали ID? Напишите нашему боту в личные сообщения
+              команду <code className="login-alt-code">/panel</code> — он пришлёт ссылку.
+              Откройте её здесь, в этом браузере.
             </p>
             {vkBotUrl ? (
               <a
@@ -194,10 +195,12 @@ export function LoginPage() {
                 rel="noopener noreferrer"
                 className="btn btn-vk"
               >
-                Открыть бота VK
+                Написать боту VK
               </a>
             ) : (
-              <p className="login-dev-hint">Ссылка на бота недоступна (VK_GROUP_ID не задан).</p>
+              <p className="login-alt-hint">
+                Откройте бота VK вручную и отправьте <code className="login-alt-code">/panel</code> в личные сообщения.
+              </p>
             )}
           </div>
         )}
@@ -209,7 +212,7 @@ export function LoginPage() {
         )}
 
         <p className="login-footer">
-          Нет доступа? Обратитесь к ЗГС ЦА+ — выдадут доступ ЦА или привяжут Discord ID в реестре.
+          Нет доступа к порталу — обратитесь к ЗГС ЦА+. Discord ID можно указать в боте: /editmydiscord
         </p>
       </div>
     </div>
