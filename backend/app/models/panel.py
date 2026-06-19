@@ -16,6 +16,15 @@ class PanelSession(Model):
         table = "panel_sessions"
 
 
+class PanelLoginToken(Model):
+    jti = fields.CharField(max_length=64, pk=True)
+    vk_id = fields.BigIntField()
+    used_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "panel_login_tokens"
+
+
 class PanelAuditLog(Model):
     id = fields.IntField(pk=True)
     actor_vk_id = fields.BigIntField()

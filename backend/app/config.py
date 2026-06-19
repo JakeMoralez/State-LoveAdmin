@@ -48,6 +48,8 @@ SESSION_COOKIE_NAME: str = "sled_session"
 SLED_BOT_SECRET: str = os.getenv("SLED_BOT_SECRET", "")
 SLED_INTERNAL_URL: str = os.getenv("SLED_INTERNAL_URL", "http://127.0.0.1:8081")
 
+VK_GROUP_ID: int = int(os.getenv("VK_GROUP_ID", "0"))
+
 # VK service token for users.get (display names fallback)
 VK_SERVICE_TOKEN: str = os.getenv("VK_SERVICE_TOKEN", os.getenv("VK_GROUP_TOKEN", ""))
 

@@ -15,9 +15,11 @@ git clone <repo> /opt/State-Love-Admin
 cd /opt/State-Love-Admin
 
 cp .env.example .env
-# Заполнить: DISCORD_CLIENT_*, SESSION_SECRET, BOT_DATABASE_URL, SLED_BOT_SECRET
+# Заполнить: DISCORD_CLIENT_*, SESSION_SECRET, BOT_DATABASE_URL, SLED_BOT_SECRET, VK_GROUP_ID
 # PANEL_BASE_URL=https://love.vlesnix.site
 # DISCORD_REDIRECT_URI=https://love.vlesnix.site/api/auth/discord/callback
+#
+# В State-LoveBot .env: тот же SLED_BOT_SECRET + PANEL_BASE_URL (для /panel)
 
 cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 cd ../frontend && npm ci && npm run build
@@ -47,6 +49,22 @@ git pull
 cd frontend && npm ci && npm run build
 cd ../backend && ./venv/bin/pip install -r requirements.txt
 sudo systemctl restart state-love-admin
+```
+
+## Бот (git, отдельный репозиторий)
+
+Если бот ещё в `/root` вручную — миграция без простоя: **State-LoveBot** → `deploy/README.md` → `migrate-from-manual.sh`.
+
+После миграции обновление бота:
+
+```bash
+cd /opt/State-LoveBot && sudo bash deploy/update.sh
+```
+
+Проверка связи панель ↔ бот:
+
+```bash
+curl -s -H "X-Sled-Secret: $SLED_BOT_SECRET" http://127.0.0.1:8081/internal/staff-ca | head
 ```
 
 ## Docker (локально / тест)

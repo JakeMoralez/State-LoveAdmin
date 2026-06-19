@@ -11,6 +11,9 @@ const LOGIN_ERRORS: Record<string, string> = {
     'Этот Discord не привязан к аккаунту следящего. Попросите ЗГС ЦА+ указать ваш Discord ID в реестре.',
   no_access: 'У привязанного аккаунта нет доступа ЦА.',
   oauth: 'Не удалось войти через Discord. Попробуйте ещё раз.',
+  invalid_token: 'Ссылка входа недействительна. Запросите новую через /panel в боте.',
+  expired: 'Ссылка входа истекла (5 мин). Напишите боту /panel ещё раз.',
+  used: 'Эта ссылка уже использована. Запросите новую через /panel в боте.',
 }
 
 function formatAuthError(message: string): string {
@@ -33,6 +36,8 @@ export function LoginPage() {
   const [devMode, setDevMode] = useState(false)
   const [devSkipCa, setDevSkipCa] = useState(false)
   const [discordConfigured, setDiscordConfigured] = useState(false)
+  const [botLoginEnabled, setBotLoginEnabled] = useState(false)
+  const [vkGroupId, setVkGroupId] = useState<number | null>(null)
   const [devVkId, setDevVkId] = useState('')
   const [accessLevel, setAccessLevel] = useState('10')
   const [hasCaAccess, setHasCaAccess] = useState(true)
@@ -52,6 +57,8 @@ export function LoginPage() {
         setDevMode(cfg.dev_mode)
         setDevSkipCa(cfg.dev_skip_ca)
         setDiscordConfigured(cfg.discord_configured)
+        setBotLoginEnabled(cfg.bot_login_enabled)
+        setVkGroupId(cfg.vk_group_id ?? null)
         if (cfg.dev_vk_id) setDevVkId(String(cfg.dev_vk_id))
         setLevelOptions(mergeAccessLevelOptions(cfg.access_levels))
         const dev = (cfg.access_levels ?? []).find((l) => l.value === 10)
@@ -92,6 +99,8 @@ export function LoginPage() {
     window.location.href = '/api/auth/discord'
   }
 
+  const vkBotUrl = vkGroupId ? `https://vk.me/club${vkGroupId}` : null
+
   if (loading) {
     return (
       <div className="login-shell">
@@ -103,7 +112,9 @@ export function LoginPage() {
   if (user) return <Navigate to="/dashboard" replace />
 
   const showError = localError || (error ? formatAuthError(error) : null)
-  const canLogin = devMode || discordConfigured
+  const canLogin = devMode || discordConfigured || botLoginEnabled
+  const showDiscord = devMode || discordConfigured
+  const showBotAlt = !devMode && botLoginEnabled
 
   return (
     <div className="login-shell">
@@ -154,18 +165,42 @@ export function LoginPage() {
         )}
 
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={handleDiscordLogin}
-            disabled={busy || !canLogin}
-            className="btn btn-discord"
-          >
-            {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через Discord'}
-          </button>
-          {!devMode && !discordConfigured && (
-            <p className="login-dev-hint">Discord OAuth не настроен на сервере.</p>
+          {showDiscord && (
+            <button
+              type="button"
+              onClick={handleDiscordLogin}
+              disabled={busy || !canLogin}
+              className="btn btn-discord"
+            >
+              {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через Discord'}
+            </button>
+          )}
+          {!devMode && !discordConfigured && !botLoginEnabled && (
+            <p className="login-dev-hint">Способы входа не настроены на сервере.</p>
           )}
         </div>
+
+        {showBotAlt && (
+          <div className="login-alt">
+            <div className="login-alt-title">Нет Discord?</div>
+            <p className="login-alt-text">
+              Напишите боту команду <code className="login-alt-code">/panel</code> в личные сообщения.
+              Бот пришлёт одноразовую ссылку — откройте её в этом браузере.
+            </p>
+            {vkBotUrl ? (
+              <a
+                href={vkBotUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-vk"
+              >
+                Открыть бота VK
+              </a>
+            ) : (
+              <p className="login-dev-hint">Ссылка на бота недоступна (VK_GROUP_ID не задан).</p>
+            )}
+          </div>
+        )}
 
         {showError && (
           <p className="login-error" role="alert">
@@ -174,7 +209,7 @@ export function LoginPage() {
         )}
 
         <p className="login-footer">
-          Нет доступа? Обратитесь к ЗГС ЦА+ — привяжут ваш Discord ID к аккаунту.
+          Нет доступа? Обратитесь к ЗГС ЦА+ — выдадут доступ ЦА или привяжут Discord ID в реестре.
         </p>
       </div>
     </div>

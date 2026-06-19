@@ -17,12 +17,14 @@ from app.config import (
     PANEL_BASE_URL,
     VK_APP_ID,
     VK_APP_SECRET,
+    VK_GROUP_ID,
     VK_REDIRECT_URI,
 )
 from app.models.bot import AccessLevel
 from app.models.panel import DiscordLink
 from app.services.leadership_access import can_manage_leaders
 from app.services.access import can_use_ca_scope
+from app.services.bot_login import BotLoginError, bot_login_enabled, verify_and_consume_bot_login_token
 from app.services.display_names import resolve_vk_photos
 from app.services.dev_access import can_view_dev_panel
 from app.services.discord_links import link_by_discord_id, upsert_discord_profile
@@ -106,7 +108,10 @@ async def discord_login():
 
 @router.get("/vk")
 async def vk_login():
-    raise HTTPException(status_code=410, detail="Вход через VK отключён. Используйте Discord.")
+    raise HTTPException(
+        status_code=410,
+        detail="Вход через VK OAuth отключён. Используйте Discord или /panel в боте.",
+    )
 
 
 @router.get("/config")
@@ -116,6 +121,8 @@ async def auth_config():
         "dev_skip_ca": DEV_SKIP_CA,
         "dev_vk_id": DEV_VK_ID if DEV_MODE else None,
         "discord_configured": discord_oauth_configured(),
+        "bot_login_enabled": bot_login_enabled(),
+        "vk_group_id": VK_GROUP_ID if VK_GROUP_ID else None,
         "access_levels": _access_level_options() if DEV_MODE else [],
     }
 
@@ -167,6 +174,23 @@ async def discord_callback(code: str | None = None, state: str | None = None):
 
     vk_id = int(link.vk_id)
     await upsert_discord_profile(link, user_data)
+
+    if not await can_use_ca_scope(vk_id):
+        return _login_redirect("no_access")
+
+    response = RedirectResponse(f"{PANEL_BASE_URL}/dashboard")
+    await set_session_cookie(response, vk_id)
+    return response
+
+
+@router.get("/bot/callback")
+async def bot_login_callback(token: str | None = None):
+    if not token:
+        return _login_redirect("invalid_token")
+    try:
+        vk_id = await verify_and_consume_bot_login_token(token)
+    except BotLoginError as exc:
+        return _login_redirect(exc.code)
 
     if not await can_use_ca_scope(vk_id):
         return _login_redirect("no_access")

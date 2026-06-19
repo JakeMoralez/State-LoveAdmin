@@ -238,6 +238,8 @@ export interface AuthConfig {
   dev_skip_ca: boolean
   dev_vk_id?: number | null
   discord_configured: boolean
+  bot_login_enabled: boolean
+  vk_group_id?: number | null
   access_levels?: { value: number; label: string }[]
 }
 
