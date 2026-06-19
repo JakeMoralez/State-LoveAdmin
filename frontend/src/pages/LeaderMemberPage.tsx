@@ -50,7 +50,14 @@ export function LeaderMemberPage() {
     )
   }
 
-  const canOpenSettings = member.permissions.edit_discord
+  const perms = member.permissions
+  const canOpenSettings =
+    perms.edit_nickname ||
+    perms.edit_position ||
+    perms.edit_note ||
+    perms.edit_discord ||
+    perms.clear_nickname ||
+    perms.remove_from_registry
 
   return (
     <>

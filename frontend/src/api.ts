@@ -376,6 +376,7 @@ export interface LeaderMember {
 }
 
 export interface LeaderMemberPermissions {
+  edit_nickname: boolean
   edit_position: boolean
   edit_note: boolean
   edit_discord: boolean
@@ -389,6 +390,7 @@ export interface LeaderMemberDetail extends LeaderMember {
 }
 
 export interface LeaderMemberUpdateBody {
+  nickname?: string | null
   position?: string | null
   note?: string | null
   discord_id?: string | null

@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config import DEFAULT_SERVER_ID
+from app.models.bot import AccessLevel
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
 from app.services.auth import require_ca_user
@@ -57,6 +58,7 @@ class StaffMemberUpdate(BaseModel):
 
 
 class LeaderMemberUpdate(BaseModel):
+    nickname: str | None = None
     position: str | None = None
     note: str | None = None
     discord_id: str | None = None
@@ -168,11 +170,14 @@ async def get_ca_leaders(
 
 
 def _leader_edit_permissions(user: dict, level: int, target_vk_id: int) -> dict:
+    is_self = user["vk_id"] == target_vk_id
+    can_edit_nick = level >= AccessLevel.PGS and not is_self
     return {
+        "edit_nickname": can_edit_nick,
         "edit_position": True,
         "edit_note": True,
         "edit_discord": _can_manage_discord_links(user, level, target_vk_id),
-        "clear_nickname": True,
+        "clear_nickname": can_edit_nick,
         "remove_from_registry": True,
     }
 
@@ -223,6 +228,21 @@ async def patch_ca_leader(
             raise HTTPException(status_code=403, detail="Недостаточно прав")
         try:
             await clear_ca_leader_nickname(server_id, vk_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        changed = True
+
+    if "nickname" in fields_set:
+        if not perms["edit_nickname"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены ника")
+        assert_can_set_nickname(actor_level)
+        try:
+            await update_staff_member(
+                server_id,
+                vk_id,
+                nickname=body.nickname or "",
+                granted_by=user["vk_id"],
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         changed = True

@@ -18,6 +18,7 @@ export interface LeaderProfileModalProps {
 }
 
 export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderProfileModalProps) {
+  const [nickname, setNickname] = useState('')
   const [position, setPosition] = useState('')
   const [note, setNote] = useState('')
   const [discordId, setDiscordId] = useState('')
@@ -26,6 +27,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
 
   useEffect(() => {
     if (!member) return
+    setNickname(member.nickname ?? '')
     setPosition(member.position ?? '')
     setNote(member.note ?? '')
     setDiscordId(member.discord_id ?? '')
@@ -38,12 +40,18 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
   const perms = member.permissions
 
   const hasChanges =
+    (perms.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) ||
     (perms.edit_position && position.trim() !== (member.position ?? '').trim()) ||
     (perms.edit_note && note.trim() !== (member.note ?? '').trim()) ||
     (perms.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
 
   const canEditAnything =
-    perms.edit_position || perms.edit_note || perms.edit_discord || perms.clear_nickname || perms.remove_from_registry
+    perms.edit_nickname ||
+    perms.edit_position ||
+    perms.edit_note ||
+    perms.edit_discord ||
+    perms.clear_nickname ||
+    perms.remove_from_registry
 
   const handleSave = async () => {
     if (!hasChanges) {
@@ -55,6 +63,9 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     setError(null)
     try {
       const body: Record<string, unknown> = {}
+      if (perms.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) {
+        body.nickname = nickname.trim()
+      }
       if (perms.edit_position) body.position = position.trim()
       if (perms.edit_note) body.note = note.trim()
       if (perms.edit_discord) body.discord_id = discordId.trim() || null
@@ -142,6 +153,24 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
               </div>
             )}
           </dl>
+
+          {perms.edit_nickname && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="leader-nickname">
+                Никнейм
+              </label>
+              <input
+                id="leader-nickname"
+                type="text"
+                className="control w-full"
+                value={nickname}
+                placeholder="[Лидер ЦЛ] Имя Фамилия"
+                disabled={saving}
+                onChange={(e) => setNickname(e.target.value)}
+              />
+              <p className="staff-profile-hint">Имя в реестре с тегом должности</p>
+            </div>
+          )}
 
           {perms.edit_position && (
             <div className="staff-profile-field">
@@ -248,7 +277,8 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
             {hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
           </button>
-          {canEditAnything && (perms.edit_position || perms.edit_note || perms.edit_discord) && (
+          {canEditAnything &&
+            (perms.edit_nickname || perms.edit_position || perms.edit_note || perms.edit_discord) && (
             <button
               type="button"
               className="btn btn-gold"
