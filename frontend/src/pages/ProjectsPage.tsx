@@ -53,7 +53,7 @@ export function ProjectsPage() {
           <Link
             key={p.id}
             to={`/projects/${p.id}`}
-            className="glass-card p-5 no-underline text-white hover:bg-white/[0.02] block"
+            className="project-card glass-card p-5 no-underline text-white block"
           >
             <h3 className="m-0 font-semibold">{p.title}</h3>
             {p.description && <p className="text-caption mt-2 line-clamp-2">{p.description}</p>}

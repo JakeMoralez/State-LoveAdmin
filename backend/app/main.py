@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from tortoise.contrib.fastapi import register_tortoise
 
-from app.config import PANEL_BASE_URL, PANEL_DATABASE_URL, TORTOISE_ORM, UPLOAD_DIR
+from app.config import PANEL_BASE_URL, PANEL_DATABASE_URL, TORTOISE_ORM, UPLOAD_DIR, sqlite_file_path
 from app.routers.uploads import regenerate_all_gallery_pages
 from app.routers import auth, checklist, dashboard, dev, internal, profile, projects, staff, tasks, uploads
 from app.services.bootstrap import ensure_defaults
@@ -22,7 +22,7 @@ from app.services.error_log import record_server_exception
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db_path = PANEL_DATABASE_URL.replace("sqlite://", "")
+    db_path = sqlite_file_path(PANEL_DATABASE_URL)
     if db_path and not db_path.startswith(":"):
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

@@ -67,7 +67,7 @@ export const api = {
   },
   staffMember: (vkId: number) => request<StaffMemberDetail>(`/staff/${vkId}`),
   updateStaffMember: (vkId: number, body: StaffMemberUpdateBody) =>
-    request<StaffMemberDetail>(`/staff/${vkId}`, {
+    request<StaffMemberUpdateResponse>(`/staff/${vkId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
@@ -77,6 +77,12 @@ export const api = {
     const s = q.toString()
     return request<LeadersResponse>(`/staff/leaders${s ? `?${s}` : ''}`)
   },
+  leaderMember: (vkId: number) => request<LeaderMemberDetail>(`/staff/leaders/${vkId}`),
+  updateLeader: (vkId: number, body: LeaderMemberUpdateBody) =>
+    request<LeaderMemberUpdateResponse>(`/staff/leaders/${vkId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   devLeadership: (params?: { q?: string }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
@@ -322,6 +328,7 @@ export interface StaffMemberPermissions {
   edit_ca_access: boolean
   edit_sphere: boolean
   edit_discord: boolean
+  revoke_staff_access: boolean
   max_access_level: number
 }
 
@@ -337,6 +344,13 @@ export interface StaffMemberUpdateBody {
   has_ca_access?: boolean
   note?: string | null
   discord_id?: string | null
+  revoke_staff_access?: boolean
+}
+
+export type StaffMemberUpdateResponse = StaffMemberDetail & {
+  ok?: boolean
+  removed?: boolean
+  vk_id?: number
 }
 
 export interface StaffResponse {
@@ -350,9 +364,41 @@ export interface LeaderMember {
   nickname: string
   display_name?: string
   avatar_url?: string
+  username?: string | null
+  position?: string | null
+  note?: string | null
   faction?: string | null
-  note?: string
   is_leader_flag?: boolean
+  discord_id?: string | null
+  discord_username?: string | null
+  discord_display_name?: string | null
+  badges?: string[]
+}
+
+export interface LeaderMemberPermissions {
+  edit_position: boolean
+  edit_note: boolean
+  edit_discord: boolean
+  clear_nickname: boolean
+  remove_from_registry: boolean
+}
+
+export interface LeaderMemberDetail extends LeaderMember {
+  server_id?: number
+  permissions: LeaderMemberPermissions
+}
+
+export interface LeaderMemberUpdateBody {
+  position?: string | null
+  note?: string | null
+  discord_id?: string | null
+  clear_nickname?: boolean
+  remove_from_registry?: boolean
+}
+
+export type LeaderMemberUpdateResponse = LeaderMemberDetail & {
+  removed?: boolean
+  ok?: boolean
 }
 
 export interface LeadersResponse {
@@ -369,6 +415,8 @@ export interface LeadershipCandidate {
   display_name?: string
   avatar_url?: string
   is_leader: boolean
+  position?: string | null
+  note?: string | null
   faction?: string | null
 }
 

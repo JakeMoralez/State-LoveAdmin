@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
 import { api, ApiError, type UserProfile } from '../api'
 
 interface AuthState {
@@ -27,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (e instanceof ApiError && e.status !== 401) {
         const msg = e.message.toLowerCase()
         if (msg.includes('bad gateway') || e.status === 502) {
-          setError('Сервер API недоступен. Запустите backend на порту 8011.')
+          setError('Сервер API недоступен. Запустите backend на порту 8012.')
         } else {
           setError(e.message)
         }
@@ -59,4 +60,17 @@ export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth outside provider')
   return ctx
+}
+
+export function RequireAuth() {
+  const { user, loading } = useAuth()
+  if (loading) {
+    return (
+      <div className="min-h-full flex items-center justify-center text-white/40 animate-fade-in">
+        Загрузка…
+      </div>
+    )
+  }
+  if (!user) return <Navigate to="/login" replace />
+  return <Outlet />
 }

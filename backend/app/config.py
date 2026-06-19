@@ -23,6 +23,14 @@ PANEL_DATABASE_URL: str = os.getenv(
     f"sqlite://{BASE_DIR / 'data' / 'panel.db'}",
 )
 
+
+def sqlite_file_path(url: str) -> str:
+    """sqlite:///C:/path → C:/path on Windows for pathlib."""
+    path = url.replace("sqlite://", "", 1)
+    if path.startswith("/") and len(path) > 2 and path[2] == ":":
+        return path[1:]
+    return path
+
 DEFAULT_SERVER_ID: int = int(os.getenv("DEFAULT_SERVER_ID", "30"))
 MAIN_ADMIN_ID: int = int(os.getenv("MAIN_ADMIN_ID", "0"))
 CA_LEADERSHIP_PEER_ID: int = int(os.getenv("CA_LEADERSHIP_PEER_ID", "0"))

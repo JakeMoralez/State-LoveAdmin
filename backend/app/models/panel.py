@@ -55,6 +55,8 @@ class StaffNote(Model):
     vk_id = fields.BigIntField(index=True)
     server_id = fields.IntField(index=True)
     note = fields.TextField(default="")
+    leader_position = fields.TextField(default="")
+    leader_note = fields.TextField(default="")
     updated_by = fields.BigIntField(null=True)
     updated_at = fields.DatetimeField(auto_now=True)
 

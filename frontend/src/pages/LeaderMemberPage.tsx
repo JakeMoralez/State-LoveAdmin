@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, ApiError, type StaffMemberDetail } from '../api'
+import { api, ApiError, type LeaderMemberDetail } from '../api'
 import { ProfileView } from '../components/profile/ProfileView'
-import { StaffProfileModal } from '../components/staff/StaffProfileModal'
+import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 
-export function StaffMemberPage() {
+export function LeaderMemberPage() {
   const { vkId } = useParams()
   const navigate = useNavigate()
   const parsedId = vkId ? parseInt(vkId, 10) : NaN
-  const [member, setMember] = useState<StaffMemberDetail | null>(null)
+  const [member, setMember] = useState<LeaderMemberDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -18,7 +18,7 @@ export function StaffMemberPage() {
     setLoading(true)
     setError(null)
     api
-      .staffMember(parsedId)
+      .leaderMember(parsedId)
       .then(setMember)
       .catch((e: unknown) => {
         setMember(null)
@@ -43,31 +43,24 @@ export function StaffMemberPage() {
     return (
       <div>
         <p className="text-white/50">{error || 'Не найден'}</p>
-        <button type="button" className="btn btn-secondary mt-4" onClick={() => navigate('/staff')}>
+        <button type="button" className="btn btn-secondary mt-4" onClick={() => navigate('/leaders')}>
           К реестру
         </button>
       </div>
     )
   }
 
-  const perms = member.permissions
-  const canOpenSettings =
-    perms.edit_nickname ||
-    perms.edit_access_level ||
-    perms.edit_ca_access ||
-    perms.edit_sphere ||
-    perms.edit_discord ||
-    perms.revoke_staff_access
+  const canOpenSettings = member.permissions.edit_discord
 
   return (
     <>
-      <div className="staff-member-toolbar">
-        {canOpenSettings && (
+      {canOpenSettings && (
+        <div className="staff-member-toolbar">
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettingsOpen(true)}>
             Настройки
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <ProfileView
         profile={{
@@ -75,30 +68,23 @@ export function StaffMemberPage() {
           nickname: member.nickname,
           username: member.username,
           avatar_url: member.avatar_url,
-          access_level: member.access_level,
-          access_level_name: member.access_level_name,
-          access_role_title: member.access_role_title,
-          panel_role: member.panel_role,
-          has_ca_access: member.has_ca_access,
+          access_level: 0,
+          access_level_name: 'Руководство',
+          access_role_title: member.position || 'Руководство',
+          panel_role: 'leader',
+          has_ca_access: false,
           server_id: member.server_id ?? 30,
-          badges: member.badges,
-          sphere: member.sphere,
+          badges: member.badges?.length ? member.badges : ['🛡'],
+          sphere: member.note || undefined,
         }}
-        backTo={{ label: 'Следящие', href: '/staff' }}
+        backTo={{ label: 'Руководство', href: '/leaders' }}
       />
 
-      <StaffProfileModal
+      <LeaderProfileModal
         member={member}
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onSaved={(result) => {
-          if (result?.removed) {
-            navigate('/staff')
-            return
-          }
-          load()
-        }}
-        permissions={member.permissions}
+        onSaved={load}
       />
     </>
   )

@@ -16,7 +16,7 @@ export interface StaffProfileModalProps {
   member: StaffMemberDetail | null
   open: boolean
   onClose: () => void
-  onSaved: () => void
+  onSaved: (result?: { removed?: boolean }) => void
   permissions: StaffMemberPermissions
 }
 
@@ -63,7 +63,8 @@ export function StaffProfileModal({
     permissions.edit_access_level ||
     permissions.edit_ca_access ||
     permissions.edit_sphere ||
-    permissions.edit_discord
+    permissions.edit_discord ||
+    permissions.revoke_staff_access
 
   const hasChanges =
     (permissions.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) ||
@@ -101,6 +102,27 @@ export function StaffProfileModal({
 
       await api.updateStaffMember(member.vk_id, body)
       onSaved()
+      onClose()
+    } catch (e: unknown) {
+      setError(formatError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRevokeAccess = async () => {
+    if (
+      !window.confirm(
+        'Снять доступ следящего? Уровень станет 0, доступ ЦА будет отключён — человек исчезнет из реестра.',
+      )
+    ) {
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await api.updateStaffMember(member.vk_id, { revoke_staff_access: true })
+      onSaved({ removed: res.removed })
       onClose()
     } catch (e: unknown) {
       setError(formatError(e))
@@ -170,7 +192,7 @@ export function StaffProfileModal({
                 disabled={saving}
                 onChange={(e) => setNickname(e.target.value)}
               />
-              <p className="staff-profile-hint">Как /setnick в боте — нужен уровень ПГС+</p>
+              <p className="staff-profile-hint">Имя в реестре с тегом должности</p>
             </div>
           )}
 
@@ -184,23 +206,25 @@ export function StaffProfileModal({
                 disabled={saving}
               />
               <p className="staff-profile-hint">
-                Как /setlevel — до {permissions.max_access_level} (ваш максимум)
+                Не выше вашего уровня ({permissions.max_access_level})
               </p>
             </div>
           )}
 
           {permissions.edit_ca_access && (
             <div className="staff-profile-field">
-              <label className="staff-profile-check flex cursor-pointer items-center gap-2">
+              <label className="ui-checkbox-label staff-profile-check">
                 <input
                   type="checkbox"
+                  className="ui-checkbox"
                   checked={hasCaAccess}
                   disabled={saving}
                   onChange={(e) => setHasCaAccess(e.target.checked)}
                 />
+                <span className="ui-checkbox-box" />
                 <span>Доступ ЦА</span>
               </label>
-              <p className="staff-profile-hint">Как /setca в боте — нужен уровень ЗГС+</p>
+              <p className="staff-profile-hint">Разделы и функции центральной администрации</p>
             </div>
           )}
 
@@ -221,8 +245,8 @@ export function StaffProfileModal({
                 />
                 <p className="staff-profile-hint">
                   {sphereAuto
-                    ? `Сейчас по роли: ${member.sphere || '—'}. Свой текст заменит автоматическую сферу.`
-                    : 'Оставьте пустым — сфера снова определится по роли.'}
+                    ? `По должности: ${member.sphere || '—'}. Свой вариант перезапишет это значение.`
+                    : 'Пустое поле — сфера снова подставится по должности.'}
                 </p>
               </>
             ) : (
@@ -257,12 +281,24 @@ export function StaffProfileModal({
                   disabled={saving}
                   onChange={(e) => setDiscordId(e.target.value)}
                 />
-                <p className="staff-profile-hint">
-                  Для входа на сайт через Discord. Можно также указать в боте: /editmydiscord
-                </p>
+                <p className="staff-profile-hint">Для входа на портал через Discord</p>
               </>
             )}
           </div>
+
+          {permissions.revoke_staff_access && (
+            <div className="staff-profile-danger">
+              <div className="staff-profile-danger-title">Действия</div>
+              <button
+                type="button"
+                className="btn dev-btn-danger btn-sm w-full"
+                disabled={saving}
+                onClick={() => void handleRevokeAccess()}
+              >
+                Снять доступ следящего
+              </button>
+            </div>
+          )}
 
           {error && (
             <p className="staff-profile-error" role="alert">

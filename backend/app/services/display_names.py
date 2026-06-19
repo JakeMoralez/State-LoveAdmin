@@ -10,6 +10,12 @@ from app.models.bot import User, UserServerAccess
 _cache: dict[int, str] = {}
 
 
+def invalidate_display_names(vk_ids: int | set[int]) -> None:
+    if isinstance(vk_ids, int):
+        vk_ids = {vk_ids}
+    for vid in vk_ids:
+        _cache.pop(vid, None)
+
 async def _vk_full_name(vk_id: int) -> str | None:
     if not VK_SERVICE_TOKEN:
         return None

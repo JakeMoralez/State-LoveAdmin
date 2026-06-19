@@ -36,6 +36,7 @@ def staff_edit_permissions(
         "owner",
         "lead",
     )
+    revoke_staff = edit_level
 
     return {
         "edit_nickname": edit_nickname,
@@ -43,6 +44,7 @@ def staff_edit_permissions(
         "edit_ca_access": edit_ca,
         "edit_sphere": edit_sphere,
         "edit_discord": edit_discord,
+        "revoke_staff_access": revoke_staff,
         "max_access_level": max_grantable_level(actor_vk_id, actor_level),
     }
 
@@ -72,3 +74,23 @@ def assert_can_set_ca(actor_level: int) -> None:
 
     if actor_level < AccessLevel.ZGS:
         raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для доступа ЦА")
+
+
+def assert_can_revoke_staff(
+    *,
+    actor_vk_id: int,
+    actor_level: int,
+    target_vk_id: int,
+    target_level: int,
+) -> None:
+    from fastapi import HTTPException
+
+    if actor_level < AccessLevel.ZGS:
+        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для снятия доступа")
+    if actor_vk_id == target_vk_id:
+        raise HTTPException(status_code=403, detail="Нельзя снять доступ с себя")
+    if MAIN_ADMIN_ID and target_vk_id == MAIN_ADMIN_ID:
+        raise HTTPException(status_code=403, detail="Нельзя снять доступ главного администратора")
+    effective = AccessLevel.DEVELOPER if _is_developer(actor_vk_id, actor_level) else actor_level
+    if target_level > effective:
+        raise HTTPException(status_code=403, detail="Нельзя снять доступ у пользователя с уровнем выше вашего")

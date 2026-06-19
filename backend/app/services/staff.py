@@ -7,6 +7,7 @@ from tortoise.expressions import Q
 from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
+from app.services.display_names import invalidate_display_names
 
 LEADER_ROLE = "leader"
 
@@ -101,11 +102,7 @@ async def list_staff(server_id: int) -> list[dict]:
         if row.access_level >= AccessLevel.PGS or row.has_ca_access:
             by_id[row.user_id] = (row.user, row.access_level, row)
 
-    role_q = (
-        Q(is_congress_vice=True)
-        | Q(is_attorney=True)
-        | Q(is_leader=True)
-    )
+    role_q = Q(is_congress_vice=True) | Q(is_attorney=True)
     for row in await UserServerAccess.filter(server_id=server_id).filter(role_q).prefetch_related(
         "user"
     ):
@@ -126,7 +123,7 @@ async def list_staff(server_id: int) -> list[dict]:
 
     result: list[dict] = []
     for user, level, access in by_id.values():
-        if access and (access.is_judge or access.is_congress_speaker):
+        if access and (access.is_judge or access.is_congress_speaker or access.is_leader):
             continue
         eff_level = max(level, await get_access_level(user.vk_id, server_id))
         nickname = (access.nickname if access and access.nickname else None) or user.nickname
@@ -161,6 +158,29 @@ def is_supervisor(level: int, access: UserServerAccess | None) -> bool:
     return bool(access and access.has_ca_access)
 
 
+def leader_registry_fields(
+    staff_note: StaffNote | None,
+    user_note: str,
+) -> tuple[str | None, str | None]:
+    """Должность и заметка в реестре руководства (с обратной совместимостью)."""
+    position: str | None = None
+    note: str | None = None
+    legacy_note = (user_note or "").strip()
+
+    if staff_note:
+        position = (staff_note.leader_position or "").strip() or None
+        note = (staff_note.leader_note or "").strip() or None
+        if not position:
+            legacy_panel = (staff_note.note or "").strip()
+            if legacy_panel:
+                position = legacy_panel
+
+    if not position and legacy_note:
+        position = legacy_note
+
+    return position, note
+
+
 async def get_leadership_peer_id(server_id: int) -> int | None:
     from app.config import CA_LEADERSHIP_PEER_ID
 
@@ -172,7 +192,7 @@ async def get_leadership_peer_id(server_id: int) -> int | None:
 
 async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
     notes = {
-        (n.vk_id, n.server_id): n.note
+        (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
 
@@ -190,23 +210,56 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
             continue
 
         nickname = (access.nickname or user.nickname or user.username or str(vk_id))
-        panel_note = notes.get((vk_id, server_id), "")
+        panel = notes.get((vk_id, server_id))
         user_note = (user.note or "").strip()
-        faction = (panel_note or user_note).strip() or None
+        position, note = leader_registry_fields(panel, user_note)
 
         result.append(
             {
                 "vk_id": vk_id,
                 "nickname": nickname,
                 "display_name": nickname,
-                "faction": faction,
-                "note": panel_note,
+                "username": user.username,
+                "position": position,
+                "note": note,
+                "faction": position,
                 "is_leader_flag": True,
             }
         )
 
     result.sort(key=lambda r: r["nickname"].lower())
     return result, None
+
+
+async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
+    access = await UserServerAccess.get_or_none(
+        user_id=vk_id,
+        server_id=server_id,
+    ).prefetch_related("user")
+    if not access or not access.is_leader:
+        return None
+
+    user = access.user
+    level = await get_access_level(vk_id, server_id)
+    if is_supervisor(level, access):
+        return None
+
+    panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    user_note = (user.note or "").strip()
+    position, note = leader_registry_fields(panel, user_note)
+    nickname = access.nickname or user.nickname or user.username or str(vk_id)
+
+    return {
+        "vk_id": vk_id,
+        "nickname": nickname,
+        "display_name": nickname,
+        "username": user.username,
+        "position": position,
+        "note": note,
+        "faction": position,
+        "is_leader_flag": True,
+        "badges": format_badges(access, user),
+    }
 
 
 def parse_vk_id(raw: str) -> int | None:
@@ -228,10 +281,11 @@ async def set_ca_leader(
     vk_id: int,
     *,
     faction: str = "",
+    position: str | None = None,
     updated_by: int | None = None,
 ) -> dict:
     user, _ = await User.get_or_create(vk_id=vk_id)
-    faction_clean = faction.strip()
+    position_clean = (position if position is not None else faction).strip()
 
     access, _ = await UserServerAccess.get_or_create(
         user_id=vk_id,
@@ -246,28 +300,28 @@ async def set_ca_leader(
     access.is_leader = True
     await access.save()
 
-    if faction_clean:
-        user.note = faction_clean
-        await user.save()
-        note, _ = await StaffNote.get_or_create(
+    if position_clean:
+        note_row, _ = await StaffNote.get_or_create(
             vk_id=vk_id,
             server_id=server_id,
-            defaults={"note": faction_clean},
+            defaults={"leader_position": position_clean},
         )
-        note.note = faction_clean
-        note.updated_by = updated_by
-        await note.save()
+        note_row.leader_position = position_clean
+        note_row.updated_by = updated_by
+        await note_row.save()
 
     nickname = access.nickname or user.nickname or user.username or str(vk_id)
     panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
-    panel_note_text = (panel.note if panel else "") or faction_clean
+    user_note = (user.note or "").strip()
+    leader_position, leader_note = leader_registry_fields(panel, user_note)
 
     return {
         "vk_id": vk_id,
         "nickname": nickname,
         "display_name": nickname,
-        "faction": panel_note_text or (user.note or "").strip() or None,
-        "note": panel_note_text,
+        "position": leader_position,
+        "note": leader_note,
+        "faction": leader_position,
         "is_leader_flag": True,
     }
 
@@ -281,6 +335,44 @@ async def remove_ca_leader(server_id: int, vk_id: int) -> bool:
     return True
 
 
+async def clear_member_nickname(server_id: int, vk_id: int) -> None:
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if access:
+        access.nickname = None
+        await access.save()
+
+    user = await User.get_or_none(vk_id=vk_id)
+    if user:
+        user.nickname = None
+        await user.save()
+
+    invalidate_display_names(vk_id)
+
+
+async def clear_ca_leader_nickname(server_id: int, vk_id: int) -> None:
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access or not access.is_leader:
+        raise ValueError("Пользователь не в реестре руководства")
+    await clear_member_nickname(server_id, vk_id)
+
+
+async def revoke_ca_leader_full(
+    server_id: int,
+    vk_id: int,
+    *,
+    updated_by: int | None = None,
+) -> None:
+    if not await remove_ca_leader(server_id, vk_id):
+        raise ValueError("Пользователь не в реестре руководства")
+
+    note_row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    if note_row:
+        note_row.leader_position = ""
+        note_row.leader_note = ""
+        note_row.updated_by = updated_by
+        await note_row.save()
+
+
 async def update_ca_leader_faction(
     server_id: int,
     vk_id: int,
@@ -288,24 +380,37 @@ async def update_ca_leader_faction(
     *,
     updated_by: int | None = None,
 ) -> None:
+    await update_ca_leader_meta(
+        server_id,
+        vk_id,
+        position=faction,
+        updated_by=updated_by,
+    )
+
+
+async def update_ca_leader_meta(
+    server_id: int,
+    vk_id: int,
+    *,
+    position: str | None = None,
+    note: str | None = None,
+    updated_by: int | None = None,
+) -> None:
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     if not access or not access.is_leader:
         raise ValueError("Пользователь не является лидером")
 
-    faction_clean = faction.strip()
-    user = await User.get_or_none(vk_id=vk_id)
-    if user:
-        user.note = faction_clean
-        await user.save()
-
-    note, _ = await StaffNote.get_or_create(
+    note_row, _ = await StaffNote.get_or_create(
         vk_id=vk_id,
         server_id=server_id,
-        defaults={"note": faction_clean},
+        defaults={},
     )
-    note.note = faction_clean
-    note.updated_by = updated_by
-    await note.save()
+    if position is not None:
+        note_row.leader_position = position.strip()
+    if note is not None:
+        note_row.leader_note = note.strip()
+    note_row.updated_by = updated_by
+    await note_row.save()
 
 
 async def list_leadership_candidates(server_id: int) -> list[dict]:
@@ -314,7 +419,7 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
     access_by_vk = {row.user_id: row for row in access_rows}
 
     notes = {
-        (n.vk_id, n.server_id): n.note
+        (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
 
@@ -330,9 +435,9 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
         nickname = (access.nickname if access and access.nickname else None) or (
             user.nickname or user.username or str(user.vk_id)
         )
-        panel_note = notes.get((user.vk_id, server_id), "")
+        panel = notes.get((user.vk_id, server_id))
         user_note = (user.note or "").strip()
-        faction = (panel_note or user_note).strip() or None
+        position, note = leader_registry_fields(panel, user_note)
 
         result.append(
             {
@@ -340,7 +445,9 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
                 "nickname": nickname,
                 "display_name": nickname,
                 "is_leader": bool(access and access.is_leader),
-                "faction": faction,
+                "position": position,
+                "note": note,
+                "faction": position,
             }
         )
 
@@ -353,6 +460,31 @@ async def get_staff_member(server_id: int, vk_id: int) -> dict | None:
         if row["vk_id"] == vk_id:
             return row
     return None
+
+
+async def revoke_staff_access(
+    server_id: int,
+    vk_id: int,
+    *,
+    updated_by: int | None = None,
+) -> None:
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access:
+        raise ValueError("Пользователь не в реестре следящих")
+
+    if access.is_leader:
+        raise ValueError("Сначала уберите из реестра «Руководство»")
+
+    level = await get_access_level(vk_id, server_id)
+    if level >= AccessLevel.ZGS_GOS:
+        raise ValueError("Нельзя снять доступ ЗГС ГОС+ через реестр следящих")
+
+    access.access_level = 0
+    access.has_ca_access = False
+    access.ca_auto_peer_id = None
+    access.granted_by = None
+    await access.save()
+    invalidate_display_names(vk_id)
 
 
 async def update_staff_member(
@@ -382,6 +514,8 @@ async def update_staff_member(
         nick = nickname.strip()
         if not nick:
             access.nickname = None
+            user.nickname = None
+            await user.save()
         else:
             if len(nick) > 64:
                 raise ValueError("Ник слишком длинный (макс. 64)")
@@ -393,6 +527,7 @@ async def update_staff_member(
                 raise ValueError("Этот ник уже занят")
             access.nickname = nick
         await access.save()
+        invalidate_display_names(vk_id)
 
     if access_level is not None:
         access.access_level = access_level

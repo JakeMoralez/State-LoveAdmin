@@ -17,13 +17,19 @@ from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
 from app.services.display_names import resolve_display_names, resolve_vk_photos
 from app.services.staff import (
+    clear_ca_leader_nickname,
+    get_ca_leader,
     get_leadership_peer_id,
     get_staff_member,
     list_ca_leaders,
     list_staff,
+    revoke_ca_leader_full,
+    revoke_staff_access,
+    update_ca_leader_meta,
     update_staff_member,
 )
 from app.services.staff_permissions import (
+    assert_can_revoke_staff,
     assert_can_set_ca,
     assert_can_set_level,
     assert_can_set_nickname,
@@ -47,6 +53,15 @@ class StaffMemberUpdate(BaseModel):
     has_ca_access: bool | None = None
     note: str | None = None
     discord_id: str | None = None
+    revoke_staff_access: bool | None = None
+
+
+class LeaderMemberUpdate(BaseModel):
+    position: str | None = None
+    note: str | None = None
+    discord_id: str | None = None
+    clear_nickname: bool | None = None
+    remove_from_registry: bool | None = None
 
 
 def _can_manage_discord_links(user: dict, level: int, target_vk_id: int) -> bool:
@@ -129,6 +144,8 @@ async def get_ca_leaders(
             for r in rows
             if ql in r["nickname"].lower()
             or ql in str(r["vk_id"])
+            or (r.get("position") and ql in r["position"].lower())
+            or (r.get("note") and ql in r["note"].lower())
             or (r.get("faction") and ql in r["faction"].lower())
         ]
 
@@ -148,6 +165,114 @@ async def get_ca_leaders(
         "members": rows,
         "warning": warning,
     }
+
+
+def _leader_edit_permissions(user: dict, level: int, target_vk_id: int) -> dict:
+    return {
+        "edit_position": True,
+        "edit_note": True,
+        "edit_discord": _can_manage_discord_links(user, level, target_vk_id),
+        "clear_nickname": True,
+        "remove_from_registry": True,
+    }
+
+
+@router.get("/leaders/{vk_id}")
+async def get_ca_leader_one(
+    vk_id: int,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_ca_user),
+):
+    row = await get_ca_leader(server_id, vk_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найден в реестре руководства")
+    row = await _enrich_staff_row(row, server_id)
+    actor_level = await get_access_level(user["vk_id"], server_id)
+    row["server_id"] = server_id
+    row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
+    return row
+
+
+@router.patch("/leaders/{vk_id}")
+async def patch_ca_leader(
+    vk_id: int,
+    body: LeaderMemberUpdate,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_ca_user),
+):
+    row = await get_ca_leader(server_id, vk_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найден в реестре руководства")
+
+    actor_level = await get_access_level(user["vk_id"], server_id)
+    perms = _leader_edit_permissions(user, actor_level, vk_id)
+    fields_set = body.model_fields_set
+    changed = False
+
+    if body.remove_from_registry:
+        if not perms["remove_from_registry"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        try:
+            await revoke_ca_leader_full(server_id, vk_id, updated_by=user["vk_id"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "removed": True, "vk_id": vk_id}
+
+    if body.clear_nickname:
+        if not perms["clear_nickname"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        try:
+            await clear_ca_leader_nickname(server_id, vk_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        changed = True
+
+    meta_kwargs: dict = {}
+    if "position" in fields_set:
+        if not perms["edit_position"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        meta_kwargs["position"] = body.position or ""
+        changed = True
+
+    if "note" in fields_set:
+        if not perms["edit_note"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        meta_kwargs["note"] = body.note or ""
+        changed = True
+
+    if meta_kwargs:
+        await update_ca_leader_meta(
+            server_id,
+            vk_id,
+            position=meta_kwargs.get("position"),
+            note=meta_kwargs.get("note"),
+            updated_by=user["vk_id"],
+        )
+
+    if "discord_id" in fields_set:
+        if not perms["edit_discord"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для Discord")
+        try:
+            discord_id = normalize_discord_id(body.discord_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await set_discord_link(
+            vk_id=vk_id,
+            discord_id=discord_id,
+            actor_vk_id=user["vk_id"],
+        )
+        changed = True
+
+    if not changed:
+        raise HTTPException(status_code=400, detail="Нет полей для обновления")
+
+    row = await get_ca_leader(server_id, vk_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найден")
+    row = await _enrich_staff_row(row, server_id)
+    row["server_id"] = server_id
+    row["permissions"] = perms
+    return row
 
 
 @router.get("/export.csv")
@@ -253,6 +378,24 @@ async def patch_staff_member(
 
     fields_set = body.model_fields_set
     kwargs: dict = {}
+
+    if body.revoke_staff_access:
+        if not perms["revoke_staff_access"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        row = await get_staff_member(server_id, vk_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Не найден в реестре следящих")
+        assert_can_revoke_staff(
+            actor_vk_id=user["vk_id"],
+            actor_level=actor_level,
+            target_vk_id=vk_id,
+            target_level=int(row["access_level"]),
+        )
+        try:
+            await revoke_staff_access(server_id, vk_id, updated_by=user["vk_id"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "removed": True, "vk_id": vk_id}
 
     if "nickname" in fields_set:
         if not perms["edit_nickname"]:

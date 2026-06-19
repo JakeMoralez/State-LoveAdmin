@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Shield } from 'lucide-react'
-import { api, type LeaderMember } from '../api'
+import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Shield } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { api, ApiError, type LeaderMember, type LeaderMemberDetail } from '../api'
+import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 
-type SortKey = 'index' | 'nickname' | 'faction'
+type SortKey = 'index' | 'nickname' | 'position'
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
@@ -23,6 +25,9 @@ export function LeadersPage() {
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('index')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [settingsMember, setSettingsMember] = useState<LeaderMemberDetail | null>(null)
+  const [settingsLoadingVkId, setSettingsLoadingVkId] = useState<number | null>(null)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -56,7 +61,7 @@ export function LeadersPage() {
       if (sortKey === 'index' || sortKey === 'nickname') {
         return (a.display_name || a.nickname).localeCompare(b.display_name || b.nickname, 'ru') * dir
       }
-      return (a.faction || '—').localeCompare(b.faction || '—', 'ru') * dir
+      return (a.position || '—').localeCompare(b.position || '—', 'ru') * dir
     })
 
     return list
@@ -65,29 +70,50 @@ export function LeadersPage() {
   const columns: { key: SortKey; label: string; className: string }[] = [
     { key: 'index', label: '#', className: 'staff-col-num' },
     { key: 'nickname', label: 'Ник', className: 'staff-col-nick' },
-    { key: 'faction', label: 'Фракция / заметка', className: 'staff-col-sphere' },
+    { key: 'position', label: 'Должность', className: 'staff-col-position' },
   ]
 
+  const openSettings = async (member: LeaderMember) => {
+    setSettingsError(null)
+    setSettingsLoadingVkId(member.vk_id)
+    try {
+      const detail = await api.leaderMember(member.vk_id)
+      setSettingsMember(detail)
+    } catch (e: unknown) {
+      setSettingsError(
+        e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось открыть настройки',
+      )
+    } finally {
+      setSettingsLoadingVkId(null)
+    }
+  }
+
   return (
-    <div>
-      <div className="page-header">
+    <div className="content-fixed">
+      <div className="page-header shrink-0">
         <div>
           <h1 className="page-title flex items-center gap-2">
             <Shield size={22} className="text-[var(--accent-gold)]" />
             Руководство
           </h1>
-          <p className="page-subtitle">{total} в реестре · без следящих</p>
+          <p className="page-subtitle">{total} в реестре · ник — профиль, ⚙ — настройки</p>
         </div>
         <div className="flex gap-2">
           <input
             type="search"
-            placeholder="Поиск по нику или фракции…"
+            placeholder="Поиск по нику, должности или заметке…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             className="control w-56"
           />
         </div>
       </div>
+
+      {settingsError && (
+        <p className="staff-settings-toast shrink-0" role="alert">
+          {settingsError}
+        </p>
+      )}
 
       <div className="staff-registry leaders-registry">
         <div className="staff-registry-head leaders-registry-head">
@@ -122,22 +148,43 @@ export function LeadersPage() {
                       loading="lazy"
                     />
                   </span>
-                  <a
-                    href={`https://vk.com/id${m.vk_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="staff-nick link-gold"
+                  <Link
+                    to={`/leaders/${m.vk_id}`}
+                    className="staff-nick staff-nick-btn link-gold no-underline"
                   >
                     {m.display_name || m.nickname}
-                  </a>
+                  </Link>
+                  <button
+                    type="button"
+                    className="staff-settings-btn"
+                    title="Настройки"
+                    aria-label={`Настройки: ${m.display_name || m.nickname}`}
+                    disabled={settingsLoadingVkId === m.vk_id}
+                    onClick={() => void openSettings(m)}
+                  >
+                    <Settings
+                      size={15}
+                      className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
+                    />
+                  </button>
                   <span className="staff-badges">🛡</span>
                 </div>
-                <div className="staff-col-sphere">{m.faction || '—'}</div>
+                <div className="staff-col-position staff-col-readonly">{m.position || '—'}</div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      <LeaderProfileModal
+        member={settingsMember}
+        open={settingsMember != null}
+        onClose={() => setSettingsMember(null)}
+        onSaved={(result) => {
+          if (result?.removed) setSettingsMember(null)
+          load()
+        }}
+      />
     </div>
   )
 }

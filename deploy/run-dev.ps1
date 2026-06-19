@@ -19,7 +19,10 @@ if (-not (Test-Path "$Root\.env")) {
 
 $env:BOT_DATABASE_URL = "sqlite:///$($BotDb -replace '\\','/')"
 $env:PANEL_DATABASE_URL = "sqlite:///$($Root -replace '\\','/')/data/panel.db"
-New-Item -ItemType Directory -Force -Path "$Root\data" | Out-Null
+$env:UPLOAD_DIR = "$Root\data\uploads"
+$env:DEV_MODE = "true"
+$env:DEV_SKIP_CA = "true"
+New-Item -ItemType Directory -Force -Path "$Root\data", "$Root\data\uploads" | Out-Null
 
 Push-Location "$Root\backend"
 if (-not (Test-Path "venv\Scripts\python.exe")) {

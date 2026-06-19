@@ -100,8 +100,8 @@ export function StaffPage() {
   }
 
   return (
-    <div>
-      <div className="page-header">
+    <div className="content-fixed">
+      <div className="page-header shrink-0">
         <div>
           <h1 className="page-title">Следящие</h1>
           <p className="page-subtitle">
@@ -120,7 +120,7 @@ export function StaffPage() {
       </div>
 
       {settingsError && (
-        <p className="staff-settings-toast" role="alert">
+        <p className="staff-settings-toast shrink-0" role="alert">
           {settingsError}
         </p>
       )}
@@ -193,7 +193,10 @@ export function StaffPage() {
         member={settingsMember}
         open={settingsMember != null}
         onClose={() => setSettingsMember(null)}
-        onSaved={loadStaff}
+        onSaved={(result) => {
+          if (result?.removed) setSettingsMember(null)
+          loadStaff()
+        }}
         permissions={
           settingsMember?.permissions ?? {
             edit_nickname: false,
@@ -201,6 +204,7 @@ export function StaffPage() {
             edit_ca_access: false,
             edit_sphere: false,
             edit_discord: false,
+            revoke_staff_access: false,
             max_access_level: 0,
           }
         }

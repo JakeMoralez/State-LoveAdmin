@@ -71,14 +71,20 @@ async def _dev_login_response(
     vk_id: int | None,
     json_response: bool,
 ):
-    if not DEV_MODE or not DEV_VK_ID:
-        raise HTTPException(status_code=404, detail="Not found")
+    if not DEV_MODE:
+        raise HTTPException(status_code=404, detail="Тестовый вход отключён")
 
-    uid = vk_id or DEV_VK_ID
+    uid = vk_id or DEV_VK_ID or None
+    if not uid:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите VK ID в форме или задайте DEV_VK_ID в .env",
+        )
+
     if not DEV_SKIP_CA:
         if access_level < AccessLevel.ZGS_GOS and not has_ca_access:
             raise HTTPException(status_code=403, detail="Нужен доступ ЦА или уровень ЗГС ГОС+")
-        if uid == DEV_VK_ID and not await can_use_ca_scope(uid):
+        if DEV_VK_ID and uid == DEV_VK_ID and not await can_use_ca_scope(uid):
             raise HTTPException(status_code=403, detail="DEV_VK_ID без доступа ЦА")
 
     if json_response:

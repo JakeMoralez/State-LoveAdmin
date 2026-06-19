@@ -23,6 +23,7 @@ interface NavItem {
   to: string
   label: string
   icon: LucideIcon
+  end?: boolean
 }
 
 interface NavCategory {
@@ -93,6 +94,7 @@ function SidebarNavLink({
   return (
     <NavLink
       to={item.to}
+      end={item.end}
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
@@ -181,7 +183,7 @@ export function Layout() {
                 {user?.can_dev_panel && (
                   <SidebarNavLink
                     collapsed={collapsed}
-                    item={{ to: '/dev', label: 'Лог ошибок', icon: Bug }}
+                    item={{ to: '/dev', label: 'Лог ошибок', icon: Bug, end: true }}
                   />
                 )}
               </div>

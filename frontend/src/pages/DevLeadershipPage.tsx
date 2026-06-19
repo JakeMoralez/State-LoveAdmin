@@ -42,29 +42,17 @@ export function DevLeadershipPage() {
     return members.filter((m) => m.is_leader)
   }, [members, onlyLeaders])
 
-  const patch = async (member: LeadershipCandidate, patchData: { is_leader: boolean; faction?: string }) => {
+  const patch = async (member: LeadershipCandidate, isLeader: boolean) => {
     setBusyVkId(member.vk_id)
     try {
-      await api.updateDevLeadership(member.vk_id, {
-        is_leader: patchData.is_leader,
-        faction: patchData.faction ?? member.faction ?? '',
-      })
+      await api.updateDevLeadership(member.vk_id, { is_leader: isLeader })
       setMembers((prev) =>
-        prev.map((m) =>
-          m.vk_id === member.vk_id
-            ? {
-                ...m,
-                is_leader: patchData.is_leader,
-                faction: patchData.faction ?? m.faction,
-              }
-            : m,
-        ),
+        prev.map((m) => (m.vk_id === member.vk_id ? { ...m, is_leader: isLeader } : m)),
       )
       setLeadersCount((c) => {
         const was = member.is_leader
-        const now = patchData.is_leader
-        if (was === now) return c
-        return now ? c + 1 : Math.max(0, c - 1)
+        if (was === isLeader) return c
+        return isLeader ? c + 1 : Math.max(0, c - 1)
       })
     } catch (e: unknown) {
       window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка')
@@ -99,18 +87,19 @@ export function DevLeadershipPage() {
       <div className="flex flex-wrap items-center gap-3">
         <input
           type="search"
-          placeholder="Поиск по нику, VK или фракции…"
+          placeholder="Поиск по нику или VK…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           className="control w-72"
         />
-        <label className="flex items-center gap-2 text-sm text-white/55 cursor-pointer">
+        <label className="ui-checkbox-label text-sm text-white/55">
           <input
             type="checkbox"
+            className="ui-checkbox"
             checked={onlyLeaders}
             onChange={(e) => setOnlyLeaders(e.target.checked)}
-            className="accent-[var(--accent-gold)]"
           />
+          <span className="ui-checkbox-box" />
           Только с флагом
         </label>
       </div>
@@ -121,7 +110,6 @@ export function DevLeadershipPage() {
         <div className="staff-registry-head dev-leadership-head">
           <div className="staff-registry-th staff-col-num">#</div>
           <div className="staff-registry-th staff-col-nick">Ник</div>
-          <div className="staff-registry-th staff-col-sphere">Фракция</div>
           <div className="staff-registry-th dev-leadership-flag-col">Руководство</div>
         </div>
 
@@ -153,37 +141,17 @@ export function DevLeadershipPage() {
                   </a>
                   <span className="text-[10px] text-white/25 ml-1">#{m.vk_id}</span>
                 </div>
-                <div className="staff-col-sphere">
-                  <input
-                    type="text"
-                    className="control staff-discord-input w-full"
-                    placeholder="Фракция…"
-                    value={m.faction ?? ''}
-                    disabled={busyVkId === m.vk_id || !m.is_leader}
-                    onChange={(e) =>
-                      setMembers((prev) =>
-                        prev.map((row) =>
-                          row.vk_id === m.vk_id ? { ...row, faction: e.target.value } : row,
-                        ),
-                      )
-                    }
-                    onBlur={(e) => {
-                      if (!m.is_leader) return
-                      void patch(m, { is_leader: true, faction: e.target.value.trim() })
-                    }}
-                  />
-                </div>
                 <div className="dev-leadership-flag-col">
-                  <label className="dev-leader-toggle">
+                  <label className="ui-checkbox-label dev-leader-toggle">
                     <input
                       type="checkbox"
+                      className="ui-checkbox"
                       checked={m.is_leader}
                       disabled={busyVkId === m.vk_id}
-                      onChange={(e) =>
-                        void patch(m, { is_leader: e.target.checked, faction: m.faction ?? '' })
-                      }
+                      onChange={(e) => void patch(m, e.target.checked)}
                     />
-                    <span>{m.is_leader ? 'Да' : 'Нет'}</span>
+                    <span className="ui-checkbox-box" />
+                    <span>{m.is_leader ? 'В реестре' : 'Нет'}</span>
                   </label>
                 </div>
               </div>
