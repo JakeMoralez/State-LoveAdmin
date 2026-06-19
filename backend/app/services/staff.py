@@ -550,5 +550,7 @@ async def update_staff_member(
 
     row = await get_staff_member(server_id, vk_id)
     if not row:
-        raise ValueError("Пользователь не в реестре следящих")
+        row = await get_ca_leader(server_id, vk_id)
+    if not row:
+        raise ValueError("Пользователь не найден")
     return row
