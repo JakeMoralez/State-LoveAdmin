@@ -16,8 +16,19 @@ from app.services.auth import require_ca_user
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
 from app.services.display_names import resolve_display_names, resolve_vk_photos
-from app.services.display_names import resolve_display_names, resolve_vk_photos
-from app.services.staff import get_leadership_peer_id, list_ca_leaders, list_staff
+from app.services.staff import (
+    get_leadership_peer_id,
+    get_staff_member,
+    list_ca_leaders,
+    list_staff,
+    update_staff_member,
+)
+from app.services.staff_permissions import (
+    assert_can_set_ca,
+    assert_can_set_level,
+    assert_can_set_nickname,
+    staff_edit_permissions,
+)
 
 router = APIRouter(prefix="/api/staff", tags=["staff"])
 
@@ -30,7 +41,17 @@ class StaffDiscordUpdate(BaseModel):
     discord_id: str | None = None
 
 
-def _can_manage_discord_links(user: dict, level: int) -> bool:
+class StaffMemberUpdate(BaseModel):
+    nickname: str | None = None
+    access_level: int | None = None
+    has_ca_access: bool | None = None
+    note: str | None = None
+    discord_id: str | None = None
+
+
+def _can_manage_discord_links(user: dict, level: int, target_vk_id: int) -> bool:
+    if user["vk_id"] == target_vk_id:
+        return True
     return level >= 7 or user.get("panel_role") in ("owner", "lead")
 
 
@@ -175,6 +196,134 @@ async def export_staff_csv(
     )
 
 
+async def _enrich_staff_row(row: dict, server_id: int) -> dict:
+    vk_id = row["vk_id"]
+    names = await resolve_display_names({vk_id}, server_id)
+    photos = await resolve_vk_photos({vk_id})
+    links = await links_for_vk_ids({vk_id})
+    link = links.get(vk_id)
+    row = {**row}
+    row["display_name"] = names.get(vk_id, row["nickname"])
+    row["avatar_url"] = photos.get(vk_id)
+    row["discord_id"] = link.discord_id if link else None
+    row["discord_username"] = link.discord_username if link else None
+    row["discord_display_name"] = link.discord_display_name if link else None
+    return row
+
+
+@router.get("/{vk_id}")
+async def get_staff_one(
+    vk_id: int,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_ca_user),
+):
+    row = await get_staff_member(server_id, vk_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найден в реестре следящих")
+    row = await _enrich_staff_row(row, server_id)
+    actor_level = await get_access_level(user["vk_id"], server_id)
+    perms = staff_edit_permissions(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        actor_panel_role=user.get("panel_role") or "member",
+        target_vk_id=vk_id,
+    )
+    from app.services.access import panel_role
+
+    row["server_id"] = server_id
+    row["panel_role"] = panel_role(row["access_level"])
+    row["permissions"] = perms
+    return row
+
+
+@router.patch("/{vk_id}")
+async def patch_staff_member(
+    vk_id: int,
+    body: StaffMemberUpdate,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_ca_user),
+):
+    actor_level = await get_access_level(user["vk_id"], server_id)
+    perms = staff_edit_permissions(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        actor_panel_role=user.get("panel_role") or "member",
+        target_vk_id=vk_id,
+    )
+
+    fields_set = body.model_fields_set
+    kwargs: dict = {}
+
+    if "nickname" in fields_set:
+        if not perms["edit_nickname"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены ника")
+        assert_can_set_nickname(actor_level)
+        kwargs["nickname"] = body.nickname or ""
+
+    if "access_level" in fields_set:
+        if body.access_level is None:
+            raise HTTPException(status_code=400, detail="Укажите access_level")
+        if not perms["edit_access_level"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены уровня")
+        assert_can_set_level(
+            actor_vk_id=user["vk_id"],
+            actor_level=actor_level,
+            new_level=body.access_level,
+        )
+        kwargs["access_level"] = body.access_level
+
+    if "has_ca_access" in fields_set:
+        if body.has_ca_access is None:
+            raise HTTPException(status_code=400, detail="Укажите has_ca_access")
+        if not perms["edit_ca_access"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для доступа ЦА")
+        assert_can_set_ca(actor_level)
+        kwargs["has_ca_access"] = body.has_ca_access
+
+    if "note" in fields_set:
+        if not perms["edit_sphere"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены сферы")
+        kwargs["note"] = body.note or ""
+
+    if not kwargs and "discord_id" not in fields_set:
+        raise HTTPException(status_code=400, detail="Нет полей для обновления")
+
+    if kwargs:
+        try:
+            await update_staff_member(
+                server_id,
+                vk_id,
+                granted_by=user["vk_id"],
+                **kwargs,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if "discord_id" in fields_set:
+        if not perms["edit_discord"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для Discord")
+        try:
+            discord_id = normalize_discord_id(body.discord_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await set_discord_link(
+            vk_id=vk_id,
+            discord_id=discord_id,
+            actor_vk_id=user["vk_id"],
+        )
+
+    row = await get_staff_member(server_id, vk_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Не найден")
+    row = await _enrich_staff_row(row, server_id)
+    from app.services.access import panel_role
+
+    row["server_id"] = server_id
+    row["panel_role"] = panel_role(row["access_level"])
+    row["permissions"] = perms
+    return row
+
+
 @router.patch("/{vk_id}/note")
 async def update_staff_note(
     vk_id: int,
@@ -202,7 +351,7 @@ async def update_staff_discord(
     user: dict = Depends(require_ca_user),
 ):
     level = await get_access_level(user["vk_id"], server_id)
-    if not _can_manage_discord_links(user, level):
+    if not _can_manage_discord_links(user, level, vk_id):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 
     try:

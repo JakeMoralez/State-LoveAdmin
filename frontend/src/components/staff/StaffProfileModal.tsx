@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
-import { api, ApiError, type StaffMember } from '../../api'
+import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
+import { ACCESS_LEVEL_OPTIONS } from '../../lib/accessLevels'
+import { Select } from '../ui/Select'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -11,12 +13,11 @@ function formatError(e: unknown): string {
 }
 
 export interface StaffProfileModalProps {
-  member: StaffMember | null
+  member: StaffMemberDetail | null
   open: boolean
   onClose: () => void
   onSaved: () => void
-  canEditSphere: boolean
-  canEditDiscord: boolean
+  permissions: StaffMemberPermissions
 }
 
 export function StaffProfileModal({
@@ -24,9 +25,11 @@ export function StaffProfileModal({
   open,
   onClose,
   onSaved,
-  canEditSphere,
-  canEditDiscord,
+  permissions,
 }: StaffProfileModalProps) {
+  const [nickname, setNickname] = useState('')
+  const [accessLevel, setAccessLevel] = useState('0')
+  const [hasCaAccess, setHasCaAccess] = useState(false)
   const [sphere, setSphere] = useState('')
   const [discordId, setDiscordId] = useState('')
   const [saving, setSaving] = useState(false)
@@ -34,33 +37,69 @@ export function StaffProfileModal({
 
   useEffect(() => {
     if (!member) return
+    setNickname(member.nickname ?? '')
+    setAccessLevel(String(member.access_level))
+    setHasCaAccess(member.has_ca_access)
     setSphere(member.note ?? '')
     setDiscordId(member.discord_id ?? '')
     setError(null)
   }, [member])
 
+  const levelOptions = useMemo(
+    () =>
+      ACCESS_LEVEL_OPTIONS.filter(
+        (opt) => parseInt(opt.value, 10) <= permissions.max_access_level,
+      ),
+    [permissions.max_access_level],
+  )
+
   if (!open || !member) return null
 
   const displayName = member.display_name || member.nickname
   const sphereAuto = !member.note?.trim()
-  const discordReadOnly = !canEditDiscord
+
+  const canEditAnything =
+    permissions.edit_nickname ||
+    permissions.edit_access_level ||
+    permissions.edit_ca_access ||
+    permissions.edit_sphere ||
+    permissions.edit_discord
+
+  const hasChanges =
+    (permissions.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) ||
+    (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) ||
+    (permissions.edit_ca_access && hasCaAccess !== member.has_ca_access) ||
+    (permissions.edit_sphere && sphere.trim() !== (member.note ?? '').trim()) ||
+    (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     try {
-      const sphereTrimmed = sphere.trim()
-      const noteCurrent = (member.note ?? '').trim()
-      if (canEditSphere && sphereTrimmed !== noteCurrent) {
-        await api.updateStaffNote(member.vk_id, sphereTrimmed)
+      const body: Record<string, unknown> = {}
+
+      if (permissions.edit_nickname && nickname.trim() !== (member.nickname ?? '').trim()) {
+        body.nickname = nickname.trim()
+      }
+      if (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) {
+        body.access_level = parseInt(accessLevel, 10)
+      }
+      if (permissions.edit_ca_access && hasCaAccess !== member.has_ca_access) {
+        body.has_ca_access = hasCaAccess
+      }
+      if (permissions.edit_sphere && sphere.trim() !== (member.note ?? '').trim()) {
+        body.note = sphere.trim()
+      }
+      if (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) {
+        body.discord_id = discordId.trim() || null
       }
 
-      const discordTrimmed = discordId.trim()
-      const discordCurrent = member.discord_id ?? ''
-      if (canEditDiscord && discordTrimmed !== discordCurrent) {
-        await api.updateStaffDiscord(member.vk_id, discordTrimmed || null)
+      if (Object.keys(body).length === 0) {
+        onClose()
+        return
       }
 
+      await api.updateStaffMember(member.vk_id, body)
       onSaved()
       onClose()
     } catch (e: unknown) {
@@ -69,10 +108,6 @@ export function StaffProfileModal({
       setSaving(false)
     }
   }
-
-  const hasChanges =
-    (canEditSphere && sphere.trim() !== (member.note ?? '').trim()) ||
-    (canEditDiscord && discordId.trim() !== (member.discord_id ?? ''))
 
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
@@ -83,13 +118,9 @@ export function StaffProfileModal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <img
-              src={member.avatar_url || DEFAULT_AVATAR}
-              alt=""
-              className="staff-profile-avatar"
-            />
+            <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-lg font-semibold">{displayName}</h2>
+              <h2 className="m-0 truncate text-lg font-semibold">Настройки · {displayName}</h2>
               <p className="m-0 mt-0.5 text-xs text-white/40">
                 {member.access_role_title || member.access_level_name}
                 {member.badges.length > 0 ? ` · ${member.badges.join(' ')}` : ''}
@@ -123,19 +154,61 @@ export function StaffProfileModal({
                 <dd>{member.username}</dd>
               </div>
             )}
-            {member.has_ca_access && (
-              <div>
-                <dt>Доступ ЦА</dt>
-                <dd>{member.ca_source === 'sled_ca' ? 'беседа след. ЦА' : 'вручную'}</dd>
-              </div>
-            )}
           </dl>
+
+          {permissions.edit_nickname && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="staff-nickname">
+                Никнейм
+              </label>
+              <input
+                id="staff-nickname"
+                type="text"
+                className="control w-full"
+                value={nickname}
+                placeholder="[ЗГС ЦА] Имя Фамилия"
+                disabled={saving}
+                onChange={(e) => setNickname(e.target.value)}
+              />
+              <p className="staff-profile-hint">Как /setnick в боте — нужен уровень ПГС+</p>
+            </div>
+          )}
+
+          {permissions.edit_access_level && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label">Уровень доступа</label>
+              <Select
+                value={accessLevel}
+                onChange={setAccessLevel}
+                options={levelOptions}
+                disabled={saving}
+              />
+              <p className="staff-profile-hint">
+                Как /setlevel — до {permissions.max_access_level} (ваш максимум)
+              </p>
+            </div>
+          )}
+
+          {permissions.edit_ca_access && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-check flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={hasCaAccess}
+                  disabled={saving}
+                  onChange={(e) => setHasCaAccess(e.target.checked)}
+                />
+                <span>Доступ ЦА</span>
+              </label>
+              <p className="staff-profile-hint">Как /setca в боте — нужен уровень ЗГС+</p>
+            </div>
+          )}
 
           <div className="staff-profile-field">
             <label className="staff-profile-label" htmlFor="staff-sphere">
               Сфера
             </label>
-            {canEditSphere ? (
+            {permissions.edit_sphere ? (
               <>
                 <input
                   id="staff-sphere"
@@ -161,7 +234,7 @@ export function StaffProfileModal({
             <label className="staff-profile-label" htmlFor="staff-discord">
               Discord ID
             </label>
-            {discordReadOnly ? (
+            {!permissions.edit_discord ? (
               <p className="staff-profile-value">
                 {member.discord_id ? (
                   <>
@@ -200,9 +273,9 @@ export function StaffProfileModal({
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-white/[0.06] px-6 py-4">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
-            {hasChanges && (canEditSphere || canEditDiscord) ? 'Отмена' : 'Закрыть'}
+            {hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
           </button>
-          {(canEditSphere || canEditDiscord) && (
+          {canEditAnything && (
             <button
               type="button"
               className="btn btn-gold"

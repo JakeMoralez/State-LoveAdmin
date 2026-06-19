@@ -3684,6 +3684,51 @@ body {
     text-underline-offset: 2px;
   }
 
+  .staff-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0.375rem;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .staff-settings-btn:hover:not(:disabled) {
+    color: var(--accent-gold);
+    background: rgba(255, 215, 0, 0.08);
+  }
+
+  .staff-settings-btn:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+
+  .staff-settings-toast {
+    margin: 0 0 1rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 0.5rem;
+    background: rgba(239, 68, 68, 0.12);
+    color: #fca5a5;
+    font-size: 0.875rem;
+  }
+
+  .staff-profile-check input {
+    accent-color: var(--accent-gold);
+  }
+
+  .staff-member-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: -0.5rem;
+  }
+
   .staff-profile-modal {
     max-width: 28rem;
   }

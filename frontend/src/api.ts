@@ -65,6 +65,12 @@ export const api = {
     const s = q.toString()
     return request<StaffResponse>(`/staff${s ? `?${s}` : ''}`)
   },
+  staffMember: (vkId: number) => request<StaffMemberDetail>(`/staff/${vkId}`),
+  updateStaffMember: (vkId: number, body: StaffMemberUpdateBody) =>
+    request<StaffMemberDetail>(`/staff/${vkId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   leaders: (params?: { q?: string }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
@@ -308,6 +314,29 @@ export interface StaffMember {
   discord_id?: string | null
   discord_username?: string | null
   discord_display_name?: string | null
+}
+
+export interface StaffMemberPermissions {
+  edit_nickname: boolean
+  edit_access_level: boolean
+  edit_ca_access: boolean
+  edit_sphere: boolean
+  edit_discord: boolean
+  max_access_level: number
+}
+
+export interface StaffMemberDetail extends StaffMember {
+  server_id?: number
+  panel_role?: string
+  permissions: StaffMemberPermissions
+}
+
+export interface StaffMemberUpdateBody {
+  nickname?: string | null
+  access_level?: number
+  has_ca_access?: boolean
+  note?: string | null
+  discord_id?: string | null
 }
 
 export interface StaffResponse {

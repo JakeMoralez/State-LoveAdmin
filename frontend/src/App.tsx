@@ -11,6 +11,7 @@ import { ProfilePage } from './pages/ProfilePage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { StaffPage } from './pages/StaffPage'
+import { StaffMemberPage } from './pages/StaffMemberPage'
 import { LeadersPage } from './pages/LeadersPage'
 import { TasksPage } from './pages/TasksPage'
 
@@ -40,6 +41,7 @@ function AppRoutes() {
       >
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/staff" element={<StaffPage />} />
+        <Route path="/staff/:vkId" element={<StaffMemberPage />} />
         <Route path="/leaders" element={<LeadersPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/tasks/:taskId" element={<TasksPage />} />

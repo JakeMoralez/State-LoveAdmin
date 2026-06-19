@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
-import { api, type StaffMember } from '../api'
+import { ArrowDown, ArrowUp, ArrowUpDown, Settings } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { api, ApiError, type StaffMember, type StaffMemberDetail } from '../api'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
-import { useAuth } from '../context/AuthContext'
 
 type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
 type SortDir = 'asc' | 'desc'
@@ -18,24 +18,16 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   )
 }
 
-function canManageStaffFields(user: { access_level?: number; panel_role?: string } | null): boolean {
-  if (!user) return false
-  const level = user.access_level ?? 0
-  return level >= 7 || user.panel_role === 'owner' || user.panel_role === 'lead'
-}
-
 export function StaffPage() {
-  const { user } = useAuth()
   const [members, setMembers] = useState<StaffMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('index')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
-  const [profileMember, setProfileMember] = useState<StaffMember | null>(null)
-
-  const canManageStaff = canManageStaffFields(user)
-  const canManageDiscord = Boolean(user?.can_manage_discord_links)
+  const [settingsMember, setSettingsMember] = useState<StaffMemberDetail | null>(null)
+  const [settingsLoadingVkId, setSettingsLoadingVkId] = useState<number | null>(null)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
 
   const loadStaff = useCallback(() => {
     setLoading(true)
@@ -94,11 +86,18 @@ export function StaffPage() {
     { key: 'sphere', label: 'Сфера', className: 'staff-col-sphere' },
   ]
 
-  const openProfile = (member: StaffMember) => setProfileMember(member)
-
-  const profileCanEditDiscord =
-    profileMember != null &&
-    (canManageDiscord || profileMember.vk_id === user?.vk_id)
+  const openSettings = async (member: StaffMember) => {
+    setSettingsError(null)
+    setSettingsLoadingVkId(member.vk_id)
+    try {
+      const detail = await api.staffMember(member.vk_id)
+      setSettingsMember(detail)
+    } catch (e: unknown) {
+      setSettingsError(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось открыть настройки')
+    } finally {
+      setSettingsLoadingVkId(null)
+    }
+  }
 
   return (
     <div>
@@ -106,7 +105,7 @@ export function StaffPage() {
         <div>
           <h1 className="page-title">Следящие</h1>
           <p className="page-subtitle">
-            {total} человек в реестре · нажмите на ник, чтобы открыть профиль
+            {total} человек в реестре · ник — профиль, ⚙ — настройки
           </p>
         </div>
         <div className="flex gap-2">
@@ -119,6 +118,12 @@ export function StaffPage() {
           />
         </div>
       </div>
+
+      {settingsError && (
+        <p className="staff-settings-toast" role="alert">
+          {settingsError}
+        </p>
+      )}
 
       <div className="staff-registry">
         <div className="staff-registry-head">
@@ -153,12 +158,24 @@ export function StaffPage() {
                       loading="lazy"
                     />
                   </span>
-                  <button
-                    type="button"
-                    className="staff-nick staff-nick-btn link-gold"
-                    onClick={() => openProfile(m)}
+                  <Link
+                    to={`/staff/${m.vk_id}`}
+                    className="staff-nick staff-nick-btn link-gold no-underline"
                   >
                     {m.display_name || m.nickname}
+                  </Link>
+                  <button
+                    type="button"
+                    className="staff-settings-btn"
+                    title="Настройки"
+                    aria-label={`Настройки: ${m.display_name || m.nickname}`}
+                    disabled={settingsLoadingVkId === m.vk_id}
+                    onClick={() => void openSettings(m)}
+                  >
+                    <Settings
+                      size={15}
+                      className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
+                    />
                   </button>
                   {m.badges.length > 0 && (
                     <span className="staff-badges">{m.badges.join(' ')}</span>
@@ -173,12 +190,20 @@ export function StaffPage() {
       </div>
 
       <StaffProfileModal
-        member={profileMember}
-        open={profileMember != null}
-        onClose={() => setProfileMember(null)}
+        member={settingsMember}
+        open={settingsMember != null}
+        onClose={() => setSettingsMember(null)}
         onSaved={loadStaff}
-        canEditSphere={canManageStaff}
-        canEditDiscord={profileCanEditDiscord}
+        permissions={
+          settingsMember?.permissions ?? {
+            edit_nickname: false,
+            edit_access_level: false,
+            edit_ca_access: false,
+            edit_sphere: false,
+            edit_discord: false,
+            max_access_level: 0,
+          }
+        }
       />
     </div>
   )

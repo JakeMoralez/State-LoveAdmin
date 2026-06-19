@@ -346,3 +346,74 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
 
     result.sort(key=lambda r: r["nickname"].lower())
     return result
+
+
+async def get_staff_member(server_id: int, vk_id: int) -> dict | None:
+    for row in await list_staff(server_id):
+        if row["vk_id"] == vk_id:
+            return row
+    return None
+
+
+async def update_staff_member(
+    server_id: int,
+    vk_id: int,
+    *,
+    nickname: str | None = None,
+    access_level: int | None = None,
+    has_ca_access: bool | None = None,
+    note: str | None = None,
+    granted_by: int | None = None,
+) -> dict:
+    from app.models.bot import User, UserServerAccess
+    from app.models.panel import StaffNote
+
+    user = await User.get_or_none(vk_id=vk_id)
+    if not user:
+        raise ValueError("Пользователь не найден")
+
+    access, _ = await UserServerAccess.get_or_create(
+        user_id=vk_id,
+        server_id=server_id,
+        defaults={"access_level": 0},
+    )
+
+    if nickname is not None:
+        nick = nickname.strip()
+        if not nick:
+            access.nickname = None
+        else:
+            if len(nick) > 64:
+                raise ValueError("Ник слишком длинный (макс. 64)")
+            taken = await UserServerAccess.filter(
+                server_id=server_id,
+                nickname__iexact=nick,
+            ).exclude(user_id=vk_id).exists()
+            if taken:
+                raise ValueError("Этот ник уже занят")
+            access.nickname = nick
+        await access.save()
+
+    if access_level is not None:
+        access.access_level = access_level
+        access.granted_by = granted_by
+        await access.save()
+
+    if has_ca_access is not None:
+        access.has_ca_access = has_ca_access
+        await access.save()
+
+    if note is not None:
+        panel_note, _ = await StaffNote.get_or_create(
+            vk_id=vk_id,
+            server_id=server_id,
+            defaults={"note": note.strip()},
+        )
+        panel_note.note = note.strip()
+        panel_note.updated_by = granted_by
+        await panel_note.save()
+
+    row = await get_staff_member(server_id, vk_id)
+    if not row:
+        raise ValueError("Пользователь не в реестре следящих")
+    return row
