@@ -24,25 +24,14 @@ async def resolve_bot_nickname(
     access: UserServerAccess | None = None,
     user: User | None = None,
 ) -> str | None:
-    """Ник из /setnick: сначала на server_id, затем на любом сервере, затем legacy users.nickname."""
+    """Ник из /setnick на конкретном server_id — как UserRepository.get_nickname в боте."""
+    del user  # legacy users.nickname не используем: бот читает только user_server_access
+    if access is not None and access.server_id != server_id:
+        access = None
     if access is None:
         access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     if access and access.nickname and access.nickname.strip():
         return access.nickname.strip()
-
-    any_access = (
-        await UserServerAccess.filter(user_id=vk_id)
-        .exclude(nickname=None)
-        .exclude(nickname="")
-        .first()
-    )
-    if any_access and any_access.nickname:
-        return any_access.nickname.strip()
-
-    if user is None:
-        user = await User.get_or_none(vk_id=vk_id)
-    if user and user.nickname and user.nickname.strip():
-        return user.nickname.strip()
     return None
 
 
@@ -89,17 +78,8 @@ async def resolve_display_names(
 
     missing = vk_ids - result.keys()
     if missing:
-        for acc in await UserServerAccess.filter(user_id__in=list(missing)):
-            nick = (acc.nickname or "").strip()
-            if nick and acc.user_id not in result:
-                result[acc.user_id] = nick
-
-    missing = vk_ids - result.keys()
-    if missing:
         for user in await User.filter(vk_id__in=list(missing)):
-            if user.nickname and user.nickname.strip():
-                result[user.vk_id] = user.nickname.strip()
-            elif user.username and user.username.strip():
+            if user.username and user.username.strip():
                 result[user.vk_id] = user.username.strip().lstrip("@")
 
     missing = vk_ids - result.keys()

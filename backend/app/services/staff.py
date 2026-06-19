@@ -348,7 +348,7 @@ async def _persist_member_nickname(
     server_id: int,
     nickname: str | None,
 ) -> None:
-    """Записать ник на server_id и синхронизировать на все серверы + users.nickname."""
+    """Записать ник на server_id — как /setnick в боте (только одна строка user_server_access)."""
     user = await User.get_or_none(vk_id=vk_id)
     if not user:
         raise ValueError("Пользователь не найден")
@@ -374,12 +374,11 @@ async def _persist_member_nickname(
     access.nickname = value
     await access.save()
 
-    for row in await UserServerAccess.filter(user_id=vk_id).exclude(id=access.id):
-        row.nickname = value
-        await row.save()
+    # Сбрасываем legacy-поле, чтобы старые данные не подмешивались в UI.
+    if user.nickname is not None:
+        user.nickname = None
+        await user.save()
 
-    user.nickname = value
-    await user.save()
     invalidate_display_names(vk_id)
 
 
