@@ -3,6 +3,9 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
+import { QuestionBankDetailPage } from './pages/QuestionBankDetailPage'
+import { QuestionBankReviewPage } from './pages/QuestionBankReviewPage'
+import { QuestionBanksPage } from './pages/QuestionBanksPage'
 import { DevPage } from './pages/DevPage'
 import { DevLeadershipPage } from './pages/DevLeadershipPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -30,6 +33,9 @@ function AppRoutes() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TasksPage />} />
           <Route path="/checklist" element={<ChecklistPage />} />
+          <Route path="/question-banks" element={<QuestionBanksPage />} />
+          <Route path="/question-banks/review" element={<QuestionBankReviewPage />} />
+          <Route path="/question-banks/:id" element={<QuestionBankDetailPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />

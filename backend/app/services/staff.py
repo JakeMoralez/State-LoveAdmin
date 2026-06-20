@@ -12,6 +12,16 @@ from app.services.display_names import invalidate_display_names, resolve_bot_nic
 LEADER_ROLE = "leader"
 
 
+def _leader_nick_fields(bot_nickname: str | None, vk_id: int) -> dict[str, str | None]:
+    """Ник только из /setnick (user_server_access), без legacy users.username."""
+    nick = (bot_nickname or "").strip() or None
+    return {
+        "bot_nickname": nick,
+        "nickname": nick or "",
+        "display_name": nick or f"id{vk_id}",
+    }
+
+
 def format_badges(access: UserServerAccess | None, user: User) -> list[str]:
     badges: list[str] = []
     if access and access.has_ca_access:
@@ -34,7 +44,7 @@ def format_badges(access: UserServerAccess | None, user: User) -> list[str]:
 FULL_ROLE_TITLES: dict[int, str] = {
     1: "Помощник Главного Следящего",
     2: "Следящий",
-    3: "Зам. Главного Следящего Нелегалов",
+    3: "Зам. Главного Следящего",
     4: "Главный Следящий",
     5: "Зам. Главного Следящего ГОС",
     6: "Главный Следящий ГОС",
@@ -126,17 +136,17 @@ async def list_staff(server_id: int) -> list[dict]:
         if access and (access.is_judge or access.is_congress_speaker or access.is_leader):
             continue
         eff_level = max(level, await get_access_level(user.vk_id, server_id))
-        nickname = await resolve_bot_nickname(
+        bot_nickname = await resolve_bot_nickname(
             user.vk_id, server_id, access=access, user=user
         )
-        display = nickname or user.username or str(user.vk_id)
+        nick_fields = _leader_nick_fields(bot_nickname, user.vk_id)
         panel_note = notes.get((user.vk_id, server_id), "")
         result.append(
             {
                 "vk_id": user.vk_id,
-                "bot_nickname": nickname,
-                "nickname": nickname or user.username or str(user.vk_id),
-                "display_name": display,
+                "bot_nickname": nick_fields["bot_nickname"],
+                "nickname": nick_fields["nickname"],
+                "display_name": nick_fields["display_name"],
                 "username": user.username,
                 "access_level": eff_level,
                 "access_level_name": AccessLevel.title(eff_level),
@@ -213,7 +223,7 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
             continue
 
         bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
-        nickname = bot_nickname or user.username or str(vk_id)
+        nick_fields = _leader_nick_fields(bot_nickname, vk_id)
         panel = notes.get((vk_id, server_id))
         user_note = (user.note or "").strip()
         position, note = leader_registry_fields(panel, user_note)
@@ -221,9 +231,9 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
         result.append(
             {
                 "vk_id": vk_id,
-                "bot_nickname": bot_nickname,
-                "nickname": nickname,
-                "display_name": nickname,
+                "bot_nickname": nick_fields["bot_nickname"],
+                "nickname": nick_fields["nickname"],
+                "display_name": nick_fields["display_name"],
                 "username": user.username,
                 "position": position,
                 "note": note,
@@ -232,7 +242,7 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
             }
         )
 
-    result.sort(key=lambda r: r["nickname"].lower())
+    result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
     return result, None
 
 
@@ -253,13 +263,13 @@ async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
     user_note = (user.note or "").strip()
     position, note = leader_registry_fields(panel, user_note)
     bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
-    nickname = bot_nickname or user.username or str(vk_id)
+    nick_fields = _leader_nick_fields(bot_nickname, vk_id)
 
     return {
         "vk_id": vk_id,
-        "bot_nickname": bot_nickname,
-        "nickname": nickname,
-        "display_name": nickname,
+        "bot_nickname": nick_fields["bot_nickname"],
+        "nickname": nick_fields["nickname"],
+        "display_name": nick_fields["display_name"],
         "username": user.username,
         "position": position,
         "note": note,
@@ -317,16 +327,16 @@ async def set_ca_leader(
         note_row.updated_by = updated_by
         await note_row.save()
 
-    nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
-    nickname = nickname or user.username or str(vk_id)
+    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    nick_fields = _leader_nick_fields(bot_nickname, vk_id)
     panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
     user_note = (user.note or "").strip()
     leader_position, leader_note = leader_registry_fields(panel, user_note)
 
     return {
         "vk_id": vk_id,
-        "nickname": nickname,
-        "display_name": nickname,
+        "nickname": nick_fields["nickname"],
+        "display_name": nick_fields["display_name"],
         "position": leader_position,
         "note": leader_note,
         "faction": leader_position,
@@ -469,8 +479,8 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
         if is_supervisor(level, access):
             continue
 
-        nickname = await resolve_bot_nickname(user.vk_id, server_id, access=access, user=user)
-        nickname = nickname or user.username or str(user.vk_id)
+        bot_nickname = await resolve_bot_nickname(user.vk_id, server_id, access=access, user=user)
+        nick_fields = _leader_nick_fields(bot_nickname, user.vk_id)
         panel = notes.get((user.vk_id, server_id))
         user_note = (user.note or "").strip()
         position, note = leader_registry_fields(panel, user_note)
@@ -478,8 +488,9 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
         result.append(
             {
                 "vk_id": user.vk_id,
-                "nickname": nickname,
-                "display_name": nickname,
+                "bot_nickname": nick_fields["bot_nickname"],
+                "nickname": nick_fields["nickname"],
+                "display_name": nick_fields["display_name"],
                 "is_leader": bool(access and access.is_leader),
                 "position": position,
                 "note": note,
@@ -487,7 +498,7 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
             }
         )
 
-    result.sort(key=lambda r: r["nickname"].lower())
+    result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
     return result
 
 

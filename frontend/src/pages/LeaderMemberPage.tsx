@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type LeaderMemberDetail } from '../api'
 import { ProfileView } from '../components/profile/ProfileView'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
+import { staffLabel } from '../lib/staff'
 
 export function LeaderMemberPage() {
   const { vkId } = useParams()
@@ -72,7 +73,7 @@ export function LeaderMemberPage() {
       <ProfileView
         profile={{
           vk_id: member.vk_id,
-          nickname: member.nickname,
+          nickname: staffLabel(member),
           username: member.username,
           avatar_url: member.avatar_url,
           access_level: 0,

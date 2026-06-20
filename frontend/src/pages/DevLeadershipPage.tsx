@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { RefreshCw, Shield } from 'lucide-react'
 import { api, ApiError, type LeadershipCandidate } from '../api'
+import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
@@ -67,22 +68,18 @@ export function DevLeadershipPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-[var(--accent-gold)] mb-1">
-            <Shield size={18} />
-            <span className="text-xs font-semibold uppercase tracking-wider">Разработка</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white">Флаги руководства</h1>
-          <p className="text-sm text-white/45 mt-1">
-            {total} пользователей в БД (без следящих) · {leadersCount} в реестре «Руководство»
-          </p>
-        </div>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          Обновить
-        </button>
-      </div>
+      <PageHeader
+        section="Разработка"
+        title="Флаги руководства"
+        icon={Shield}
+        subtitle={`${total} пользователей в БД (без следящих) · ${leadersCount} в реестре «Руководство»`}
+        actions={
+          <button type="button" className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            Обновить
+          </button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <input

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type LeaderMember, type LeaderMemberDetail } from '../api'
+import { PageHeader } from '../components/PageHeader'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 import { staffLabel } from '../lib/staff'
 
@@ -91,24 +92,24 @@ export function LeadersPage() {
 
   return (
     <div className="content-fixed">
-      <div className="page-header shrink-0">
-        <div>
-          <h1 className="page-title flex items-center gap-2">
-            <Shield size={22} className="text-[var(--accent-gold)]" />
-            Руководство
-          </h1>
-          <p className="page-subtitle">{total} в реестре · ник — профиль, ⚙ — настройки</p>
-        </div>
-        <div className="page-header-actions w-full max-w-sm">
-          <input
-            type="search"
-            placeholder="Поиск по нику, должности или заметке…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="control w-full"
-          />
-        </div>
-      </div>
+      <PageHeader
+        section="Команда"
+        title="Руководство"
+        icon={Shield}
+        subtitle={`${total} в реестре · ник — профиль, ⚙ — настройки`}
+        shrink
+        actions={
+          <div className="w-full max-w-sm">
+            <input
+              type="search"
+              placeholder="Поиск по нику, должности или заметке…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="control w-full"
+            />
+          </div>
+        }
+      />
 
       {settingsError && (
         <p className="staff-settings-toast shrink-0" role="alert">

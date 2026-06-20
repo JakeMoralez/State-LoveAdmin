@@ -11,8 +11,9 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { Plus } from 'lucide-react'
+import { ClipboardList, Plus } from 'lucide-react'
 import { api, STATUS_LABELS, type Project, type StaffMember, type TaskDetail } from '../api'
+import { PageHeader } from '../components/PageHeader'
 import { TaskCard, TaskCardPreview, TaskListRow } from '../components/tasks/TaskCard'
 import { TaskCreateModal, type TaskCreatePayload } from '../components/tasks/TaskCreateModal'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
@@ -35,6 +36,8 @@ interface TasksWorkspaceProps {
   projectId?: number
   title?: string
   subtitle?: string
+  section?: string
+  headerBack?: { href: string; label: string }
   taskPathPrefix?: string
   taskIdParam?: string
 }
@@ -43,6 +46,8 @@ export function TasksWorkspace({
   projectId,
   title = 'Задачи',
   subtitle,
+  section = 'Работа',
+  headerBack,
   taskPathPrefix = '/tasks',
   taskIdParam,
 }: TasksWorkspaceProps) {
@@ -201,16 +206,20 @@ export function TasksWorkspace({
 
   return (
     <div className={filters.view === 'kanban' ? 'content-fixed' : ''}>
-      <div className="page-header tasks-page-header shrink-0">
-        <div>
-          <h1 className="page-title">{title}</h1>
-          {subtitle && <p className="page-subtitle">{subtitle}</p>}
-        </div>
-        <button type="button" onClick={() => setCreateOpen(true)} className="btn btn-gold tasks-page-create">
-          <Plus size={16} />
-          Задача
-        </button>
-      </div>
+      <PageHeader
+        section={section}
+        title={title}
+        icon={ClipboardList}
+        subtitle={subtitle}
+        back={headerBack}
+        shrink
+        actions={
+          <button type="button" onClick={() => setCreateOpen(true)} className="btn btn-gold tasks-page-create">
+            <Plus size={16} />
+            Задача
+          </button>
+        }
+      />
 
       <TasksToolbar
         filters={filters}

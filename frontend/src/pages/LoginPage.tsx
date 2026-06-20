@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { MessageCircle } from 'lucide-react'
 import { api, ApiError } from '../api'
 import { BrandLogo } from '../components/BrandLogo'
 import { LoginMarquee } from '../components/LoginMarquee'
@@ -120,7 +121,7 @@ export function LoginPage() {
       <div className="login-shell">
         <LoginMarquee />
         <div className="login-vignette" aria-hidden />
-        <div className="text-white/40 animate-fade-in relative z-[2]">Загрузка…</div>
+        <div className="login-loading">Загрузка…</div>
       </div>
     )
   }
@@ -137,107 +138,140 @@ export function LoginPage() {
       <LoginMarquee />
       <div className="login-vignette" aria-hidden />
 
-      <div className="login-card glass-card">
-        <BrandLogo size="lg" className="login-emblem" />
-        <div className="login-brand">State Love</div>
-        <h1 className="login-title">Следящие ЦА</h1>
-        <p className="login-subtitle">Портал следящей администрации</p>
-
-        {devMode && (
-          <div className="login-dev-panel">
-            <div className="login-dev-title">Тестовый вход (dev)</div>
-            <div className="login-dev-grid">
-              <div>
-                <label className="text-caption mb-1.5 block">Уровень</label>
-                <Select
-                  value={accessLevel}
-                  onChange={setAccessLevel}
-                  options={levelOptions}
-                />
-              </div>
-              <div>
-                <label className="text-caption mb-1.5 block">VK ID</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={devVkId}
-                  onChange={(e) => setDevVkId(e.target.value)}
-                  placeholder={defaultDevVkId ? String(defaultDevVkId) : 'Ваш VK ID'}
-                  required={!defaultDevVkId}
-                  className="control"
-                />
-              </div>
-            </div>
-            <label className="login-dev-ca">
-              <input
-                type="checkbox"
-                checked={hasCaAccess}
-                onChange={(e) => setHasCaAccess(e.target.checked)}
-              />
-              <span>Доступ ЦА</span>
-            </label>
-            <p className="login-dev-hint">
-              {!defaultDevVkId
-                ? 'DEV_VK_ID не задан в .env — укажите VK ID в поле выше.'
-                : devSkipCa
-                  ? 'Права из формы попадут в сессию — можно тестить чеклист, задачи и роли.'
-                  : 'DEV_SKIP_CA выключен: нужен реальный доступ у VK ID.'}
+      <div className="login-card">
+        <div className="login-card-grid">
+          <section className="login-hero">
+            <BrandLogo size="lg" className="login-emblem" />
+            <p className="login-brand">State Love</p>
+            <h1 className="login-title">Портал ЦА</h1>
+            <p className="login-subtitle">
+              Рабочее пространство следящей администрации: задачи, чеклист и реестры.
             </p>
-          </div>
-        )}
+            <ul className="login-features">
+              <li>Реестры следящих и руководства</li>
+              <li>Задачи и недельный чеклист</li>
+              <li>Доступ: ЗГС ГОС+ или флаг ЦА в боте</li>
+            </ul>
+          </section>
 
-        <div className="login-divider" aria-hidden />
+          <section className="login-panel">
+            <div className="login-auth-card">
+              <header className="login-auth-head">
+                <h2 className="login-auth-title">Вход</h2>
+                {devMode ? (
+                  <span className="login-auth-badge login-auth-badge--dev">Dev</span>
+                ) : showDiscord ? (
+                  <span className="login-auth-badge login-auth-badge--discord">Discord</span>
+                ) : null}
+              </header>
 
-        <div className="login-actions flex flex-col gap-2 w-full">
-          {showDiscord && (
-            <button
-              type="button"
-              onClick={handleDiscordLogin}
-              disabled={busy || !canLogin}
-              className="btn btn-discord"
-            >
-              {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через Discord'}
-            </button>
-          )}
-          {!devMode && !discordConfigured && !botLoginEnabled && (
-            <p className="login-dev-hint">Способы входа не настроены на сервере.</p>
-          )}
-        </div>
+              {showError && (
+                <p className="login-error" role="alert">
+                  {showError}
+                </p>
+              )}
 
-        {showBotAlt && (
-          <div className="login-alt w-full">
-            <div className="login-alt-title">Другой способ входа</div>
-            <p className="login-alt-text">
-              Нет Discord или не привязали ID? Напишите нашему боту в личные сообщения
-              команду <code className="login-alt-code">/panel</code> — он пришлёт ссылку.
-              Откройте её здесь, в этом браузере.
-            </p>
-            {vkBotUrl ? (
-              <a
-                href={vkBotUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-vk"
-              >
-                Написать боту VK
-              </a>
-            ) : (
-              <p className="login-alt-hint">
-                Откройте бота VK вручную и отправьте <code className="login-alt-code">/panel</code> в личные сообщения.
+              {devMode && (
+                <div className="login-dev-fields">
+                  <div className="login-dev-grid">
+                    <div>
+                      <label className="login-field-label">Уровень</label>
+                      <Select value={accessLevel} onChange={setAccessLevel} options={levelOptions} />
+                    </div>
+                    <div>
+                      <label className="login-field-label">VK ID</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={devVkId}
+                        onChange={(e) => setDevVkId(e.target.value)}
+                        placeholder={defaultDevVkId ? String(defaultDevVkId) : 'Ваш VK ID'}
+                        required={!defaultDevVkId}
+                        className="control w-full"
+                      />
+                    </div>
+                  </div>
+                  <label className="login-dev-ca">
+                    <input
+                      type="checkbox"
+                      checked={hasCaAccess}
+                      onChange={(e) => setHasCaAccess(e.target.checked)}
+                    />
+                    <span>Доступ ЦА</span>
+                  </label>
+                  <p className="login-dev-hint">
+                    {!defaultDevVkId
+                      ? 'DEV_VK_ID не задан в .env — укажите VK ID в поле выше.'
+                      : devSkipCa
+                        ? 'Права из формы попадут в сессию — можно тестить чеклист, задачи и роли.'
+                        : 'DEV_SKIP_CA выключен: нужен реальный доступ у VK ID.'}
+                  </p>
+                </div>
+              )}
+
+              {showDiscord && (
+                <div className="login-primary-action">
+                  {!devMode && (
+                    <p className="login-auth-lead">
+                      Основной способ входа. Discord должен быть привязан к VK —{' '}
+                      <code className="login-alt-code">/editmydiscord</code> в боте.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDiscordLogin}
+                    disabled={busy || !canLogin}
+                    className={`btn w-full ${devMode ? 'btn-gold' : 'btn-discord'}`}
+                  >
+                    {!devMode && <MessageCircle size={18} aria-hidden />}
+                    {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через Discord'}
+                  </button>
+                </div>
+              )}
+
+              {showBotAlt && (
+                <>
+                  <div className="login-or" aria-hidden>
+                    <span>или</span>
+                  </div>
+                  <div className="login-vk-block">
+                    <h3 className="login-vk-title">Через VK</h3>
+                    <ol className="login-method-steps">
+                      <li>Откройте бота в личных сообщениях</li>
+                      <li>
+                        Отправьте <code className="login-alt-code">/panel</code>
+                      </li>
+                      <li>Нажмите «Открыть портал» в ответе</li>
+                    </ol>
+                    {vkBotUrl ? (
+                      <a
+                        href={vkBotUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-vk w-full"
+                      >
+                        Написать боту VK
+                      </a>
+                    ) : (
+                      <p className="login-alt-hint">
+                        Откройте бота VK вручную и отправьте <code className="login-alt-code">/panel</code> в ЛС.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {!devMode && !discordConfigured && !botLoginEnabled && (
+                <p className="login-dev-hint">Способы входа не настроены на сервере.</p>
+              )}
+
+              <p className="login-footer">
+                Нет доступа — обратитесь к ЗГС ЦА+. Привязка Discord:{' '}
+                <code className="login-alt-code">/editmydiscord</code>
               </p>
-            )}
-          </div>
-        )}
-
-        {showError && (
-          <p className="login-error" role="alert">
-            {showError}
-          </p>
-        )}
-
-        <p className="login-footer">
-          Нет доступа к порталу — обратитесь к ЗГС ЦА+. Discord ID можно указать в боте: /editmydiscord
-        </p>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   )

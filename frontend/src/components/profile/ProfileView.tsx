@@ -11,6 +11,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { PageHeader } from '../PageHeader'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -124,17 +125,12 @@ export function ProfileView({
 
   return (
     <div className="profile-page w-full min-w-0">
-      <div className="page-header">
-        <div>
-          {backTo && (
-            <Link to={backTo.href} className="text-sm text-white/35 no-underline hover:text-white/55">
-              ← {backTo.label}
-            </Link>
-          )}
-          <div className="text-sm text-white/35">Аккаунт</div>
-          <h1 className="page-title m-0">Профиль</h1>
-        </div>
-      </div>
+      <PageHeader
+        section="Аккаунт"
+        title="Профиль"
+        icon={UserRound}
+        back={backTo}
+      />
 
       <section className="profile-hero-card glass-card">
         <div className="profile-hero-glow" aria-hidden />

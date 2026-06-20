@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, Bug, RefreshCw, Trash2 } from 'lucide-react'
 import { ApiError, api, type DevErrorItem } from '../api'
+import { PageHeader } from '../components/PageHeader'
 
 function formatWhen(iso: string | null) {
   if (!iso) return '—'
@@ -54,37 +55,33 @@ export function DevPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-[var(--accent-gold)] mb-1">
-            <Bug size={18} />
-            <span className="text-xs font-semibold uppercase tracking-wider">Developer</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white">Лог ошибок</h1>
-          <p className="text-sm text-white/45 mt-1">
-            Клиентские и серверные ошибки панели. Хранится последние {total} записей.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            Обновить
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm dev-btn-danger"
-            onClick={() => void clearAll()}
-          >
-            <Trash2 size={15} />
-            Очистить
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        section="Разработка"
+        title="Лог ошибок"
+        icon={Bug}
+        subtitle={`Клиентские и серверные ошибки панели. Хранится последние ${total} записей.`}
+        actions={
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              Обновить
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm dev-btn-danger"
+              onClick={() => void clearAll()}
+            >
+              <Trash2 size={15} />
+              Очистить
+            </button>
+          </>
+        }
+      />
 
       {error && (
         <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200 flex items-center gap-2">

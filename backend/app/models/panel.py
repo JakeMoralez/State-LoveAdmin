@@ -220,3 +220,62 @@ class ChecklistMember(Model):
     class Meta:
         table = "checklist_members"
         unique_together = (("server_id", "vk_id"),)
+
+
+class QuestionBank(Model):
+    id = fields.IntField(pk=True)
+    server_id = fields.IntField(index=True)
+    title = fields.CharField(max_length=256)
+    description = fields.TextField(default="")
+    min_submit_level = fields.IntField(default=1)
+    min_approve_level = fields.IntField(default=3)
+    created_by_vk_id = fields.BigIntField(index=True)
+    sort_order = fields.IntField(default=0)
+    is_active = fields.BooleanField(default=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "question_banks"
+
+
+class QuestionBankItem(Model):
+    id = fields.IntField(pk=True)
+    bank = fields.ForeignKeyField("models.QuestionBank", related_name="items")
+    server_id = fields.IntField(index=True)
+    question_type = fields.CharField(max_length=64, default="")
+    text = fields.TextField()
+    correct_answer = fields.TextField(default="")
+    source = fields.TextField(default="")
+    answer_comment = fields.TextField(default="")
+    tags = fields.JSONField(default=list)
+    sort_order = fields.IntField(default=0)
+    difficulty = fields.IntField(default=3)
+    status = fields.CharField(max_length=32, default="draft", index=True)
+    verification_status = fields.CharField(max_length=16, default="pending")
+    is_active = fields.BooleanField(default=True)
+    created_by_vk_id = fields.BigIntField(index=True)
+    verified_by_vk_id = fields.BigIntField(null=True)
+    verified_at = fields.DatetimeField(null=True)
+    reviewed_by_vk_id = fields.BigIntField(null=True)
+    reviewed_at = fields.DatetimeField(null=True)
+    review_note = fields.TextField(default="")
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "question_bank_items"
+
+
+class QuestionBankItemEvent(Model):
+    id = fields.IntField(pk=True)
+    item = fields.ForeignKeyField("models.QuestionBankItem", related_name="events")
+    actor_vk_id = fields.BigIntField(index=True)
+    action = fields.CharField(max_length=32)
+    comment = fields.TextField(default="")
+    changes = fields.JSONField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "question_bank_item_events"
+

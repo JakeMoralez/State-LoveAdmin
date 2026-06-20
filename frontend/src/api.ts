@@ -12,6 +12,21 @@ export class ApiError extends Error {
   }
 }
 
+function formatApiDetail(detail: unknown): string {
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === 'string') return item
+        if (item && typeof item === 'object' && 'msg' in item) return String((item as { msg: unknown }).msg)
+        return JSON.stringify(item)
+      })
+      .join('; ')
+  }
+  if (detail && typeof detail === 'object' && 'msg' in detail) return String((detail as { msg: unknown }).msg)
+  return String(detail)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     credentials: 'include',
@@ -25,7 +40,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = res.statusText
     try {
       const body = await res.json()
-      detail = body.detail || detail
+      detail = body.detail != null ? formatApiDetail(body.detail) : detail
     } catch {
       /* ignore */
     }
@@ -233,6 +248,54 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({}),
     }),
+  questionBankMeta: () => request<QuestionBankMeta>('/question-banks/meta'),
+  questionBanks: (params?: { q?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    const s = q.toString()
+    return request<{ banks: QuestionBank[]; permissions: QuestionBankPermissions }>(
+      `/question-banks${s ? `?${s}` : ''}`,
+    )
+  },
+  questionBank: (id: number, params?: { status?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.status) q.set('status', params.status)
+    const s = q.toString()
+    return request<QuestionBankDetail>(`/question-banks/${id}${s ? `?${s}` : ''}`)
+  },
+  createQuestionBank: (body: QuestionBankBody) =>
+    request<QuestionBank>('/question-banks', { method: 'POST', body: JSON.stringify(body) }),
+  updateQuestionBank: (id: number, body: QuestionBankBody) =>
+    request<QuestionBank>(`/question-banks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteQuestionBank: (id: number) =>
+    request<{ ok: boolean }>(`/question-banks/${id}`, { method: 'DELETE' }),
+  createQuestionBankItem: (bankId: number, body: QuestionBankItemBody, direct?: boolean) => {
+    const q = direct ? '?direct=true' : ''
+    return request<QuestionBankItem>(`/question-banks/${bankId}/questions${q}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+  updateQuestionBankItem: (bankId: number, itemId: number, body: Partial<QuestionBankItemBody>) =>
+    request<QuestionBankItem>(`/question-banks/${bankId}/questions/${itemId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteQuestionBankItem: (bankId: number, itemId: number) =>
+    request<{ ok: boolean }>(`/question-banks/${bankId}/questions/${itemId}`, { method: 'DELETE' }),
+  submitQuestionBankItem: (bankId: number, itemId: number) =>
+    request<QuestionBankItem>(`/question-banks/${bankId}/questions/${itemId}/submit`, { method: 'POST' }),
+  reviewQuestionBankItem: (bankId: number, itemId: number, body: QuestionBankReviewBody) =>
+    request<QuestionBankItem>(`/question-banks/${bankId}/questions/${itemId}/review`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  questionBankItemHistory: (bankId: number, itemId: number) =>
+    request<{ events: QuestionBankItemEvent[] }>(`/question-banks/${bankId}/questions/${itemId}/history`),
+  questionBankPendingReview: () =>
+    request<{ items: QuestionBankPendingItem[]; permissions: QuestionBankPermissions }>(
+      '/question-banks/pending-review',
+    ),
   devErrors: (params?: { limit?: number; offset?: number; level?: string; source?: string }) => {
     const q = new URLSearchParams()
     if (params?.limit) q.set('limit', String(params.limit))
@@ -567,4 +630,118 @@ export const KANBAN_COLUMN_LABELS: Record<string, string> = {
   accepted: 'Принято',
   deferred: 'Отложено',
   rejected: 'Отклонено',
+}
+
+export interface QuestionBankPermissions {
+  can_manage: boolean
+  can_submit: boolean
+  can_review: boolean
+  can_direct_confirm: boolean
+}
+
+export interface QuestionBankMeta {
+  permissions: QuestionBankPermissions
+  status_labels: Record<string, string>
+  difficulty_labels: Record<string, string>
+  tag_suggestions: string[]
+  access_levels: { value: number; label: string }[]
+}
+
+export interface QuestionBank {
+  id: number
+  title: string
+  description: string
+  min_submit_level: number
+  min_approve_level: number
+  min_submit_level_label?: string
+  min_approve_level_label?: string
+  question_count: number
+  pending_count?: number
+  sort_order: number
+  is_active: boolean
+  created_by_vk_id?: number
+  created_at?: string
+  updated_at?: string
+  permissions?: QuestionBankPermissions
+}
+
+export interface QuestionBankBody {
+  title: string
+  description?: string
+  min_submit_level?: number
+  min_approve_level?: number
+  sort_order?: number
+  is_active?: boolean
+}
+
+export type QuestionBankItemStatus =
+  | 'draft'
+  | 'pending'
+  | 'confirmed'
+  | 'rejected'
+  | 'needs_revision'
+
+export interface QuestionBankItem {
+  id: number
+  bank_id: number
+  text: string
+  correct_answer: string
+  source: string
+  answer_comment: string
+  tags: string[]
+  difficulty: number
+  difficulty_label?: string
+  status: QuestionBankItemStatus
+  status_label?: string
+  created_by_vk_id?: number
+  author_name?: string
+  reviewed_by_vk_id?: number | null
+  reviewer_name?: string | null
+  reviewed_at?: string | null
+  review_note?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface QuestionBankPendingItem extends QuestionBankItem {
+  bank_title: string
+}
+
+export interface QuestionBankItemBody {
+  text: string
+  correct_answer?: string
+  source?: string
+  answer_comment?: string
+  tags?: string[]
+  difficulty?: number
+}
+
+export interface QuestionBankReviewBody extends Partial<QuestionBankItemBody> {
+  action: 'approve' | 'reject' | 'needs_revision'
+  review_note?: string
+}
+
+export interface QuestionBankDetail extends QuestionBank {
+  questions: QuestionBankItem[]
+}
+
+export interface QuestionBankItemEvent {
+  id: number
+  action: string
+  action_label: string
+  actor_vk_id: number
+  actor_display_name: string
+  actor_role: string
+  comment: string
+  changes?: Record<string, { old: unknown; new: unknown }> | null
+  created_at: string
+  summary: string
+}
+
+export const QB_STATUS_LABELS: Record<QuestionBankItemStatus, string> = {
+  draft: 'Черновик',
+  pending: 'На проверке',
+  confirmed: 'Подтверждён',
+  rejected: 'Отклонён',
+  needs_revision: 'Требует доработки',
 }

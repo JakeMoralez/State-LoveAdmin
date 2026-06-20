@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { LayoutDashboard } from 'lucide-react'
 import { api, STATUS_LABELS } from '../api'
+import { PageHeader } from '../components/PageHeader'
 
 export function DashboardPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.dashboard>> | null>(null)
@@ -20,12 +22,7 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <div className="text-sm text-white/35">State Love</div>
-          <h1 className="page-title">Сводка</h1>
-        </div>
-      </div>
+      <PageHeader section="Обзор" title="Сводка" icon={LayoutDashboard} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8 page-enter--stagger">
         {cards.map((c) => (

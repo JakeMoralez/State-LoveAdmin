@@ -419,8 +419,9 @@ async def update_task(
         await notify_task_assigned(
             vid, task.id, task.title, user.get("nickname") or str(user["vk_id"])
         )
-    if task.status != old_status and task.assignee_vk_id:
-        await notify_task_status(task.assignee_vk_id, task.id, task.title, task.status)
+    if task.status != old_status:
+        for vid in _assignee_ids(task):
+            await notify_task_status(vid, task.id, task.title, task.status)
     await log_audit(user["vk_id"], "task_update", "task", task.id, {"status": task.status})
     return _serialize_task(task)
 

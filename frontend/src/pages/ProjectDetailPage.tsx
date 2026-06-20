@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { api } from '../api'
 import { TasksWorkspace } from './TasksPage'
 
@@ -16,15 +16,12 @@ export function ProjectDetailPage() {
 
   return (
     <div>
-      <div className="shrink-0 mb-2">
-        <Link to="/projects" className="text-sm text-white/40 no-underline hover:text-[var(--accent-gold)]">
-          ← Проекты
-        </Link>
-      </div>
       <TasksWorkspace
         projectId={projectId}
         title={project.title}
         subtitle={project.description || 'Задачи проекта'}
+        section="Работа"
+        headerBack={{ href: '/projects', label: 'Проекты' }}
         taskPathPrefix={`/projects/${projectId}/tasks`}
         taskIdParam={taskId}
       />

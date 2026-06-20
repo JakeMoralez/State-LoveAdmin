@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { FolderKanban } from 'lucide-react'
 import { api, type Project } from '../api'
+import { PageHeader } from '../components/PageHeader'
 
 export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -26,10 +28,16 @@ export function ProjectsPage() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Проекты</h1>
-        <button type="button" onClick={() => setShowForm(true)} className="btn btn-gold">+ Проект</button>
-      </div>
+      <PageHeader
+        section="Работа"
+        title="Проекты"
+        icon={FolderKanban}
+        actions={
+          <button type="button" onClick={() => setShowForm(true)} className="btn btn-gold">
+            + Проект
+          </button>
+        }
+      />
 
       {showForm && (
         <form onSubmit={create} className="glass-card p-4 mb-8 flex flex-col gap-3 max-w-lg">

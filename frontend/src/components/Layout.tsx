@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FolderKanban,
   LayoutDashboard,
+  Library,
   LogOut,
   Menu,
   User,
@@ -17,6 +18,7 @@ import {
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import type { UserProfile } from '../api'
+import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { MOBILE_NAV_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
 import { BrandLogo } from './BrandLogo'
@@ -27,6 +29,7 @@ interface NavItem {
   label: string
   icon: LucideIcon
   end?: boolean
+  badge?: number
 }
 
 interface NavCategory {
@@ -51,6 +54,7 @@ const navCategories: NavCategory[] = [
     items: [
       { to: '/tasks', label: 'Задачи', icon: ClipboardList },
       { to: '/checklist', label: 'Чеклист', icon: ClipboardCheck },
+      { to: '/question-banks', label: 'Банки вопросов', icon: Library },
       { to: '/projects', label: 'Проекты', icon: FolderKanban },
     ],
   },
@@ -125,6 +129,9 @@ function SidebarNavLink({
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="sidebar-nav-label">{item.label}</span>
+      {item.badge != null && item.badge > 0 && (
+        <span className="sidebar-nav-badge">{item.badge > 99 ? '99+' : item.badge}</span>
+      )}
     </NavLink>
   )
 }
@@ -138,8 +145,20 @@ export function Layout() {
     () => localStorage.getItem('sl-sidebar') === '1',
   )
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [qbPendingCount, setQbPendingCount] = useState(0)
 
   const closeMobile = () => setMobileOpen(false)
+
+  useEffect(() => {
+    if (!user) return
+    api
+      .questionBanks()
+      .then((res) => {
+        const total = res.banks.reduce((n, b) => n + (b.pending_count ?? 0), 0)
+        setQbPendingCount(res.permissions.can_review ? total : 0)
+      })
+      .catch(() => setQbPendingCount(0))
+  }, [user, location.pathname])
 
   useEffect(() => {
     closeMobile()
@@ -242,7 +261,11 @@ export function Layout() {
                 {category.items.map((item) => (
                   <SidebarNavLink
                     key={item.to}
-                    item={item}
+                    item={
+                      item.to === '/question-banks'
+                        ? { ...item, badge: qbPendingCount }
+                        : item
+                    }
                     collapsed={sidebarCollapsed}
                     onNavigate={closeMobile}
                   />
@@ -311,7 +334,7 @@ export function Layout() {
 
         <main
           key={location.pathname}
-          className="app-main flex-1 min-w-0 overflow-y-auto p-4 md:p-6 lg:p-8 ll-scroll page-enter-fade"
+          className="app-main flex flex-1 min-h-0 min-w-0 flex-col overflow-y-auto p-4 md:p-6 lg:p-8 ll-scroll page-enter-fade"
         >
           <Outlet />
         </main>

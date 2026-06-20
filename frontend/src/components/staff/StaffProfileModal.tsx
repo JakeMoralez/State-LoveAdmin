@@ -23,7 +23,7 @@ export interface StaffProfileModalProps {
 }
 
 function memberNickname(member: StaffMemberDetail): string {
-  return member.bot_nickname ?? member.nickname ?? ''
+  return member.bot_nickname ?? ''
 }
 
 export function StaffProfileModal({
@@ -142,7 +142,7 @@ export function StaffProfileModal({
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
       <div
-        className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-md flex-col"
+        className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-lg flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="staff-profile-header flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">

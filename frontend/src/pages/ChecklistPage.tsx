@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ClipboardCheck, Columns3, RefreshCw, Setting
 import { ApiError, api } from '../api'
 import { ChecklistSettingsModal } from '../components/checklist/ChecklistSettingsModal'
 import { ChecklistCellEditor } from '../components/checklist/ChecklistCellEditor'
+import { PageHeader } from '../components/PageHeader'
 
 function mondayOf(d: Date): string {
   const x = new Date(d)
@@ -151,48 +152,49 @@ export function ChecklistPage() {
 
   return (
     <div className="content-fixed">
-      <div className="page-header page-header--checklist shrink-0">
-        <div>
-          <h1 className="page-title flex items-center gap-2">
-            <ClipboardCheck size={22} className="text-[var(--accent-gold)]" />
-            Чеклист недели
-          </h1>
-          {data?.is_locked && (
-            <p className="text-xs text-amber-400/80 m-0 mt-1">
-              Прошлая неделя зафиксирована — состав и задачи не меняются
-            </p>
-          )}
-        </div>
-        <div className="page-header-toolbar flex flex-wrap items-center gap-2">
-          {data?.can_edit_all && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm checklist-header-settings"
-              onClick={() => {
-                setSettingsTab('tasks')
-                setSettingsOpen(true)
-              }}
-            >
-              <Settings size={14} />
-              Настройки
-            </button>
-          )}
-          <div className="checklist-week-nav">
-            <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={() => setWeek((w) => addDays(w, -7))}>
-              <ChevronLeft size={16} />
-            </button>
-            <span className="checklist-week-label text-sm text-white/55 text-center">
-              {data ? formatWeekRu(data.week_start, data.week_end) : week}
-            </span>
-            <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={() => setWeek((w) => addDays(w, 7))}>
-              <ChevronRight size={16} />
-            </button>
-            <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={load} disabled={loading}>
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        section="Работа"
+        title="Чеклист недели"
+        icon={ClipboardCheck}
+        className="page-header--checklist"
+        shrink
+        hint={
+          data?.is_locked
+            ? 'Прошлая неделя зафиксирована — состав и задачи не меняются'
+            : undefined
+        }
+        actions={
+          <>
+            {data?.can_edit_all && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm checklist-header-settings"
+                onClick={() => {
+                  setSettingsTab('tasks')
+                  setSettingsOpen(true)
+                }}
+              >
+                <Settings size={14} />
+                Настройки
+              </button>
+            )}
+            <div className="checklist-week-nav">
+              <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={() => setWeek((w) => addDays(w, -7))}>
+                <ChevronLeft size={16} />
+              </button>
+              <span className="checklist-week-label text-sm text-white/55 text-center">
+                {data ? formatWeekRu(data.week_start, data.week_end) : week}
+              </span>
+              <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={() => setWeek((w) => addDays(w, 7))}>
+                <ChevronRight size={16} />
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm checklist-week-btn" onClick={load} disabled={loading}>
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
@@ -300,7 +302,7 @@ export function ChecklistPage() {
 
           <div className="flex-1 min-h-0 overflow-auto ll-scroll">
             {grouped.map((day) => (
-              <section key={day.day_offset} className="mb-6">
+              <section key={day.day_offset} className="mb-4 last:mb-0">
                 <h2 className="checklist-day-head">{day.day_label}</h2>
                 <div className={`checklist-board ${viewMode === 'all' ? 'checklist-board--wide' : 'checklist-board--single'}`}>
                   <div className="checklist-table-wrap">

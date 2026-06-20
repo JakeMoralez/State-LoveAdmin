@@ -356,7 +356,8 @@ async def _enrich_staff_row(row: dict, server_id: int) -> dict:
     link = links.get(vk_id)
     row = {**row}
     row["bot_nickname"] = bot_nick
-    row["display_name"] = bot_nick or names.get(vk_id, row["nickname"])
+    row["nickname"] = bot_nick or ""
+    row["display_name"] = bot_nick or names.get(vk_id, f"id{vk_id}")
     row["avatar_url"] = photos.get(vk_id)
     row["discord_id"] = link.discord_id if link else None
     row["discord_username"] = link.discord_username if link else None

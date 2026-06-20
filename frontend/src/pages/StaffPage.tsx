@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Settings } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type StaffMember, type StaffMemberDetail } from '../api'
+import { PageHeader } from '../components/PageHeader'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { staffLabel } from '../lib/staff'
 
@@ -102,23 +103,24 @@ export function StaffPage() {
 
   return (
     <div className="content-fixed">
-      <div className="page-header shrink-0">
-        <div>
-          <h1 className="page-title">Следящие</h1>
-          <p className="page-subtitle">
-            {total} человек в реестре · ник — профиль, ⚙ — настройки
-          </p>
-        </div>
-        <div className="page-header-actions w-full max-w-sm">
-          <input
-            type="search"
-            placeholder="Поиск по нику, VK или Discord…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="control w-full"
-          />
-        </div>
-      </div>
+      <PageHeader
+        section="Команда"
+        title="Следящие"
+        icon={Users}
+        subtitle={`${total} человек в реестре · ник — профиль, ⚙ — настройки`}
+        shrink
+        actions={
+          <div className="w-full max-w-sm">
+            <input
+              type="search"
+              placeholder="Поиск по нику, VK или Discord…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="control w-full"
+            />
+          </div>
+        }
+      />
 
       {settingsError && (
         <p className="staff-settings-toast shrink-0" role="alert">

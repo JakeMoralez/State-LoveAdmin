@@ -20,7 +20,7 @@ export interface LeaderProfileModalProps {
 }
 
 function memberNickname(member: LeaderMemberDetail): string {
-  return member.bot_nickname ?? member.nickname ?? ''
+  return member.bot_nickname ?? ''
 }
 
 export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderProfileModalProps) {
@@ -171,11 +171,13 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
                 type="text"
                 className="control w-full"
                 value={nickname}
-                placeholder="[Лидер ЦЛ] Имя Фамилия"
+                placeholder="[GOV] [9] Имя_Фамилия"
                 disabled={saving}
                 onChange={(e) => setNickname(e.target.value)}
               />
-              <p className="staff-profile-hint">Имя в реестре с тегом должности</p>
+              <p className="staff-profile-hint">
+                Тот же ник, что в боте (/setnick и /members). Должность — отдельное поле ниже.
+              </p>
             </div>
           )}
 
