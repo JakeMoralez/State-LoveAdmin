@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { LayoutDashboard } from 'lucide-react'
 import { api, STATUS_LABELS } from '../api'
 import { PageHeader } from '../components/PageHeader'
 
@@ -21,10 +20,10 @@ export function DashboardPage() {
   ]
 
   return (
-    <div>
-      <PageHeader section="Обзор" title="Сводка" icon={LayoutDashboard} />
+    <div className="page-stack">
+      <PageHeader section="Обзор" title="Сводка" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8 page-enter--stagger">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 page-enter--stagger">
         {cards.map((c) => (
           <Link
             key={c.label}

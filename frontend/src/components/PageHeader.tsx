@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { cn } from '../lib/utils'
@@ -31,7 +32,8 @@ export function PageHeader({
       <div className="page-header-main">
         {back && (
           <Link to={back.href} className="page-header-back">
-            ← {back.label}
+            <ChevronLeft size={16} aria-hidden />
+            {back.label}
           </Link>
         )}
         <div className="page-header-eyebrow">{section}</div>

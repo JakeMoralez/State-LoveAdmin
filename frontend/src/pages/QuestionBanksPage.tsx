@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Library, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ApiError, api, type QuestionBank } from '../api'
 import { BankForm } from '../components/question-banks/QuestionBankUi'
@@ -46,24 +46,15 @@ export function QuestionBanksPage() {
       <PageHeader
         section="Работа"
         title="Банки вопросов"
-        icon={Library}
         subtitle={
           totalPending > 0
             ? `${banks.length} банков · ${totalPending} на проверке`
             : `${banks.length} банков`
         }
-        actions={
-          permissions.can_manage ? (
-            <button type="button" className="btn-primary" onClick={() => setCreateOpen(true)}>
-              <Plus size={18} className="mr-1.5" />
-              Банк
-            </button>
-          ) : undefined
-        }
       />
 
       <div className="qb-toolbar">
-        <div className="relative flex-1 max-w-md">
+        <div className="relative flex-1 min-w-0 max-w-md">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
           <input
             className="control pl-9"
@@ -72,8 +63,14 @@ export function QuestionBanksPage() {
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
+        {permissions.can_manage && (
+          <button type="button" className="btn-primary shrink-0" onClick={() => setCreateOpen(true)}>
+            <Plus size={18} className="mr-1.5" />
+            Банк
+          </button>
+        )}
         {permissions.can_review && totalPending > 0 && (
-          <Link to="/question-banks/review" className="btn-secondary">
+          <Link to="/question-banks/review" className="btn-secondary shrink-0">
             На проверке ({totalPending})
           </Link>
         )}

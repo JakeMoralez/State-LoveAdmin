@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Library, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ApiError,
@@ -142,7 +142,6 @@ export function QuestionBankDetailPage() {
       <PageHeader
         section="Работа"
         title={bank?.title ?? 'Банк вопросов'}
-        icon={Library}
         back={{ href: '/question-banks', label: 'Банки' }}
         subtitle={
           bank
@@ -150,31 +149,33 @@ export function QuestionBankDetailPage() {
               `${bank.question_count} подтверждённых${(bank.pending_count ?? 0) > 0 ? ` · ${bank.pending_count} на проверке` : ''}`
             : undefined
         }
-        actions={
-          permissions && (
-            <div className="flex flex-wrap gap-2">
-              {permissions.can_submit && (
-                <button type="button" className="btn-primary" onClick={openCreate}>
-                  <Plus size={18} className="mr-1.5" />
-                  Вопрос
-                </button>
-              )}
-              {permissions.can_manage && bank && (
-                <>
-                  <button type="button" className="btn-secondary" onClick={() => setEditBankOpen(true)}>
-                    <Pencil size={16} className="mr-1.5" />
-                    Банк
-                  </button>
-                  <button type="button" className="btn-secondary text-red-300" onClick={() => void handleDeleteBank()}>
-                    <Trash2 size={16} className="mr-1.5" />
-                    Удалить
-                  </button>
-                </>
-              )}
-            </div>
-          )
-        }
       />
+
+      {permissions && (
+        <div className="qb-toolbar qb-toolbar--detail">
+          <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} className="qb-toolbar-filter" />
+          <div className="qb-toolbar-actions">
+            {permissions.can_submit && (
+              <button type="button" className="btn-primary" onClick={openCreate}>
+                <Plus size={18} className="mr-1.5" />
+                Вопрос
+              </button>
+            )}
+            {permissions.can_manage && bank && (
+              <>
+                <button type="button" className="btn-secondary" onClick={() => setEditBankOpen(true)}>
+                  <Pencil size={16} className="mr-1.5" />
+                  Банк
+                </button>
+                <button type="button" className="btn-secondary text-red-300" onClick={() => void handleDeleteBank()}>
+                  <Trash2 size={16} className="mr-1.5" />
+                  Удалить
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {permissions?.can_submit && !permissions.can_direct_confirm && (
         <p className="qb-notice">
@@ -187,9 +188,6 @@ export function QuestionBankDetailPage() {
 
       {bank && permissions && (
         <>
-          <div className="qb-toolbar">
-            <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} className="max-w-xs" />
-          </div>
           <QuestionList
             items={bank.questions}
             permissions={permissions}
