@@ -113,6 +113,7 @@ export function StaffPage() {
       />
 
       <PageSearch
+        className="staff-page-search"
         value={q}
         onChange={setQ}
         placeholder="Поиск по нику, VK или Discord…"

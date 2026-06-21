@@ -102,6 +102,7 @@ export function LeadersPage() {
       />
 
       <PageSearch
+        className="leaders-page-search"
         value={q}
         onChange={setQ}
         placeholder="Поиск по нику, должности или заметке…"

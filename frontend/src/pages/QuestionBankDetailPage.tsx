@@ -253,25 +253,32 @@ export function QuestionBankDetailPage() {
       />
 
       <ModalViewport open={editBankOpen} onBackdropClick={() => setEditBankOpen(false)}>
-        <div className="glass-card qb-modal modal-pop modal-card modal-card--sm relative z-10 w-full" onClick={(e) => e.stopPropagation()}>
-          <h2 className="text-lg font-bold mb-4">Редактировать банк</h2>
-          {bank && (
-            <BankForm
-              initial={{
-                title: bank.title,
-                description: bank.description,
-                emoji: bank.emoji,
-                min_submit_level: bank.min_submit_level,
-                min_approve_level: bank.min_approve_level,
-              }}
-              onCancel={() => setEditBankOpen(false)}
-              onSubmit={async (values) => {
-                await api.updateQuestionBank(bank.id, values)
-                setEditBankOpen(false)
-                load()
-              }}
-            />
-          )}
+        <div
+          className="glass-card qb-modal qb-modal--bank modal-pop modal-card modal-card--sm relative z-10 w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="qb-modal-head">
+            <h2 className="text-lg font-bold m-0">Редактировать банк</h2>
+          </div>
+          <div className="qb-modal-body ll-scroll">
+            {bank && (
+              <BankForm
+                initial={{
+                  title: bank.title,
+                  description: bank.description,
+                  emoji: bank.emoji,
+                  min_submit_level: bank.min_submit_level,
+                  min_approve_level: bank.min_approve_level,
+                }}
+                onCancel={() => setEditBankOpen(false)}
+                onSubmit={async (values) => {
+                  await api.updateQuestionBank(bank.id, values)
+                  setEditBankOpen(false)
+                  load()
+                }}
+              />
+            )}
+          </div>
         </div>
       </ModalViewport>
     </div>

@@ -13,6 +13,7 @@ export function ModalViewport({
   useEffect(() => {
     if (!open) return
     document.body.classList.add('modal-open')
+    window.dispatchEvent(new CustomEvent('sl:overlay-open'))
     return () => document.body.classList.remove('modal-open')
   }, [open])
 

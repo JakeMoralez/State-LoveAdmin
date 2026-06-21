@@ -4827,95 +4827,6 @@ body {
   }
 
   @media (max-width: 900px) {
-    .staff-registry-head,
-    .staff-registry-row {
-      grid-template-columns: 36px 1fr;
-      grid-template-rows: auto auto;
-    }
-
-    .staff-col-role,
-    .staff-col-sphere,
-    .staff-col-position,
-    .staff-col-note {
-      grid-column: 2;
-    }
-
-    .staff-registry-head .staff-col-role,
-    .staff-registry-head .staff-col-sphere,
-    .staff-registry-head .staff-col-position,
-    .staff-registry-head .staff-col-note {
-      display: none;
-    }
-
-    .staff-col-role::before {
-      content: 'Р”РѕСЃС‚СѓРї: ';
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .staff-col-sphere::before {
-      content: 'РЎС„РµСЂР°: ';
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .staff-col-position::before {
-      content: 'Р”РѕР»Р¶РЅРѕСЃС‚СЊ: ';
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .staff-col-note::before {
-      content: 'Р—Р°РјРµС‚РєР°: ';
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .dev-leadership-head,
-    .dev-leadership-row {
-      grid-template-columns: 36px 1fr;
-      grid-template-rows: auto auto;
-    }
-
-    .dev-leadership-head .dev-leadership-flag-col {
-      display: none;
-    }
-
-    .dev-leadership-flag-col {
-      grid-column: 2;
-      justify-content: flex-start;
-    }
-
-    .dev-leadership-flag-col::before {
-      content: 'Р СѓРєРѕРІРѕРґСЃС‚РІРѕ: ';
-      color: rgba(255, 255, 255, 0.4);
-      margin-right: 0.35rem;
-    }
-
-    .leaders-registry--manage .leaders-registry-head,
-    .leaders-registry--manage .leaders-registry-row {
-      grid-template-columns: 36px 1fr;
-      grid-template-rows: auto auto auto;
-    }
-
-    .leaders-registry--manage .leaders-registry-head .leaders-col-actions,
-    .leaders-registry--manage .leaders-registry-head .staff-col-position,
-    .leaders-registry--manage .leaders-registry-head .staff-col-note {
-      display: none;
-    }
-
-    .leaders-registry--manage .staff-col-position,
-    .leaders-registry--manage .staff-col-note,
-    .leaders-registry--manage .leaders-col-actions {
-      grid-column: 2;
-    }
-
-    .leaders-registry--manage .staff-col-position::before {
-      content: 'Р”РѕР»Р¶РЅРѕСЃС‚СЊ: ';
-      color: rgba(255, 255, 255, 0.4);
-    }
-
-    .leaders-registry--manage .staff-col-note::before {
-      content: 'Р—Р°РјРµС‚РєР°: ';
-      color: rgba(255, 255, 255, 0.4);
-    }
-
     .dev-log-card-head {
       grid-template-columns: 1fr;
       gap: 6px;
@@ -5060,15 +4971,7 @@ body {
     font-family: ui-monospace, monospace;
   }
 
-  /* Breakpoints: xs <420, sm <640, md <768, lg <1024, xl <900 registries */
-
-  body.mobile-nav-open {
-    overflow: hidden;
-  }
-
-  body.modal-open {
-    overflow: hidden;
-  }
+  /* Breakpoints: phone ≤639, compact ≤767, nav ≤1023 — see styles/mobile.css & MOBILE.md */
 
   .app-shell {
     min-height: 100dvh;
@@ -5251,6 +5154,16 @@ body {
   }
 
   @media (max-width: 1023px) {
+    .sidebar-shell--mobile:not(.sidebar-shell--mobile-open) {
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .sidebar-shell--mobile.sidebar-shell--mobile-open {
+      pointer-events: auto;
+      visibility: visible;
+    }
+
     .sidebar-shell--mobile {
       position: fixed;
       top: 0;

@@ -24,19 +24,19 @@
 
 .staff-registry-head,
 .staff-registry-row {
-  grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr) minmax(13rem, 1.1fr) !important;
-  gap: 1rem !important;
+  grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr) minmax(13rem, 1.1fr);
+  gap: 1rem;
   align-items: center;
 }
 
 .leaders-registry-head,
 .leaders-registry-row {
-  grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr) !important;
+  grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr);
 }
 
 .dev-leadership-head,
 .dev-leadership-row {
-  grid-template-columns: 3rem minmax(0, 1fr) 8rem !important;
+  grid-template-columns: 3rem minmax(0, 1fr) 8rem;
 }
 
 .staff-registry-head {
@@ -201,4 +201,103 @@
   height: 1.75rem;
   border-radius: 50%;
   object-fit: cover;
+}
+
+/* Mobile / tablet card layout (≤1023px — matches drawer nav) */
+@media (max-width: 1023px) {
+  .staff-registry-head,
+  .staff-registry-row {
+    grid-template-columns: 36px 1fr;
+    grid-template-rows: auto auto;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .staff-col-role,
+  .staff-col-sphere,
+  .staff-col-position,
+  .staff-col-note {
+    grid-column: 2;
+    white-space: normal;
+  }
+
+  .staff-registry-head .staff-col-role,
+  .staff-registry-head .staff-col-sphere,
+  .staff-registry-head .staff-col-position,
+  .staff-registry-head .staff-col-note {
+    display: none;
+  }
+
+  .staff-col-role::before {
+    content: 'Доступ: ';
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .staff-col-sphere::before {
+    content: 'Сфера: ';
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .staff-col-position::before {
+    content: 'Должность: ';
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .staff-col-note::before {
+    content: 'Заметка: ';
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .staff-settings-btn {
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
+
+  .dev-leadership-head,
+  .dev-leadership-row {
+    grid-template-columns: 36px 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .dev-leadership-head .dev-leadership-flag-col {
+    display: none;
+  }
+
+  .dev-leadership-flag-col {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .dev-leadership-flag-col::before {
+    content: 'Руководство: ';
+    color: rgba(255, 255, 255, 0.4);
+    margin-right: 0.35rem;
+  }
+
+  .leaders-registry--manage .leaders-registry-head,
+  .leaders-registry--manage .leaders-registry-row {
+    grid-template-columns: 36px 1fr;
+    grid-template-rows: auto auto auto;
+  }
+
+  .leaders-registry--manage .leaders-registry-head .leaders-col-actions,
+  .leaders-registry--manage .leaders-registry-head .staff-col-position,
+  .leaders-registry--manage .leaders-registry-head .staff-col-note {
+    display: none;
+  }
+
+  .leaders-registry--manage .staff-col-position,
+  .leaders-registry--manage .staff-col-note,
+  .leaders-registry--manage .leaders-col-actions {
+    grid-column: 2;
+  }
+
+  .leaders-registry--manage .staff-col-position::before {
+    content: 'Должность: ';
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .leaders-registry--manage .staff-col-note::before {
+    content: 'Заметка: ';
+    color: rgba(255, 255, 255, 0.4);
+  }
 }

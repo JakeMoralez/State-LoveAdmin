@@ -18,6 +18,7 @@ import { TaskCard, TaskCardPreview, TaskListRow } from '../components/tasks/Task
 import { TaskCreateModal, type TaskCreatePayload } from '../components/tasks/TaskCreateModal'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TasksToolbar, type TaskFilters } from '../components/tasks/TasksToolbar'
+import { COMPACT_QUERY, matchesMediaQuery } from '../hooks/useMediaQuery'
 import { cn } from '../lib/utils'
 
 const KANBAN_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done']
@@ -28,7 +29,7 @@ function getInitialTaskView(): 'kanban' | 'list' {
   if (typeof window === 'undefined') return 'kanban'
   const saved = sessionStorage.getItem(TASKS_VIEW_KEY)
   if (saved === 'kanban' || saved === 'list') return saved
-  if (window.matchMedia('(max-width: 767px)').matches) return 'list'
+  if (matchesMediaQuery(COMPACT_QUERY)) return 'list'
   return 'kanban'
 }
 

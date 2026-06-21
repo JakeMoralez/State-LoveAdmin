@@ -13,11 +13,12 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { MOBILE_NAV_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
+import { getMobilePageTitle } from '../lib/mobilePageTitle'
 import { BrandLogo } from './BrandLogo'
 import { cn } from '../lib/utils'
 
@@ -74,7 +75,9 @@ function SidebarNavLink({
       to={item.to}
       end={item.end}
       title={collapsed ? item.label : undefined}
-      onClick={onNavigate}
+      onClick={() => {
+        onNavigate?.()
+      }}
       className={({ isActive }) =>
         cn(
           'sidebar-nav-link',
@@ -107,7 +110,13 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [qbPendingCount, setQbPendingCount] = useState(0)
 
+  const mobilePageTitle = useMemo(
+    () => getMobilePageTitle(location.pathname),
+    [location.pathname],
+  )
+
   const closeMobile = () => setMobileOpen(false)
+  const openMobile = () => setMobileOpen(true)
 
   useEffect(() => {
     if (!user) return
@@ -125,14 +134,28 @@ export function Layout() {
   }, [location.pathname])
 
   useEffect(() => {
-    if (!isMobileNav) {
-      closeMobile()
-      document.body.classList.remove('mobile-nav-open')
-      return
+    const mq = window.matchMedia(MOBILE_NAV_QUERY)
+    const syncBody = () => {
+      if (!mq.matches) {
+        document.body.classList.remove('mobile-nav-open')
+        setMobileOpen(false)
+        return
+      }
+      document.body.classList.toggle('mobile-nav-open', mobileOpen)
     }
-    document.body.classList.toggle('mobile-nav-open', mobileOpen)
-    return () => document.body.classList.remove('mobile-nav-open')
-  }, [isMobileNav, mobileOpen])
+    syncBody()
+    mq.addEventListener('change', syncBody)
+    return () => {
+      mq.removeEventListener('change', syncBody)
+      document.body.classList.remove('mobile-nav-open')
+    }
+  }, [mobileOpen])
+
+  useEffect(() => {
+    const onOverlayOpen = () => closeMobile()
+    window.addEventListener('sl:overlay-open', onOverlayOpen)
+    return () => window.removeEventListener('sl:overlay-open', onOverlayOpen)
+  }, [])
 
   const toggleSidebar = () => {
     if (isMobileNav) {
@@ -156,7 +179,7 @@ export function Layout() {
 
   return (
     <div className="app-shell flex h-full bg-[#050508] overflow-hidden">
-      {isMobileNav && mobileOpen && (
+      {mobileOpen && (
         <button
           type="button"
           className="mobile-nav-overlay overlay-backdrop"
@@ -166,23 +189,25 @@ export function Layout() {
       )}
 
       <aside
+        id="app-sidebar"
         className={cn(
           'sidebar-shell',
           sidebarCollapsed && 'sidebar-shell--collapsed',
-          isMobileNav && 'sidebar-shell--mobile',
-          isMobileNav && mobileOpen && 'sidebar-shell--mobile-open',
+          mobileOpen && 'sidebar-shell--mobile-open',
         )}
+        aria-hidden={isMobileNav && !mobileOpen}
       >
-        {!isMobileNav && (
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className={cn('sidebar-edge-toggle', sidebarCollapsed && 'sidebar-edge-toggle--collapsed')}
-            aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
-          >
-            <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          className={cn(
+            'sidebar-edge-toggle',
+            sidebarCollapsed && 'sidebar-edge-toggle--collapsed',
+          )}
+          aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+        >
+          <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} />
+        </button>
 
         <div className="sidebar-clip">
           <div className="sidebar-inner">
@@ -194,14 +219,14 @@ export function Layout() {
                   <span className="sidebar-brand-tagline">Следящие ЦА</span>
                 </div>
               </div>
-              {isMobileNav && (
+              {mobileOpen && (
                 <button
                   type="button"
-                  onClick={toggleSidebar}
-                  className="sidebar-toggle"
-                  aria-label={mobileOpen ? 'Закрыть меню' : 'Открыть меню'}
+                  onClick={closeMobile}
+                  className="sidebar-toggle sidebar-toggle--mobile"
+                  aria-label="Закрыть меню"
                 >
-                  {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                  <X className="h-4 w-4" />
                 </button>
               )}
             </div>
@@ -263,53 +288,52 @@ export function Layout() {
       </aside>
 
       <div className={cn('app-main-column flex min-w-0 flex-1 flex-col', 'has-app-top-bar')}>
-        {isMobileNav ? (
-          <header className="mobile-top-bar">
-            <button
-              type="button"
-              className="btn-icon mobile-top-bar-menu"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Открыть меню"
+        <header className="mobile-top-bar">
+          <button
+            type="button"
+            className="btn-icon mobile-top-bar-menu"
+            onClick={openMobile}
+            aria-label="Открыть меню"
+            aria-expanded={mobileOpen}
+            aria-controls="app-sidebar"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="mobile-top-bar-brand">
+            <span className="mobile-top-bar-title">{mobilePageTitle}</span>
+          </div>
+          {user && (
+            <NavLink to="/profile" className="mobile-top-bar-avatar" aria-label="Профиль">
+              <img
+                src={user.avatar_url || DEFAULT_AVATAR}
+                alt=""
+                onError={(e) => {
+                  e.currentTarget.src = DEFAULT_AVATAR
+                }}
+              />
+            </NavLink>
+          )}
+        </header>
+
+        <header className="app-top-bar">
+          {user && (
+            <NavLink
+              to="/profile"
+              className="app-top-bar-profile"
+              title={user.nickname || String(user.vk_id)}
             >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="mobile-top-bar-brand">
-              <BrandLogo size="sm" plain />
-              <span className="mobile-top-bar-title">State Love</span>
-            </div>
-            {user && (
-              <NavLink to="/profile" className="mobile-top-bar-avatar" aria-label="Профиль">
-                <img
-                  src={user.avatar_url || DEFAULT_AVATAR}
-                  alt=""
-                  onError={(e) => {
-                    e.currentTarget.src = DEFAULT_AVATAR
-                  }}
-                />
-              </NavLink>
-            )}
-          </header>
-        ) : (
-          <header className="app-top-bar">
-            {user && (
-              <NavLink
-                to="/profile"
-                className="app-top-bar-profile"
-                title={user.nickname || String(user.vk_id)}
-              >
-                <span className="app-top-bar-profile-name">{user.nickname || String(user.vk_id)}</span>
-                <img
-                  src={user.avatar_url || DEFAULT_AVATAR}
-                  alt=""
-                  className="app-top-bar-profile-avatar"
-                  onError={(e) => {
-                    e.currentTarget.src = DEFAULT_AVATAR
-                  }}
-                />
-              </NavLink>
-            )}
-          </header>
-        )}
+              <span className="app-top-bar-profile-name">{user.nickname || String(user.vk_id)}</span>
+              <img
+                src={user.avatar_url || DEFAULT_AVATAR}
+                alt=""
+                className="app-top-bar-profile-avatar"
+                onError={(e) => {
+                  e.currentTarget.src = DEFAULT_AVATAR
+                }}
+              />
+            </NavLink>
+          )}
+        </header>
 
         <main
           key={location.pathname}

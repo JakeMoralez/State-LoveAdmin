@@ -30,7 +30,7 @@ export function ProjectsPage() {
     <div className="page-stack">
       <PageHeader section="Работа" title="Проекты" icon={FolderKanban} shrink />
 
-      <div className="page-toolbar">
+      <div className="page-toolbar projects-page-toolbar">
         <button type="button" onClick={() => setShowForm(true)} className="btn-primary shrink-0">
           <Plus size={16} className="mr-1.5" />
           Проект

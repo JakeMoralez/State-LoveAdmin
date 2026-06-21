@@ -119,7 +119,7 @@ export function QuestionBankReviewPage() {
                     <span>{item.author_name}</span>
                   </div>
                 </div>
-                <div className="action-row">
+                <div className="action-row qb-review-item-actions">
                   <button type="button" className="btn-secondary btn-sm" onClick={() => void openHistory(item)}>
                     История
                   </button>

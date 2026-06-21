@@ -55,6 +55,14 @@
   --motion-slow: 240ms;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-distance: 4px;
+
+  /* Breakpoints (reference — use same values in @media and useMediaQuery.ts) */
+  --bp-phone: 639px;
+  --bp-compact: 767px;
+  --bp-nav: 1023px;
+
+  /* Touch */
+  --touch-min: 2.75rem; /* 44px */
 }
 
 @media (min-width: 768px) {

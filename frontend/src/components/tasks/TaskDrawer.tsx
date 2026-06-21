@@ -62,6 +62,7 @@ export function TaskDrawer({
 
   useEffect(() => {
     document.body.classList.add('sl-drawer-open')
+    window.dispatchEvent(new CustomEvent('sl:overlay-open'))
     return () => document.body.classList.remove('sl-drawer-open')
   }, [])
 
@@ -188,7 +189,7 @@ export function TaskDrawer({
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="absolute inset-0 cursor-pointer bg-black/50 overlay-backdrop" onClick={tryClose} />
       <div className="drawer-panel">
-        <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-6 py-4">
+        <div className="drawer-panel-header flex shrink-0 items-center justify-between border-b border-white/8 px-6 py-4">
           <div className="min-w-0">
             <p className="text-caption">Задача #{task.id}</p>
             <h2 className="text-lg font-bold mt-0.5 truncate">{task.title}</h2>
@@ -415,7 +416,7 @@ export function TaskDrawer({
                   )}
                 </div>
               </div>
-              <div className="msg-composer-foot shrink-0">
+              <div className="drawer-composer-wrap msg-composer-foot shrink-0">
                 <MessageComposer
                   placeholder="Сообщение…"
                   onSend={async (body) => {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ImagePlus, Images, Loader2, Video, X } from 'lucide-react'
 import { api } from '../../api'
+import { COMPACT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery'
 
 export type ChecklistCellData = {
   proof_urls?: string[]
@@ -67,6 +68,7 @@ export function ChecklistCellEditor({
   const [videoUrl, setVideoUrl] = useState(cell.proof_video_url ?? '')
   const [videoDraft, setVideoDraft] = useState(cell.proof_video_url ?? '')
   const [uploading, setUploading] = useState(false)
+  const isCompact = useMediaQuery(COMPACT_QUERY)
   const readOnly = disabled
 
   useEffect(() => {
@@ -166,55 +168,77 @@ export function ChecklistCellEditor({
   const videoHref = videoUrl ? absUrl(videoUrl) : null
   const hasProofs = Boolean(galleryUrl || videoUrl)
 
-  return (
-    <div className={`checklist-cell-card ${cell.done ? 'checklist-cell-card--done' : ''}`}>
-      {hasProofs && (
-        <div className="checklist-cell-chips">
-          {galleryUrl && galleryHref && (
-            <div className="checklist-proof-chip checklist-proof-chip--album">
-              <a href={galleryHref} target="_blank" rel="noreferrer" className="checklist-proof-chip-link">
-                <Images size={13} strokeWidth={2.25} />
-                <span>Альбом · {imageCount || imageUrls.length}</span>
-              </a>
-              {!readOnly && (
-                <button type="button" className="checklist-proof-chip-remove" onClick={removeGallery} title="Удалить альбом">
-                  <X size={11} />
-                </button>
-              )}
-            </div>
-          )}
-          {videoUrl && videoHref && (
-            <div className="checklist-proof-chip checklist-proof-chip--video">
-              <a href={videoHref} target="_blank" rel="noreferrer" className="checklist-proof-chip-link">
-                <Video size={13} strokeWidth={2.25} />
-                <span>{videoLabel(videoUrl)}</span>
-              </a>
-              {!readOnly && (
-                <button type="button" className="checklist-proof-chip-remove" onClick={removeVideo} title="Удалить видео">
-                  <X size={11} />
-                </button>
-              )}
-            </div>
+  const proofChips = hasProofs ? (
+    <div className="checklist-cell-chips">
+      {galleryUrl && galleryHref && (
+        <div className="checklist-proof-chip checklist-proof-chip--album">
+          <a href={galleryHref} target="_blank" rel="noreferrer" className="checklist-proof-chip-link">
+            <Images size={13} strokeWidth={2.25} />
+            <span>Альбом · {imageCount || imageUrls.length}</span>
+          </a>
+          {!readOnly && (
+            <button type="button" className="checklist-proof-chip-remove" onClick={removeGallery} title="Удалить альбом">
+              <X size={11} />
+            </button>
           )}
         </div>
       )}
+      {videoUrl && videoHref && (
+        <div className="checklist-proof-chip checklist-proof-chip--video">
+          <a href={videoHref} target="_blank" rel="noreferrer" className="checklist-proof-chip-link">
+            <Video size={13} strokeWidth={2.25} />
+            <span>{videoLabel(videoUrl)}</span>
+          </a>
+          {!readOnly && (
+            <button type="button" className="checklist-proof-chip-remove" onClick={removeVideo} title="Удалить видео">
+              <X size={11} />
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  ) : null
+
+  const cardClass = [
+    'checklist-cell-card',
+    cell.done ? 'checklist-cell-card--done' : '',
+    isCompact ? 'checklist-cell-card--compact' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <div className={cardClass}>
+      {!readOnly && !isCompact && proofChips}
 
       {!readOnly ? (
         <div className="checklist-cell-compose">
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onBlur={flushNote}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                flushNote()
-                ;(e.target as HTMLInputElement).blur()
-              }
-            }}
-            placeholder="Заметка…"
-            className="checklist-cell-note"
-          />
+          {isCompact ? (
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onBlur={flushNote}
+              rows={2}
+              placeholder="Заметка…"
+              className="checklist-cell-note checklist-cell-note--area"
+            />
+          ) : (
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onBlur={flushNote}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  flushNote()
+                  ;(e.target as HTMLInputElement).blur()
+                }
+              }}
+              placeholder="Заметка…"
+              className="checklist-cell-note"
+            />
+          )}
+          {isCompact ? proofChips : null}
           <div className="checklist-cell-toolbar">
             <label className="checklist-cell-action" title={galleryUrl ? 'Добавить скрины' : 'Загрузить скрины'}>
               <input
@@ -242,13 +266,16 @@ export function ChecklistCellEditor({
                   ;(e.target as HTMLInputElement).blur()
                 }
               }}
-              placeholder="Ссылка на видео"
+              placeholder={isCompact ? 'Видео' : 'Ссылка на видео'}
               className="checklist-cell-video-input"
             />
           </div>
         </div>
       ) : (
-        note && <p className="checklist-entry-note">{note}</p>
+        <>
+          {proofChips}
+          {note && <p className="checklist-entry-note">{note}</p>}
+        </>
       )}
 
       {cell.done && (

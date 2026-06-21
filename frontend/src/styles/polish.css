@@ -79,11 +79,13 @@
 }
 
 .qb-toolbar-panel--detail {
-  justify-content: space-between;
+  align-items: center;
 }
 
-.qb-toolbar-panel--detail.page-toolbar-row {
-  align-items: center;
+@media (min-width: 768px) {
+  .qb-toolbar-panel--detail {
+    justify-content: space-between;
+  }
 }
 
 .qb-toolbar-panel--detail .qb-toolbar-filter {
@@ -730,6 +732,15 @@
   justify-content: flex-end;
 }
 
+@media (max-width: 767px) {
+  .polish-checklist-control-center,
+  .checklist-control-center {
+    flex: 1 1 100%;
+    margin-left: 0;
+    justify-content: stretch;
+  }
+}
+
 .checklist-week-nav {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--sl-border);
@@ -888,13 +899,29 @@
 }
 
 /* Question bank modals — wide editor */
-.qb-modal--editor {
+.qb-modal--editor,
+.qb-modal--bank {
   display: flex;
   flex-direction: column;
   width: min(52rem, 94vw);
   max-width: none;
   max-height: min(92dvh, 880px);
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.qb-modal--editor {
   min-height: min(72dvh, 680px);
+}
+
+.qb-modal--bank {
+  width: min(32rem, 94vw);
+}
+
+.qb-modal--bank .qb-icon-presets--grid,
+.qb-modal--editor .qb-icon-presets--grid {
+  max-height: 11rem;
 }
 
 .qb-modal-head {

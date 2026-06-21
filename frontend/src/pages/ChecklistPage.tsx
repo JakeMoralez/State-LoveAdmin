@@ -4,6 +4,7 @@ import { ApiError, api } from '../api'
 import { ChecklistSettingsModal } from '../components/checklist/ChecklistSettingsModal'
 import { ChecklistCellEditor } from '../components/checklist/ChecklistCellEditor'
 import { PageHeader } from '../components/PageHeader'
+import { COMPACT_QUERY, MOBILE_NAV_QUERY, matchesMediaQuery, useMediaQuery } from '../hooks/useMediaQuery'
 
 function mondayOf(d: Date): string {
   const x = new Date(d)
@@ -49,9 +50,12 @@ export function ChecklistPage() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('sl-checklist-view') as ViewMode | null
     if (saved === 'all' || saved === 'single') return saved
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) return 'single'
+    if (matchesMediaQuery(COMPACT_QUERY) || matchesMediaQuery(MOBILE_NAV_QUERY)) return 'single'
     return 'all'
   })
+  const isCompact = useMediaQuery(COMPACT_QUERY)
+  const isNarrow = useMediaQuery(MOBILE_NAV_QUERY)
+  const effectiveViewMode: ViewMode = isCompact || isNarrow ? 'single' : viewMode
 
   const setMode = (mode: ViewMode) => {
     setViewMode(mode)
@@ -150,6 +154,11 @@ export function ChecklistPage() {
     }
   }
 
+  const openSettings = (tab: 'tasks' | 'members' = 'tasks') => {
+    setSettingsTab(tab)
+    setSettingsOpen(true)
+  }
+
   return (
     <div className="content-fixed page-stack page-stack--checklist">
       <PageHeader
@@ -167,61 +176,59 @@ export function ChecklistPage() {
 
       <div className="checklist-control-panel shrink-0">
         <div className="checklist-control-row checklist-control-row--primary">
-          <div className="checklist-control-start">
-            {!loading && !error && data && data.members.length > 0 && (
-              <div className="checklist-mode-bar">
-                {data.can_edit_all && (
-                  <>
+          {!isNarrow && (
+            <div className="checklist-control-start">
+              {!loading && !error && data && data.members.length > 0 && (
+                <div className="checklist-mode-bar">
+                  {data.can_edit_all && (
+                    <>
+                      <button
+                        type="button"
+                        className="checklist-mode-btn checklist-mode-btn--icon"
+                        title="Настройки"
+                        aria-label="Настройки"
+                        onClick={() => openSettings('tasks')}
+                      >
+                        <Settings size={14} />
+                      </button>
+                      <span className="checklist-mode-divider" aria-hidden />
+                    </>
+                  )}
+                  {!isCompact && (
                     <button
                       type="button"
-                      className="checklist-mode-btn checklist-mode-btn--icon"
-                      title="Настройки"
-                      aria-label="Настройки"
-                      onClick={() => {
-                        setSettingsTab('tasks')
-                        setSettingsOpen(true)
-                      }}
+                      className={`checklist-mode-btn ${viewMode === 'all' ? 'checklist-mode-btn--active' : ''}`}
+                      onClick={() => setMode('all')}
+                      title="Все колонки"
                     >
-                      <Settings size={14} />
+                      <Columns3 size={14} />
+                      Все
                     </button>
-                    <span className="checklist-mode-divider" aria-hidden />
-                  </>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    className={`checklist-mode-btn ${effectiveViewMode === 'single' ? 'checklist-mode-btn--active' : ''}`}
+                    onClick={() => setMode('single')}
+                    title="По одному следящему"
+                  >
+                    <UserRound size={14} />
+                    Один
+                  </button>
+                </div>
+              )}
+              {data?.can_edit_all && (!data || data.members.length === 0) && !loading && !error && (
                 <button
                   type="button"
-                  className={`checklist-mode-btn ${viewMode === 'all' ? 'checklist-mode-btn--active' : ''}`}
-                  onClick={() => setMode('all')}
-                  title="Все колонки"
+                  className="checklist-mode-btn checklist-mode-btn--icon checklist-mode-bar--solo"
+                  title="Настройки"
+                  aria-label="Настройки"
+                  onClick={() => openSettings('tasks')}
                 >
-                  <Columns3 size={14} />
-                  Все
+                  <Settings size={14} />
                 </button>
-                <button
-                  type="button"
-                  className={`checklist-mode-btn ${viewMode === 'single' ? 'checklist-mode-btn--active' : ''}`}
-                  onClick={() => setMode('single')}
-                  title="По одному следящему"
-                >
-                  <UserRound size={14} />
-                  Один
-                </button>
-              </div>
-            )}
-            {data?.can_edit_all && (!data || data.members.length === 0) && !loading && !error && (
-              <button
-                type="button"
-                className="checklist-mode-btn checklist-mode-btn--icon checklist-mode-bar--solo"
-                title="Настройки"
-                aria-label="Настройки"
-                onClick={() => {
-                  setSettingsTab('tasks')
-                  setSettingsOpen(true)
-                }}
-              >
-                <Settings size={14} />
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <div className="checklist-control-center">
             <div className="checklist-week-nav">
@@ -253,11 +260,22 @@ export function ChecklistPage() {
               >
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
+              {isNarrow && data?.can_edit_all && (
+                <button
+                  type="button"
+                  className="checklist-week-btn"
+                  title="Настройки"
+                  aria-label="Настройки"
+                  onClick={() => openSettings('tasks')}
+                >
+                  <Settings size={15} />
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        {!loading && !error && data && data.members.length > 0 && viewMode === 'single' && (
+        {!loading && !error && data && data.members.length > 0 && effectiveViewMode === 'single' && (
           <div className="checklist-control-row checklist-control-row--members">
             <div className="checklist-member-bar ll-scroll">
               {data.members.map((m) => {
@@ -315,8 +333,7 @@ export function ChecklistPage() {
               type="button"
               className="btn btn-gold btn-sm"
               onClick={() => {
-                setSettingsTab('members')
-                setSettingsOpen(true)
+                openSettings('members')
               }}
             >
               <Settings size={14} />
@@ -333,14 +350,14 @@ export function ChecklistPage() {
           <div className="checklist-scroll flex-1 min-h-0 overflow-auto ll-scroll">
             {grouped.map((day) => (
               <section key={day.day_offset} className="checklist-day-section">
-                <div className={`checklist-board ${viewMode === 'all' ? 'checklist-board--wide' : 'checklist-board--single'}`}>
+                <div className={`checklist-board ${effectiveViewMode === 'all' ? 'checklist-board--wide' : 'checklist-board--single'}`}>
                   <div className="checklist-board-day">{day.day_label}</div>
                   <div className="checklist-table-wrap">
                     <table className="checklist-table">
                       <thead>
                         <tr>
                           <th className="checklist-sticky-col">Задача</th>
-                          {viewMode === 'all'
+                          {effectiveViewMode === 'all'
                             ? data.members.map((m) => (
                                 <th
                                   key={m.vk_id}
@@ -362,7 +379,7 @@ export function ChecklistPage() {
                             className={row.is_header ? 'checklist-row-header' : ''}
                           >
                             <td className="checklist-sticky-col">{row.task_title}</td>
-                            {(viewMode === 'all' ? data.members : activeMemberId ? [{ vk_id: activeMemberId }] : []).map(
+                            {(effectiveViewMode === 'all' ? data.members : activeMemberId ? [{ vk_id: activeMemberId }] : []).map(
                               (member) => {
                                 const cell = row.cells.find((c) => c.member_vk_id === member.vk_id)
                                 return (
