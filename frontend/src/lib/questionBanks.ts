@@ -1,61 +1,23 @@
-import type { LucideIcon } from 'lucide-react'
 import {
-  Briefcase,
-  ClipboardList,
-  HelpCircle,
-  Landmark,
-  Library,
-  Newspaper,
-  Scale,
-  ScrollText,
-  Shield,
-  Target,
-} from 'lucide-react'
+  BANK_ICON_CATALOG,
+  bankIconEntry,
+  bankIconId,
+  bankIconLabel,
+  bankIconLucide,
+  DEFAULT_BANK_ICON,
+} from './bankIconCatalog'
 
-export const DEFAULT_BANK_ICON = 'library'
+export { BANK_ICON_CATALOG, DEFAULT_BANK_ICON, bankIconId, bankIconLabel, bankIconLucide }
 
-export const BANK_ICON_PRESETS: { id: string; icon: LucideIcon; label: string }[] = [
-  { id: 'library', icon: Library, label: 'Библиотека' },
-  { id: 'scroll', icon: ScrollText, label: 'Свод' },
-  { id: 'scale', icon: Scale, label: 'Право' },
-  { id: 'target', icon: Target, label: 'Цель' },
-  { id: 'briefcase', icon: Briefcase, label: 'Дело' },
-  { id: 'landmark', icon: Landmark, label: 'Государство' },
-  { id: 'clipboard', icon: ClipboardList, label: 'Список' },
-  { id: 'help', icon: HelpCircle, label: 'Вопросы' },
-  { id: 'shield', icon: Shield, label: 'Защита' },
-  { id: 'news', icon: Newspaper, label: 'Новости' },
-]
-
-const LEGACY_EMOJI_TO_ICON: Record<string, string> = {
-  '📚': 'library',
-  '📜': 'scroll',
-  '⚖️': 'scale',
-  '🎯': 'target',
-  '💼': 'briefcase',
-  '🏛️': 'landmark',
-  '📋': 'clipboard',
-  '❓': 'help',
-  '🛡️': 'shield',
-  '📰': 'news',
-}
-
-const ICON_BY_ID = Object.fromEntries(BANK_ICON_PRESETS.map((p) => [p.id, p.icon])) as Record<string, LucideIcon>
-
-export function bankIconId(raw?: string | null): string {
-  const trimmed = raw?.trim()
-  if (!trimmed) return DEFAULT_BANK_ICON
-  if (LEGACY_EMOJI_TO_ICON[trimmed]) return LEGACY_EMOJI_TO_ICON[trimmed]
-  if (ICON_BY_ID[trimmed]) return trimmed
-  return DEFAULT_BANK_ICON
-}
+/** @deprecated use BANK_ICON_CATALOG — subset kept for compatibility */
+export const BANK_ICON_PRESETS = BANK_ICON_CATALOG.filter((entry) => entry.featured)
 
 export function bankIconDef(raw?: string | null) {
-  const id = bankIconId(raw)
+  const entry = bankIconEntry(raw)
   return {
-    id,
-    icon: ICON_BY_ID[id] ?? Library,
-    label: BANK_ICON_PRESETS.find((p) => p.id === id)?.label ?? 'Банк',
+    id: entry.id,
+    lucide: entry.lucide,
+    label: entry.label,
   }
 }
 

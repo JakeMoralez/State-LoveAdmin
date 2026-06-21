@@ -168,25 +168,28 @@ export function ChecklistPage() {
       <div className="checklist-control-panel shrink-0">
         <div className="checklist-control-row checklist-control-row--primary">
           <div className="checklist-control-start">
-            {data?.can_edit_all && (
-              <button
-                type="button"
-                className="checklist-control-icon-btn"
-                title="Настройки"
-                aria-label="Настройки"
-                onClick={() => {
-                  setSettingsTab('tasks')
-                  setSettingsOpen(true)
-                }}
-              >
-                <Settings size={15} />
-              </button>
-            )}
             {!loading && !error && data && data.members.length > 0 && (
-              <div className="checklist-view-toggle">
+              <div className="checklist-mode-bar">
+                {data.can_edit_all && (
+                  <>
+                    <button
+                      type="button"
+                      className="checklist-mode-btn checklist-mode-btn--icon"
+                      title="Настройки"
+                      aria-label="Настройки"
+                      onClick={() => {
+                        setSettingsTab('tasks')
+                        setSettingsOpen(true)
+                      }}
+                    >
+                      <Settings size={14} />
+                    </button>
+                    <span className="checklist-mode-divider" aria-hidden />
+                  </>
+                )}
                 <button
                   type="button"
-                  className={`checklist-view-btn ${viewMode === 'all' ? 'checklist-view-btn--active' : ''}`}
+                  className={`checklist-mode-btn ${viewMode === 'all' ? 'checklist-mode-btn--active' : ''}`}
                   onClick={() => setMode('all')}
                   title="Все колонки"
                 >
@@ -195,7 +198,7 @@ export function ChecklistPage() {
                 </button>
                 <button
                   type="button"
-                  className={`checklist-view-btn ${viewMode === 'single' ? 'checklist-view-btn--active' : ''}`}
+                  className={`checklist-mode-btn ${viewMode === 'single' ? 'checklist-mode-btn--active' : ''}`}
                   onClick={() => setMode('single')}
                   title="По одному следящему"
                 >
@@ -203,6 +206,20 @@ export function ChecklistPage() {
                   Один
                 </button>
               </div>
+            )}
+            {data?.can_edit_all && (!data || data.members.length === 0) && !loading && !error && (
+              <button
+                type="button"
+                className="checklist-mode-btn checklist-mode-btn--icon checklist-mode-bar--solo"
+                title="Настройки"
+                aria-label="Настройки"
+                onClick={() => {
+                  setSettingsTab('tasks')
+                  setSettingsOpen(true)
+                }}
+              >
+                <Settings size={14} />
+              </button>
             )}
           </div>
 
@@ -242,7 +259,7 @@ export function ChecklistPage() {
 
         {!loading && !error && data && data.members.length > 0 && viewMode === 'single' && (
           <div className="checklist-control-row checklist-control-row--members">
-            <div className="checklist-member-switch ll-scroll">
+            <div className="checklist-member-bar ll-scroll">
               {data.members.map((m) => {
                 const isSelf = m.vk_id === data.current_vk_id
                 const active = m.vk_id === activeMemberId
@@ -254,7 +271,7 @@ export function ChecklistPage() {
                     onClick={() => setActiveMemberId(m.vk_id)}
                     title={m.display_name}
                   >
-                    <span className="min-w-0 truncate">{m.display_name}</span>
+                    <span className="checklist-member-pill-label">{m.display_name}</span>
                     {isSelf && <span className="checklist-member-pill-tag">я</span>}
                   </button>
                 )

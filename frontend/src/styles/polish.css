@@ -743,14 +743,25 @@
   color: var(--sl-text-muted);
 }
 
-.checklist-view-toggle {
-  border-color: var(--sl-border);
-  background: rgba(255, 255, 255, 0.02);
+.checklist-control-row--members {
+  padding: var(--space-1) 0 0;
 }
 
-.checklist-view-btn--active {
+.checklist-mode-bar {
+  border-color: var(--sl-border);
+}
+
+.checklist-mode-btn--active {
   background: rgba(255, 255, 255, 0.06);
   color: var(--sl-text);
+}
+
+.checklist-member-bar {
+  border-color: var(--sl-border);
+}
+
+.checklist-member-pill--active {
+  border-bottom: none;
 }
 
 /* ── Checklist table: unified surface, no color noise ── */
@@ -849,7 +860,8 @@
 
 .checklist-member-pill--active {
   color: var(--accent-gold-bright);
-  border-bottom-color: var(--accent-gold);
+  border-color: rgba(201, 162, 39, 0.35);
+  background: rgba(201, 162, 39, 0.08);
 }
 
 .checklist-member-meta {

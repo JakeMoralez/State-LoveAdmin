@@ -10,9 +10,9 @@ import {
   type QuestionBankReviewBody,
 } from '../../api'
 import { ACCESS_LEVEL_OPTIONS } from '../../lib/accessLevels'
-import { BANK_ICON_PRESETS, DEFAULT_BANK_ICON } from '../../lib/questionBanks'
+import { DEFAULT_BANK_ICON } from '../../lib/questionBanks'
 import { cn } from '../../lib/utils'
-import { BankIcon } from './BankIcon'
+import { BankIconPicker } from './BankIconPicker'
 import { FormField } from '../ui/FormField'
 import { ModalViewport } from '../ui/ModalViewport'
 import { Select } from '../ui/Select'
@@ -75,27 +75,7 @@ export function BankForm({
   return (
     <div className="qb-bank-form">
       <FormField label="Иконка">
-        <div className="qb-icon-picker">
-          <div className="qb-icon-picker-preview">
-            <BankIcon iconKey={emoji} size={20} boxed />
-            <span className="qb-icon-picker-label">
-              {BANK_ICON_PRESETS.find((p) => p.id === emoji)?.label ?? 'Банк'}
-            </span>
-          </div>
-          <div className="qb-icon-presets">
-            {BANK_ICON_PRESETS.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                className={cn('qb-icon-preset', emoji === preset.id && 'qb-icon-preset--active')}
-                onClick={() => setEmoji(preset.id)}
-                title={preset.label}
-              >
-                <preset.icon size={16} strokeWidth={1.75} />
-              </button>
-            ))}
-          </div>
-        </div>
+        <BankIconPicker value={emoji} onChange={setEmoji} />
       </FormField>
       <FormField label="Название банка">
         <input className="control" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
