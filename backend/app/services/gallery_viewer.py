@@ -10,15 +10,18 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     images = [f"/uploads/galleries/{gallery_id}/{name}" for name in filenames]
     images_json = json.dumps(images, ensure_ascii=False)
     count = len(filenames)
-    gid = escape(gallery_id)
 
     thumb_items = []
     for i, src in enumerate(images):
         esc = escape(src)
         thumb_items.append(
-            f'<button type="button" class="filmstrip-item" data-index="{i}" aria-label="Фото {i + 1}">'
+            f'<button type="button" class="thumb" data-index="{i}" aria-label="Фото {i + 1}">'
             f'<img src="{esc}" alt="" loading="lazy" /></button>'
         )
+
+    filmstrip_html = ""
+    if count > 1:
+        filmstrip_html = f'<footer class="strip" id="strip">{"".join(thumb_items)}</footer>'
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -35,129 +38,62 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       overflow: hidden;
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       font-size: 13px;
-      background: #060608;
-      color: rgba(255, 255, 255, 0.92);
+      background: #050506;
+      color: #fff;
     }}
-    button {{
-      font: inherit;
-      color: inherit;
-      cursor: pointer;
-      border: none;
-      background: none;
-    }}
-    .app {{
+    button {{ font: inherit; color: inherit; cursor: pointer; border: none; background: none; }}
+    a {{ color: inherit; text-decoration: none; }}
+
+    .viewer {{
       display: grid;
-      grid-template-rows: auto auto 1fr auto auto;
+      grid-template-rows: auto 1fr auto;
       height: 100dvh;
       height: 100vh;
     }}
-    .topbar {{
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      padding-top: max(10px, env(safe-area-inset-top));
-      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-      background: rgba(8, 8, 12, 0.96);
-      backdrop-filter: blur(12px);
-      z-index: 5;
-      flex-wrap: wrap;
-    }}
-    .brand {{
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      flex-shrink: 1;
-    }}
-    .brand-mark {{
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
-      background: linear-gradient(145deg, #d4af37, #8a7120);
-      flex-shrink: 0;
-    }}
-    .brand-text {{ min-width: 0; line-height: 1.25; }}
-    .brand-title {{
-      display: block;
-      font-size: 0.8125rem;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.92);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }}
-    .brand-sub {{
-      display: block;
-      font-size: 0.6875rem;
-      color: rgba(255, 255, 255, 0.38);
-    }}
-    .topbar-spacer {{ flex: 1; min-width: 0.5rem; }}
-    .toolbar-group {{
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      flex-shrink: 0;
-    }}
-    .pill, .tool-btn {{
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      height: 2rem;
-      padding: 0 10px;
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.02);
-      color: rgba(255, 255, 255, 0.82);
-      font-size: 0.8125rem;
-      font-weight: 500;
-      white-space: nowrap;
-      transition: background 0.12s, border-color 0.12s, color 0.12s;
-      text-decoration: none;
-    }}
-    .tool-btn {{
-      width: 2rem;
-      padding: 0;
-      flex-shrink: 0;
-    }}
-    .pill:hover, .tool-btn:hover {{
-      background: rgba(255, 255, 255, 0.06);
-      border-color: rgba(255, 255, 255, 0.14);
-      color: #fff;
-    }}
-    .pill.active, .tool-btn.active {{
-      border-color: rgba(201, 162, 39, 0.35);
-      background: rgba(201, 162, 39, 0.1);
-      color: #d4af37;
-    }}
-    .meta-bar {{
+    .viewer.no-strip {{ grid-template-rows: auto 1fr; }}
+
+    .bar {{
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 6px 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      background: rgba(6, 6, 8, 0.85);
-      font-size: 0.75rem;
-      color: rgba(255, 255, 255, 0.42);
-      min-height: 0;
+      padding: 10px 16px;
+      padding-top: max(10px, env(safe-area-inset-top));
+      background: #050506;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      z-index: 10;
     }}
-    .meta-bar strong {{
-      color: rgba(255, 255, 255, 0.72);
+    .bar-btn {{
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.7);
+      transition: background 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }}
+    .bar-btn:hover {{ background: rgba(255,255,255,0.08); color: #fff; }}
+    .bar-title {{
+      flex: 1;
+      text-align: center;
+      font-size: 0.8125rem;
       font-weight: 500;
+      color: rgba(255,255,255,0.55);
+      letter-spacing: 0.02em;
+      user-select: none;
     }}
-    .meta-spacer {{ flex: 1; }}
+    .bar-title strong {{ color: rgba(255,255,255,0.9); font-weight: 600; }}
+
     .stage-wrap {{
       position: relative;
-      min-width: 0;
       min-height: 0;
-      background: #060608;
+      background: #050506;
       overflow: hidden;
     }}
     .stage {{
       position: absolute;
       inset: 0;
-      overflow: hidden;
       cursor: grab;
       touch-action: none;
     }}
@@ -171,278 +107,260 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       transform-origin: center center;
       user-select: none;
       -webkit-user-drag: none;
-      will-change: transform, opacity;
-      transition: opacity 0.18s ease;
+      transition: opacity 0.2s ease;
     }}
-    .stage img.loading {{ opacity: 0.35; }}
-    .nav-btn {{
+    .stage img.loading {{ opacity: 0.4; }}
+
+    .hud {{
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+    }}
+    .hud-zoom {{
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.45);
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      color: rgba(255,255,255,0.5);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }}
+    .stage-wrap:hover .hud-zoom,
+    .stage-wrap.show-hud .hud-zoom {{ opacity: 1; }}
+
+    .nav {{
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
       z-index: 3;
-      width: 40px;
-      height: 56px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(0, 0, 0, 0.5);
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 1.5rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.85);
+      font-size: 1.25rem;
       line-height: 1;
       opacity: 0;
       transition: opacity 0.15s, background 0.15s;
+      pointer-events: auto;
     }}
-    .stage-wrap:hover .nav-btn {{ opacity: 1; }}
-    .nav-btn:hover {{ background: rgba(255, 255, 255, 0.1); }}
-    .nav-btn:disabled {{
-      opacity: 0.2 !important;
-      cursor: default;
-    }}
-    .nav-btn.prev {{ left: 10px; }}
-    .nav-btn.next {{ right: 10px; }}
-    .grid-overlay {{
-      display: none;
-      position: absolute;
-      inset: 0;
-      z-index: 4;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 10px;
-      padding: 14px;
-      overflow: auto;
-      align-content: start;
-      background: rgba(6, 6, 8, 0.97);
-    }}
-    .app.grid-mode .grid-overlay {{ display: grid; }}
-    .app.grid-mode .stage {{ visibility: hidden; pointer-events: none; }}
-    .app.grid-mode .nav-btn {{ display: none; }}
-    .grid-tile {{
-      position: relative;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: #101016;
-      cursor: pointer;
-      transition: border-color 0.12s;
-      padding: 0;
-    }}
-    .grid-tile:hover {{ border-color: rgba(201, 162, 39, 0.35); }}
-    .grid-tile img {{
-      display: block;
-      width: 100%;
-      height: auto;
-    }}
-    .grid-tile-num {{
-      position: absolute;
-      top: 6px;
-      left: 6px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: rgba(0, 0, 0, 0.55);
-      font-size: 0.6875rem;
-      font-weight: 600;
-      color: rgba(255, 255, 255, 0.85);
-    }}
-    .progress-wrap {{
-      height: 3px;
-      background: rgba(255, 255, 255, 0.06);
-    }}
-    .progress-bar {{
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #c9a227, #d4af37);
-      transition: width 0.25s ease;
-    }}
-    .filmstrip {{
+    .stage-wrap:hover .nav {{ opacity: 1; }}
+    .nav:hover {{ background: rgba(255,255,255,0.12); }}
+    .nav:disabled {{ opacity: 0 !important; pointer-events: none; }}
+    .nav.prev {{ left: 16px; }}
+    .nav.next {{ right: 16px; }}
+
+    .strip {{
       display: flex;
-      flex-direction: row;
-      gap: 8px;
-      padding: 8px 14px;
-      padding-bottom: max(8px, env(safe-area-inset-bottom));
-      border-top: 1px solid rgba(255, 255, 255, 0.07);
-      background: rgba(8, 8, 12, 0.98);
+      gap: 6px;
+      padding: 10px 16px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
       overflow-x: auto;
-      overflow-y: hidden;
-      min-height: 0;
-      scrollbar-width: thin;
+      background: #050506;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      scrollbar-width: none;
     }}
-    .app.filmstrip-hidden .filmstrip {{ display: none; }}
-    .app.filmstrip-hidden {{ grid-template-rows: auto auto 1fr auto; }}
-    .filmstrip-item {{
-      display: block;
-      width: 96px;
-      height: 60px;
+    .strip::-webkit-scrollbar {{ display: none; }}
+    .thumb {{
       flex-shrink: 0;
+      width: 72px;
+      height: 48px;
       border-radius: 6px;
       overflow: hidden;
       border: 2px solid transparent;
       padding: 0;
-      background: #101016;
-      transition: border-color 0.12s;
+      opacity: 0.55;
+      transition: opacity 0.15s, border-color 0.15s;
     }}
-    .filmstrip-item img {{
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }}
-    .filmstrip-item.active {{ border-color: #c9a227; }}
-    .help {{
+    .thumb:hover {{ opacity: 0.85; }}
+    .thumb.active {{ opacity: 1; border-color: #c9a227; }}
+    .thumb img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+
+    .menu-backdrop {{
       position: fixed;
       inset: 0;
-      z-index: 50;
-      display: none;
+      z-index: 40;
+      background: rgba(0,0,0,0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }}
+    .menu-backdrop.open {{ opacity: 1; pointer-events: auto; }}
+    .menu {{
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 41;
+      width: min(280px, 100vw);
+      height: 100%;
+      padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
+      background: #0a0a0e;
+      border-left: 1px solid rgba(255,255,255,0.08);
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.22,1,0.36,1);
+      overflow-y: auto;
+    }}
+    .menu.open {{ transform: translateX(0); }}
+    .menu-head {{
+      display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 20px;
-      background: rgba(0, 0, 0, 0.65);
-      backdrop-filter: blur(4px);
+      justify-content: space-between;
+      margin-bottom: 20px;
     }}
-    .help.open {{ display: flex; }}
-    .help-card {{
-      width: min(360px, 100%);
-      padding: 18px;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: #0c0c10;
-    }}
-    .help-card h2 {{
-      margin: 0 0 12px;
-      font-size: 0.9375rem;
-      font-weight: 600;
-    }}
-    .help-list {{
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      display: grid;
-      gap: 8px;
-      font-size: 0.8125rem;
-      color: rgba(255, 255, 255, 0.62);
-    }}
-    .help-list kbd {{
-      display: inline-block;
-      min-width: 1.5rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.05);
+    .menu-head h2 {{ margin: 0; font-size: 0.9375rem; font-weight: 600; }}
+    .menu-meta {{
+      margin-bottom: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.03);
       font-size: 0.75rem;
-      font-family: inherit;
-      color: rgba(255, 255, 255, 0.85);
-      text-align: center;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.5;
+      word-break: break-all;
     }}
+    .menu-meta strong {{ display: block; color: rgba(255,255,255,0.8); font-weight: 500; margin-bottom: 4px; word-break: break-all; }}
+    .menu-actions {{ display: flex; flex-direction: column; gap: 4px; }}
+    .menu-item {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      text-align: left;
+      font-size: 0.8125rem;
+      color: rgba(255,255,255,0.85);
+      transition: background 0.12s;
+    }}
+    .menu-item:hover {{ background: rgba(255,255,255,0.06); }}
+    .menu-item kbd {{
+      margin-left: auto;
+      font-size: 0.6875rem;
+      color: rgba(255,255,255,0.3);
+      font-family: inherit;
+    }}
+
+    .grid-view {{
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 8px;
+      padding: 16px;
+      overflow: auto;
+      background: #050506;
+    }}
+    .viewer.grid-mode .grid-view {{ display: grid; }}
+    .viewer.grid-mode .stage,
+    .viewer.grid-mode .hud,
+    .viewer.grid-mode .nav {{ display: none; }}
+    .grid-cell {{
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 0;
+      transition: border-color 0.12s;
+    }}
+    .grid-cell:hover {{ border-color: rgba(201,162,39,0.4); }}
+    .grid-cell img {{ width: 100%; height: 100%; object-fit: cover; display: block; }}
+
     .toast {{
       position: fixed;
-      bottom: max(20px, env(safe-area-inset-bottom));
+      bottom: max(24px, env(safe-area-inset-bottom));
       left: 50%;
-      transform: translateX(-50%) translateY(12px);
-      z-index: 60;
-      padding: 8px 14px;
+      transform: translateX(-50%) translateY(8px);
+      z-index: 50;
+      padding: 8px 16px;
       border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(12, 12, 16, 0.96);
+      background: rgba(20,20,24,0.95);
+      border: 1px solid rgba(255,255,255,0.1);
       font-size: 0.8125rem;
-      color: rgba(255, 255, 255, 0.88);
+      color: rgba(255,255,255,0.9);
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s, transform 0.2s;
     }}
-    .toast.show {{
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }}
-    @media (max-width: 720px) {{
-      .brand-sub {{ display: none; }}
-      .toolbar-group--export .pill span {{ display: none; }}
-      .nav-btn {{ opacity: 1; width: 34px; height: 48px; }}
-      .filmstrip-item {{ width: 80px; height: 52px; }}
+    .toast.show {{ opacity: 1; transform: translateX(-50%) translateY(0); }}
+
+    @media (max-width: 640px) {{
+      .nav {{ opacity: 1; width: 40px; height: 40px; }}
+      .hud-zoom {{ opacity: 1; }}
+      .thumb {{ width: 64px; height: 42px; }}
     }}
   </style>
 </head>
 <body>
-  <div class="app" id="app">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true"></div>
-        <div class="brand-text">
-          <span class="brand-title">State Love</span>
-          <span class="brand-sub">Альбом · {count} фото</span>
-        </div>
-      </div>
-      <span class="pill" id="counter">1 / {count}</span>
-      <div class="topbar-spacer"></div>
-      <div class="toolbar-group">
-        <span class="pill" id="zoomLabel">100%</span>
-        <button type="button" class="tool-btn" id="zoomOutBtn" title="Уменьшить (−)">−</button>
-        <button type="button" class="tool-btn" id="zoomInBtn" title="Увеличить (+)">+</button>
-        <button type="button" class="tool-btn" id="fitBtn" title="Вписать (0)">⤢</button>
-        <button type="button" class="tool-btn" id="playBtn" title="Слайдшоу">▶</button>
-        <button type="button" class="tool-btn" id="gridBtn" title="Сетка (G)">▦</button>
-        <button type="button" class="tool-btn active" id="stripBtn" title="Лента (T)">☰</button>
-      </div>
-      <div class="toolbar-group toolbar-group--export">
-        <button type="button" class="tool-btn" id="copyBtn" title="Копировать ссылку">⎘</button>
-        <a class="pill" id="openBtn" href="#" target="_blank" rel="noreferrer" title="Открыть фото"><span>↗</span></a>
-        <a class="pill" id="downloadBtn" href="#" download title="Скачать"><span>↓</span></a>
-        <button type="button" class="tool-btn" id="fsBtn" title="Полный экран (F)">⛶</button>
-        <button type="button" class="tool-btn" id="helpBtn" title="Горячие клавиши (?)">?</button>
-        <button type="button" class="tool-btn" id="closeBtn" title="Закрыть (Esc)">✕</button>
-      </div>
+  <div class="viewer{' no-strip' if count <= 1 else ''}" id="viewer">
+    <header class="bar">
+      <button type="button" class="bar-btn" id="closeBtn" title="Закрыть" aria-label="Закрыть">✕</button>
+      <div class="bar-title" id="counter"><strong>1</strong> / {count}</div>
+      <button type="button" class="bar-btn" id="menuBtn" title="Меню" aria-label="Меню">⋯</button>
     </header>
-    <div class="meta-bar">
-      <span id="fileName">—</span>
-      <span id="dimensions">—</span>
-      <span class="meta-spacer"></span>
-      <span id="galleryId">#{gid[:8]}…</span>
-    </div>
+
     <div class="stage-wrap" id="stageWrap">
-      <button type="button" class="nav-btn prev" id="prevBtn" aria-label="Назад">‹</button>
       <div class="stage" id="stage">
-        <img id="mainImg" alt="" draggable="false" />
+        <img id="img" alt="" draggable="false" />
       </div>
-      <button type="button" class="nav-btn next" id="nextBtn" aria-label="Вперёд">›</button>
-      <div class="grid-overlay" id="gridOverlay"></div>
+      <div class="hud" aria-hidden="true">
+        <span class="hud-zoom" id="zoomHud">100%</span>
+      </div>
+      <button type="button" class="nav prev" id="prevBtn" aria-label="Назад">‹</button>
+      <button type="button" class="nav next" id="nextBtn" aria-label="Вперёд">›</button>
+      <div class="grid-view" id="gridView"></div>
     </div>
-    <div class="progress-wrap" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
-    <aside class="filmstrip" id="filmstrip">
-      {"".join(thumb_items)}
-    </aside>
+
+    {filmstrip_html}
   </div>
 
-  <div class="help" id="help">
-    <div class="help-card">
-      <h2>Горячие клавиши</h2>
-      <ul class="help-list">
-        <li><kbd>←</kbd> <kbd>→</kbd> — предыдущее / следующее</li>
-        <li><kbd>+</kbd> <kbd>−</kbd> — масштаб</li>
-        <li><kbd>0</kbd> — вписать в экран</li>
-        <li><kbd>F</kbd> — полный экран</li>
-        <li><kbd>G</kbd> — сетка всех фото</li>
-        <li><kbd>T</kbd> — показать / скрыть ленту</li>
-        <li><kbd>C</kbd> — копировать ссылку на фото</li>
-        <li><kbd>?</kbd> — эта подсказка</li>
-        <li><kbd>Esc</kbd> — закрыть</li>
-      </ul>
-      <button type="button" class="pill" style="margin-top:14px;width:100%;justify-content:center" id="helpClose">Понятно</button>
+  <div class="menu-backdrop" id="menuBackdrop"></div>
+  <aside class="menu" id="menu" aria-label="Меню">
+    <div class="menu-head">
+      <h2>Фото</h2>
+      <button type="button" class="bar-btn" id="menuClose" aria-label="Закрыть меню">✕</button>
     </div>
-  </div>
+    <div class="menu-meta">
+      <strong id="fileName">—</strong>
+      <span id="dimensions">—</span>
+    </div>
+    <div class="menu-actions">
+      <button type="button" class="menu-item" id="fitBtn">Вписать в экран <kbd>0</kbd></button>
+      <button type="button" class="menu-item" id="gridBtn">Сетка <kbd>G</kbd></button>
+      <button type="button" class="menu-item" id="playBtn">Слайдшоу</button>
+      <button type="button" class="menu-item" id="copyBtn">Копировать ссылку <kbd>C</kbd></button>
+      <a class="menu-item" id="openBtn" href="#" target="_blank" rel="noreferrer">Открыть оригинал</a>
+      <a class="menu-item" id="downloadBtn" href="#" download>Скачать</a>
+      <button type="button" class="menu-item" id="fsBtn">Полный экран <kbd>F</kbd></button>
+    </div>
+  </aside>
+
   <div class="toast" id="toast"></div>
 
   <script>
     const images = {images_json};
-    const app = document.getElementById('app');
+    const viewer = document.getElementById('viewer');
     const stage = document.getElementById('stage');
-    const mainImg = document.getElementById('mainImg');
+    const stageWrap = document.getElementById('stageWrap');
+    const img = document.getElementById('img');
     const counter = document.getElementById('counter');
-    const zoomLabel = document.getElementById('zoomLabel');
-    const progressBar = document.getElementById('progressBar');
+    const zoomHud = document.getElementById('zoomHud');
     const fileName = document.getElementById('fileName');
     const dimensions = document.getElementById('dimensions');
     const downloadBtn = document.getElementById('downloadBtn');
     const openBtn = document.getElementById('openBtn');
-    const gridOverlay = document.getElementById('gridOverlay');
-    const filmstrip = document.getElementById('filmstrip');
+    const gridView = document.getElementById('gridView');
+    const strip = document.getElementById('strip');
+    const menu = document.getElementById('menu');
+    const menuBackdrop = document.getElementById('menuBackdrop');
     const toast = document.getElementById('toast');
-    const help = document.getElementById('help');
 
     let index = 0;
     let scale = 1;
@@ -451,22 +369,21 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     let dragging = false;
     let dragStart = null;
     let pinchStart = null;
-    let slideshow = null;
-    let filmstripVisible = true;
     let swipeStart = null;
+    let slideshow = null;
 
-    function clamp(v, min, max) {{ return Math.min(max, Math.max(min, v)); }}
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
-    function showToast(msg) {{
+    function toastMsg(msg) {{
       toast.textContent = msg;
       toast.classList.add('show');
-      clearTimeout(showToast._t);
-      showToast._t = setTimeout(() => toast.classList.remove('show'), 1800);
+      clearTimeout(toastMsg._t);
+      toastMsg._t = setTimeout(() => toast.classList.remove('show'), 1800);
     }}
 
     function applyTransform() {{
-      mainImg.style.transform = `translate(calc(-50% + ${{tx}}px), calc(-50% + ${{ty}}px)) scale(${{scale}})`;
-      zoomLabel.textContent = `${{Math.round(scale * 100)}}%`;
+      img.style.transform = `translate(calc(-50% + ${{tx}}px), calc(-50% + ${{ty}}px)) scale(${{scale}})`;
+      zoomHud.textContent = `${{Math.round(scale * 100)}}%`;
     }}
 
     function shareUrl(i) {{
@@ -475,37 +392,28 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       return url.toString();
     }}
 
-    function prefetch(i) {{
-      if (i < 0 || i >= images.length) return;
-      const img = new Image();
-      img.src = images[i];
-    }}
-
     function updateUI() {{
-      counter.textContent = `${{index + 1}} / ${{images.length}}`;
-      progressBar.style.width = images.length > 1 ? `${{((index + 1) / images.length) * 100}}%` : '100%';
+      counter.innerHTML = `<strong>${{index + 1}}</strong> / ${{images.length}}`;
       const src = images[index];
       const name = src.split('/').pop() || 'screenshot';
       downloadBtn.href = src;
       downloadBtn.download = name;
       openBtn.href = src;
-      fileName.innerHTML = `<strong>${{name}}</strong>`;
-      document.querySelectorAll('.filmstrip-item').forEach((el, i) => {{
+      fileName.textContent = name;
+      document.querySelectorAll('.thumb').forEach((el, i) => {{
         el.classList.toggle('active', i === index);
       }});
-      const active = filmstrip.querySelector('.filmstrip-item.active');
+      const active = strip?.querySelector('.thumb.active');
       if (active) active.scrollIntoView({{ block: 'nearest', inline: 'center', behavior: 'smooth' }});
       document.getElementById('prevBtn').disabled = index <= 0;
       document.getElementById('nextBtn').disabled = index >= images.length - 1;
-      prefetch(index + 1);
-      prefetch(index - 1);
     }}
 
     function fitToScreen() {{
       const rect = stage.getBoundingClientRect();
-      const iw = mainImg.naturalWidth || 1;
-      const ih = mainImg.naturalHeight || 1;
-      scale = Math.min(rect.width / iw, rect.height / ih) * 0.94;
+      const iw = img.naturalWidth || 1;
+      const ih = img.naturalHeight || 1;
+      scale = Math.min(rect.width / iw, rect.height / ih) * 0.92;
       tx = 0;
       ty = 0;
       applyTransform();
@@ -513,19 +421,16 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
 
     function show(i) {{
       index = clamp(i, 0, images.length - 1);
-      mainImg.classList.add('loading');
-      mainImg.onload = () => {{
-        mainImg.classList.remove('loading');
-        dimensions.textContent = `${{mainImg.naturalWidth}} × ${{mainImg.naturalHeight}}`;
+      img.classList.add('loading');
+      const onLoad = () => {{
+        img.classList.remove('loading');
+        dimensions.textContent = `${{img.naturalWidth}} × ${{img.naturalHeight}} px`;
         fitToScreen();
       }};
-      mainImg.src = images[index];
+      img.onload = onLoad;
+      img.src = images[index];
       updateUI();
-      if (mainImg.complete) {{
-        mainImg.classList.remove('loading');
-        dimensions.textContent = `${{mainImg.naturalWidth}} × ${{mainImg.naturalHeight}}`;
-        fitToScreen();
-      }}
+      if (img.complete) onLoad();
     }}
 
     function step(delta) {{
@@ -533,102 +438,94 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       show(index + delta);
     }}
 
-    function zoomAt(clientX, clientY, factor) {{
+    function zoomAt(cx, cy, factor) {{
       const rect = stage.getBoundingClientRect();
-      const cx = clientX - rect.left - rect.width / 2 - tx;
-      const cy = clientY - rect.top - rect.height / 2 - ty;
-      const next = clamp(scale * factor, 0.08, 12);
+      const px = cx - rect.left - rect.width / 2 - tx;
+      const py = cy - rect.top - rect.height / 2 - ty;
+      const next = clamp(scale * factor, 0.1, 8);
       const ratio = next / scale;
-      tx -= cx * (ratio - 1);
-      ty -= cy * (ratio - 1);
+      tx -= px * (ratio - 1);
+      ty -= py * (ratio - 1);
       scale = next;
       applyTransform();
+      stageWrap.classList.add('show-hud');
+      clearTimeout(zoomAt._h);
+      zoomAt._h = setTimeout(() => stageWrap.classList.remove('show-hud'), 1500);
     }}
 
     function buildGrid() {{
-      gridOverlay.innerHTML = images.map((src, i) =>
-        `<button type="button" class="grid-tile" data-index="${{i}}">` +
-        `<span class="grid-tile-num">${{i + 1}}</span>` +
-        `<img src="${{src}}" alt="" loading="lazy" /></button>`
+      gridView.innerHTML = images.map((src, i) =>
+        `<button type="button" class="grid-cell" data-index="${{i}}"><img src="${{src}}" alt="" loading="lazy" /></button>`
       ).join('');
-      gridOverlay.querySelectorAll('.grid-tile').forEach((btn) => {{
+      gridView.querySelectorAll('.grid-cell').forEach((btn) => {{
         btn.addEventListener('click', () => {{
-          app.classList.remove('grid-mode');
-          document.getElementById('gridBtn').classList.remove('active');
+          viewer.classList.remove('grid-mode');
+          closeMenu();
           show(Number(btn.dataset.index));
         }});
       }});
     }}
 
+    function openMenu() {{
+      menu.classList.add('open');
+      menuBackdrop.classList.add('open');
+    }}
+    function closeMenu() {{
+      menu.classList.remove('open');
+      menuBackdrop.classList.remove('open');
+    }}
+
     function toggleGrid() {{
-      app.classList.toggle('grid-mode');
-      document.getElementById('gridBtn').classList.toggle('active', app.classList.contains('grid-mode'));
+      viewer.classList.toggle('grid-mode');
+      closeMenu();
     }}
 
-    function toggleFilmstrip() {{
-      filmstripVisible = !filmstripVisible;
-      app.classList.toggle('filmstrip-hidden', !filmstripVisible);
-      document.getElementById('stripBtn').classList.toggle('active', filmstripVisible);
-    }}
-
-    async function copyShareLink() {{
+    async function copyLink() {{
       try {{
         await navigator.clipboard.writeText(shareUrl(index));
-        showToast('Ссылка скопирована');
+        toastMsg('Ссылка скопирована');
       }} catch {{
-        showToast('Не удалось скопировать');
+        toastMsg('Не удалось скопировать');
       }}
     }}
 
-    filmstrip.querySelectorAll('.filmstrip-item').forEach((btn) => {{
+    strip?.querySelectorAll('.thumb').forEach((btn) => {{
       btn.addEventListener('click', () => show(Number(btn.dataset.index)));
     }});
 
     document.getElementById('prevBtn').addEventListener('click', () => step(-1));
     document.getElementById('nextBtn').addEventListener('click', () => step(1));
-    document.getElementById('zoomInBtn').addEventListener('click', () => {{
-      const r = stage.getBoundingClientRect();
-      zoomAt(r.left + r.width / 2, r.top + r.height / 2, 1.25);
-    }});
-    document.getElementById('zoomOutBtn').addEventListener('click', () => {{
-      const r = stage.getBoundingClientRect();
-      zoomAt(r.left + r.width / 2, r.top + r.height / 2, 0.8);
-    }});
-    document.getElementById('fitBtn').addEventListener('click', fitToScreen);
-    document.getElementById('fsBtn').addEventListener('click', () => {{
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {{}});
-      else document.exitFullscreen();
-    }});
-    document.getElementById('gridBtn').addEventListener('click', toggleGrid);
-    document.getElementById('stripBtn').addEventListener('click', toggleFilmstrip);
-    document.getElementById('copyBtn').addEventListener('click', () => void copyShareLink());
-    document.getElementById('helpBtn').addEventListener('click', () => help.classList.add('open'));
-    document.getElementById('helpClose').addEventListener('click', () => help.classList.remove('open'));
-    help.addEventListener('click', (e) => {{ if (e.target === help) help.classList.remove('open'); }});
     document.getElementById('closeBtn').addEventListener('click', () => {{
       if (window.history.length > 1) window.history.back();
       else window.close();
+    }});
+    document.getElementById('menuBtn').addEventListener('click', openMenu);
+    document.getElementById('menuClose').addEventListener('click', closeMenu);
+    menuBackdrop.addEventListener('click', closeMenu);
+    document.getElementById('fitBtn').addEventListener('click', () => {{ fitToScreen(); closeMenu(); }});
+    document.getElementById('gridBtn').addEventListener('click', toggleGrid);
+    document.getElementById('copyBtn').addEventListener('click', () => void copyLink());
+    document.getElementById('fsBtn').addEventListener('click', () => {{
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {{}});
+      else document.exitFullscreen();
+      closeMenu();
     }});
     document.getElementById('playBtn').addEventListener('click', (e) => {{
       const btn = e.currentTarget;
       if (slideshow) {{
         clearInterval(slideshow);
         slideshow = null;
-        btn.textContent = '▶';
-        btn.classList.remove('active');
+        btn.textContent = 'Слайдшоу';
         return;
       }}
-      btn.textContent = '⏸';
-      btn.classList.add('active');
-      slideshow = setInterval(() => {{
-        if (index >= images.length - 1) show(0);
-        else step(1);
-      }}, 3000);
+      btn.textContent = 'Остановить слайдшоу';
+      closeMenu();
+      slideshow = setInterval(() => step(index >= images.length - 1 ? -(images.length - 1) : 1), 3000);
     }});
 
     stage.addEventListener('wheel', (e) => {{
       e.preventDefault();
-      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.12 : 0.89);
+      zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.1 : 0.9);
     }}, {{ passive: false }});
 
     stage.addEventListener('dblclick', (e) => {{
@@ -654,8 +551,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       if (!dragging) return;
       if (swipeStart && scale <= 1.05) {{
         const dx = e.clientX - swipeStart.x;
-        const dt = Date.now() - swipeStart.t;
-        if (Math.abs(dx) > 60 && dt < 400) step(dx > 0 ? -1 : 1);
+        if (Math.abs(dx) > 50 && Date.now() - swipeStart.t < 400) step(dx > 0 ? -1 : 1);
       }}
       dragging = false;
       dragStart = null;
@@ -669,12 +565,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     stage.addEventListener('touchstart', (e) => {{
       if (e.touches.length === 2) {{
         const [a, b] = e.touches;
-        pinchStart = {{
-          dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-          scale,
-          midX: (a.clientX + b.clientX) / 2,
-          midY: (a.clientY + b.clientY) / 2,
-        }};
+        pinchStart = {{ dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), scale }};
       }}
     }}, {{ passive: true }});
     stage.addEventListener('touchmove', (e) => {{
@@ -682,17 +573,10 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
         e.preventDefault();
         const [a, b] = e.touches;
         const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-        const next = clamp(pinchStart.scale * (dist / pinchStart.dist), 0.08, 12);
-        const factor = next / scale;
         const midX = (a.clientX + b.clientX) / 2;
         const midY = (a.clientY + b.clientY) / 2;
-        const rect = stage.getBoundingClientRect();
-        const cx = midX - rect.left - rect.width / 2 - tx;
-        const cy = midY - rect.top - rect.height / 2 - ty;
-        tx -= cx * (factor - 1);
-        ty -= cy * (factor - 1);
-        scale = next;
-        applyTransform();
+        zoomAt(midX, midY, dist / pinchStart.dist);
+        pinchStart.dist = dist;
       }}
     }}, {{ passive: false }});
     stage.addEventListener('touchend', () => {{ pinchStart = null; }});
@@ -700,27 +584,21 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     window.addEventListener('keydown', (e) => {{
       if (e.key === 'ArrowLeft') step(-1);
       if (e.key === 'ArrowRight') step(1);
-      if (e.key === '+' || e.key === '=') document.getElementById('zoomInBtn').click();
-      if (e.key === '-') document.getElementById('zoomOutBtn').click();
       if (e.key === '0') fitToScreen();
       if (e.key === 'Escape') {{
-        if (help.classList.contains('open')) help.classList.remove('open');
-        else if (app.classList.contains('grid-mode')) toggleGrid();
+        if (menu.classList.contains('open')) closeMenu();
+        else if (viewer.classList.contains('grid-mode')) viewer.classList.remove('grid-mode');
         else document.getElementById('closeBtn').click();
       }}
       if (e.key === 'f' || e.key === 'F') document.getElementById('fsBtn').click();
       if (e.key === 'g' || e.key === 'G') toggleGrid();
-      if (e.key === 't' || e.key === 'T') toggleFilmstrip();
-      if (e.key === 'c' || e.key === 'C') void copyShareLink();
-      if (e.key === '?') help.classList.add('open');
+      if (e.key === 'c' || e.key === 'C') void copyLink();
     }});
 
-    window.addEventListener('resize', () => {{
-      if (scale < 1.05) fitToScreen();
-    }});
+    window.addEventListener('resize', () => {{ if (scale < 1.05) fitToScreen(); }});
 
-    const start = Number(new URLSearchParams(location.search).get('i'));
     buildGrid();
+    const start = Number(new URLSearchParams(location.search).get('i'));
     show(Number.isFinite(start) ? start : 0);
   </script>
 </body>

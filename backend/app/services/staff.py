@@ -108,7 +108,25 @@ def ca_source(access: UserServerAccess | None) -> str | None:
     return "manual"
 
 
+async def reconcile_supervisor_leader_flags(server_id: int) -> int:
+    """Снять is_leader у следящих (ПГС+): лидерский флаг только для реестра руководства без уровня."""
+    rows = await UserServerAccess.filter(server_id=server_id, is_leader=True)
+    cleared = 0
+    for access in rows:
+        if access.access_level >= AccessLevel.PGS:
+            access.is_leader = False
+            await access.save(update_fields=["is_leader"])
+            cleared += 1
+            logger.info(
+                "reconcile: cleared is_leader for vk_id=%s (access_level=%s)",
+                access.user_id,
+                access.access_level,
+            )
+    return cleared
+
+
 async def list_staff(server_id: int) -> list[dict]:
+    await reconcile_supervisor_leader_flags(server_id)
     by_id: dict[int, tuple[User, int, UserServerAccess | None]] = {}
 
     rows = await UserServerAccess.filter(server_id=server_id).prefetch_related("user")
