@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
   Eye,
   Gavel,
-  Link2,
   RefreshCw,
   Save,
 } from 'lucide-react'
@@ -14,6 +13,7 @@ import { ApiError, api, type JudgeForumListSettings } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import { Checkbox } from '../components/ui/Checkbox'
+import { FormField } from '../components/ui/FormField'
 import { Select } from '../components/ui/Select'
 import { cn } from '../lib/utils'
 
@@ -31,23 +31,23 @@ function parseThreadInput(raw: string): number | null {
 }
 
 const BODY_PLACEHOLDERS = [
-  { key: '{{judges_block}}', desc: 'Блок строк судей (каждый судья с новой строки)' },
+  { key: '{{judges_block}}', desc: 'Блок строк судей' },
   { key: '{{judges_count}}', desc: 'Количество судей' },
-  { key: '{{updated_at}}', desc: 'Дата и время обновления' },
+  { key: '{{updated_at}}', desc: 'Дата обновления' },
   { key: '{{server_name}}', desc: 'Название сервера' },
 ]
 
 const LINE_PLACEHOLDERS = [
-  { key: '{{nickname}}', desc: 'Ник с тегами ([Судья] Name_Surname)' },
-  { key: '{{clean_nickname}}', desc: 'Ник без тегов (Name_Surname)' },
-  { key: '{{tag}}', desc: 'Только теги ([Судья] или [GOV][9])' },
-  { key: '{{position}}', desc: 'Должность (VK /setpost или панель «Руководство»)' },
-  { key: '{{vk}}', desc: 'Ссылка на VK ([url=…]ник[/url])' },
-  { key: '{{vk_url}}', desc: 'URL профиля VK без BBCode' },
-  { key: '{{since}}', desc: 'Дата назначения судьёй' },
-  { key: '{{note}}', desc: 'То же, что {{position}}' },
-  { key: '{{note_suffix}}', desc: '« — должность», если задана' },
-  { key: '{{index}}', desc: 'Порядковый номер' },
+  { key: '{{nickname}}', desc: 'Ник с тегами' },
+  { key: '{{clean_nickname}}', desc: 'Ник без тегов' },
+  { key: '{{tag}}', desc: 'Только теги' },
+  { key: '{{position}}', desc: 'Должность' },
+  { key: '{{vk}}', desc: 'Ссылка VK (BBCode)' },
+  { key: '{{vk_url}}', desc: 'URL профиля VK' },
+  { key: '{{since}}', desc: 'Дата назначения' },
+  { key: '{{note}}', desc: 'Как {{position}}' },
+  { key: '{{note_suffix}}', desc: '« — должность»' },
+  { key: '{{index}}', desc: 'Номер в списке' },
 ]
 
 type ThreadCheck = {
@@ -71,35 +71,19 @@ function PlaceholderList({ items }: { items: { key: string; desc: string }[] }) 
   )
 }
 
-function TemplateEditor({
-  id,
-  label,
-  value,
-  onChange,
-  rows = 6,
-  mono = true,
+function Feedback({
+  variant,
+  children,
 }: {
-  id: string
-  label: string
-  value: string
-  onChange: (v: string) => void
-  rows?: number
-  mono?: boolean
+  variant: 'ok' | 'bad' | 'warn' | 'muted'
+  children: ReactNode
 }) {
+  const Icon = variant === 'ok' ? CheckCircle2 : variant === 'bad' ? AlertCircle : null
   return (
-    <div className="jfl-field">
-      <label htmlFor={id} className="jfl-label">
-        {label}
-      </label>
-      <textarea
-        id={id}
-        className={cn('jfl-textarea', mono && 'jfl-textarea--mono')}
-        rows={rows}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        spellCheck={false}
-      />
-    </div>
+    <p className={cn('jfl-feedback', `jfl-feedback--${variant}`)}>
+      {Icon && <Icon size={14} strokeWidth={2.25} aria-hidden />}
+      <span>{children}</span>
+    </p>
   )
 }
 
@@ -113,6 +97,7 @@ export function JudgeForumListPage() {
   const [threadCheck, setThreadCheck] = useState<ThreadCheck | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingEnabled, setSavingEnabled] = useState(false)
   const [previewing, setPreviewing] = useState(false)
   const [validating, setValidating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -171,6 +156,32 @@ export function JudgeForumListPage() {
   if (!user) return null
   if (!canManage) return <Navigate to="/dashboard" replace />
 
+  const isActive = Boolean(form?.enabled && form?.thread_id)
+
+  const buildSavePayload = (
+    nextForm: JudgeForumListSettings,
+    opts?: { enabledOnly?: boolean },
+  ): Parameters<typeof api.saveJudgeForumListSettings>[0] => {
+    const trimmedThread = threadInput.trim()
+    const parsedThreadId = parseThreadInput(trimmedThread)
+    const effectiveThreadId = parsedThreadId ?? nextForm.thread_id ?? null
+
+    const payload: Parameters<typeof api.saveJudgeForumListSettings>[0] = {
+      server_id: serverId,
+      enabled: nextForm.enabled,
+      body_template: nextForm.body_template,
+      line_template: nextForm.line_template,
+      empty_text: nextForm.empty_text,
+    }
+
+    if (!opts?.enabledOnly) {
+      if (trimmedThread) payload.thread_url = trimmedThread
+      if (effectiveThreadId) payload.thread_id = effectiveThreadId
+    }
+
+    return payload
+  }
+
   const handleValidateThread = async () => {
     const raw = threadInput.trim()
     if (!raw) {
@@ -214,28 +225,14 @@ export function JudgeForumListPage() {
     const effectiveThreadId = parsedThreadId ?? form.thread_id ?? null
 
     if (form.enabled && !effectiveThreadId) {
-      setError('Укажите ссылку или ID темы в разделе forums/3758/')
+      setError('Чтобы включить автообновление, укажите тему в разделе forums/3758/')
       return
     }
 
     setSaving(true)
     clearAlerts()
     try {
-      const payload: Parameters<typeof api.saveJudgeForumListSettings>[0] = {
-        server_id: serverId,
-        enabled: form.enabled,
-        body_template: form.body_template,
-        line_template: form.line_template,
-        empty_text: form.empty_text,
-      }
-      if (trimmedThread) {
-        payload.thread_url = trimmedThread
-      }
-      if (effectiveThreadId) {
-        payload.thread_id = effectiveThreadId
-      }
-
-      const saved = await api.saveJudgeForumListSettings(payload)
+      const saved = await api.saveJudgeForumListSettings(buildSavePayload(form))
       setForm(saved)
       setThreadInput(saved.thread_url ?? (saved.thread_id ? String(saved.thread_id) : ''))
       if (saved.warning) {
@@ -243,14 +240,41 @@ export function JudgeForumListPage() {
       } else {
         setMessage(
           saved.thread_id
-            ? `Сохранено (тема #${saved.thread_id}, сервер ${serverId}). Обновление на форуме — при /addcourt, /removecourt или /syncjudges.`
-            : 'Сохранено. Тема обновится при следующем назначении или снятии судьи.',
+            ? `Сохранено · тема #${saved.thread_id}`
+            : 'Сохранено',
         )
       }
     } catch (e: unknown) {
       setError(e instanceof ApiError ? e.message : 'Ошибка сохранения')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleEnabledChange = async (checked: boolean) => {
+    if (!form) return
+    const trimmedThread = threadInput.trim()
+    const parsedThreadId = parseThreadInput(trimmedThread)
+    const effectiveThreadId = parsedThreadId ?? form.thread_id ?? null
+
+    if (checked && !effectiveThreadId) {
+      setError('Сначала укажите и сохраните тему в разделе forums/3758/')
+      return
+    }
+
+    const nextForm = { ...form, enabled: checked }
+    setForm(nextForm)
+    setSavingEnabled(true)
+    clearAlerts()
+    try {
+      const saved = await api.saveJudgeForumListSettings(buildSavePayload(nextForm, { enabledOnly: true }))
+      setForm(saved)
+      setMessage(checked ? 'Автообновление включено' : 'Автообновление выключено')
+    } catch (e: unknown) {
+      setForm(form)
+      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить переключатель')
+    } finally {
+      setSavingEnabled(false)
     }
   }
 
@@ -274,222 +298,226 @@ export function JudgeForumListPage() {
   }
 
   return (
-    <div className="page-stack jfl-page">
+    <div className="page-stack page-stack--jfl">
       <PageHeader
         section="Форум"
         title="Список судей"
         icon={Gavel}
         shrink
-        subtitle="BBCode-шаблон · автообновление при /addcourt и /removecourt"
+        subtitle="BBCode-шаблон темы на форуме"
+        actions={
+          form ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void handlePreview()}
+                disabled={previewing || loading}
+              >
+                <Eye size={15} />
+                {previewing ? 'Рендер…' : 'Предпросмотр'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-gold btn-sm"
+                onClick={() => void handleSave()}
+                disabled={saving || loading}
+              >
+                <Save size={15} />
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </>
+          ) : undefined
+        }
       />
 
-      {(error || warning || message) && (
-        <div className="jfl-alerts">
-          {error && (
-            <div className="jfl-alert jfl-alert--error" role="alert">
-              <AlertCircle size={18} strokeWidth={2} aria-hidden />
-              <span>{error}</span>
-            </div>
-          )}
-          {warning && (
-            <div className="jfl-alert jfl-alert--warn" role="status">
-              <AlertCircle size={18} strokeWidth={2} aria-hidden />
-              <span>{warning}</span>
-            </div>
-          )}
-          {message && (
-            <div className="jfl-alert jfl-alert--ok" role="status">
-              <CheckCircle2 size={18} strokeWidth={2} aria-hidden />
-              <span>{message}</span>
-            </div>
-          )}
+      {error && (
+        <div className="alert-banner" role="alert">
+          <AlertCircle size={16} />
+          {error}
+        </div>
+      )}
+      {warning && !error && (
+        <div className="jfl-banner jfl-banner--warn" role="status">
+          <AlertCircle size={16} />
+          {warning}
+        </div>
+      )}
+      {message && !error && !warning && (
+        <div className="jfl-banner jfl-banner--ok" role="status">
+          <CheckCircle2 size={16} />
+          {message}
         </div>
       )}
 
       {loading && <div className="page-loading">Загрузка настроек…</div>}
 
       {!loading && form && (
-        <div className="jfl-layout">
+        <div className="jfl-grid">
           <div className="jfl-main">
-            <section className="jfl-card">
-              <header className="jfl-card-head">
+            <section className="glass-card jfl-card jfl-connect-card">
+              <div className="jfl-card-head">
                 <h2 className="jfl-card-title">Подключение</h2>
-                <p className="jfl-card-desc">Сервер и тема, которую бот редактирует автоматически</p>
-              </header>
-
-              <div className="jfl-field">
-                <span className="jfl-label">Сервер</span>
-                <Select
-                  value={String(serverId)}
-                  onChange={(v) => setServerId(Number(v))}
-                  options={
-                    serverOptions.length
-                      ? serverOptions
-                      : [{ value: String(serverId), label: `Сервер ${serverId}` }]
-                  }
-                />
+                <span className={cn('jfl-status', isActive ? 'jfl-status--on' : 'jfl-status--off')}>
+                  {isActive ? 'ON' : 'OFF'}
+                </span>
               </div>
 
-              <div className="jfl-field">
-                <span className="jfl-label">Тема на форуме</span>
-                <div className="jfl-thread-row">
-                  <div className="jfl-input-wrap">
-                    <Link2 size={16} className="jfl-input-icon" aria-hidden />
+              <div className="jfl-connect-fields">
+                <FormField label="Сервер" className="jfl-field-server">
+                  <Select
+                    value={String(serverId)}
+                    onChange={(v) => setServerId(Number(v))}
+                    options={
+                      serverOptions.length
+                        ? serverOptions
+                        : [{ value: String(serverId), label: `Сервер ${serverId}` }]
+                    }
+                  />
+                </FormField>
+
+                <FormField label="Тема на форуме">
+                  <div className="jfl-thread-row">
                     <input
-                      className="jfl-input jfl-input--with-icon"
+                      className="control"
                       value={threadInput}
                       onChange={(e) => {
                         setThreadInput(e.target.value)
                         setThreadCheck(null)
                       }}
-                      placeholder="https://forum.arizona-rp.com/threads/11146750/"
+                      placeholder="Ссылка или ID темы"
                     />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm jfl-thread-check"
+                      onClick={() => void handleValidateThread()}
+                      disabled={validating || !threadInput.trim()}
+                    >
+                      <RefreshCw size={14} className={validating ? 'animate-spin' : undefined} />
+                      {validating ? '…' : 'Проверить'}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-sm jfl-thread-check"
-                    onClick={() => void handleValidateThread()}
-                    disabled={validating || !threadInput.trim()}
-                  >
-                    <RefreshCw size={15} className={validating ? 'jfl-spin' : undefined} />
-                    {validating ? 'Проверка…' : 'Проверить'}
-                  </button>
-                </div>
-                <p className="jfl-hint">
-                  Только темы из раздела{' '}
-                  <a
-                    href={REQUIRED_FORUM_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="jfl-link"
-                  >
-                    forums/3758/
-                    <ExternalLink size={12} aria-hidden />
-                  </a>
-                </p>
-                {threadCheck && !threadCheck.skipped && threadCheck.valid === true && (
-                  <p className="jfl-thread-ok">
-                    <CheckCircle2 size={14} aria-hidden />
-                    {threadCheck.title ? `«${threadCheck.title}»` : 'Тема'} — раздел верный
-                  </p>
-                )}
-                {threadCheck && threadCheck.valid === false && (
-                  <p className="jfl-thread-bad">
-                    <AlertCircle size={14} aria-hidden />
-                    {threadCheck.error}
-                  </p>
-                )}
-                {form.thread_id ? (
-                  <p className="jfl-hint jfl-hint--ok">
-                    <CheckCircle2 size={14} aria-hidden />
-                    В базе бота: тема #{form.thread_id} · сервер {serverId}
-                  </p>
-                ) : (
-                  <p className="jfl-hint jfl-hint--warn">
-                    Тема ещё не сохранена — укажите ссылку и нажмите «Сохранить»
-                  </p>
-                )}
+                  <div className="jfl-thread-note">
+                    {threadCheck && !threadCheck.skipped && threadCheck.valid === true && (
+                      <Feedback variant="ok">
+                        {threadCheck.title ? `«${threadCheck.title}»` : 'Тема'} — ок
+                      </Feedback>
+                    )}
+                    {threadCheck && threadCheck.valid === false && (
+                      <Feedback variant="bad">{threadCheck.error}</Feedback>
+                    )}
+                    {form.thread_id ? (
+                      <Feedback variant="muted">В базе: #{form.thread_id}</Feedback>
+                    ) : (
+                      <Feedback variant="warn">Тема не сохранена</Feedback>
+                    )}
+                    <span className="jfl-thread-note-sep" aria-hidden>
+                      ·
+                    </span>
+                    <a
+                      href={REQUIRED_FORUM_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="jfl-forum-link"
+                    >
+                      forums/3758/
+                      <ExternalLink size={11} aria-hidden />
+                    </a>
+                  </div>
+                </FormField>
               </div>
 
-              <label className="jfl-toggle">
+              <label className="jfl-auto-row">
                 <Checkbox
                   checked={form.enabled}
-                  onChange={(checked) => setForm({ ...form, enabled: checked })}
+                  disabled={savingEnabled}
+                  onChange={(checked) => void handleEnabledChange(checked)}
                 />
-                <span>
-                  <strong>Автообновление</strong>
-                  <small>При назначении и снятии судьи через бота</small>
+                <span className="jfl-auto-label">
+                  Автообновление при /addcourt и /removecourt
+                  {savingEnabled && <small> · сохранение…</small>}
                 </span>
               </label>
             </section>
 
-            <section className="jfl-card">
-              <header className="jfl-card-head">
-                <h2 className="jfl-card-title">Шаблоны BBCode</h2>
-                <p className="jfl-card-desc">Содержимое первого поста темы на форуме</p>
-              </header>
+            <section className="glass-card jfl-card">
+              <h2 className="jfl-card-title m-0">Шаблоны BBCode</h2>
 
-              <TemplateEditor
-                id="jfl-body"
-                label="Основной шаблон"
-                rows={7}
-                value={form.body_template}
-                onChange={(body_template) => setForm({ ...form, body_template })}
-              />
+              <div className="jfl-templates">
+                <FormField label="Основной шаблон">
+                  <textarea
+                    className="control jfl-textarea-mono jfl-textarea-mono--body"
+                    rows={5}
+                    value={form.body_template}
+                    onChange={(e) => setForm({ ...form, body_template: e.target.value })}
+                    spellCheck={false}
+                  />
+                </FormField>
 
-              <TemplateEditor
-                id="jfl-line"
-                label="Строка одного судьи"
-                rows={3}
-                value={form.line_template}
-                onChange={(line_template) => setForm({ ...form, line_template })}
-              />
+                <div className="jfl-template-split">
+                  <FormField label="Строка судьи">
+                    <textarea
+                      className="control jfl-textarea-mono jfl-textarea-mono--short"
+                      rows={2}
+                      value={form.line_template}
+                      onChange={(e) => setForm({ ...form, line_template: e.target.value })}
+                      spellCheck={false}
+                    />
+                  </FormField>
 
-              <TemplateEditor
-                id="jfl-empty"
-                label="Если судей нет"
-                rows={2}
-                value={form.empty_text}
-                onChange={(empty_text) => setForm({ ...form, empty_text })}
-              />
+                  <FormField label="Если судей нет">
+                    <textarea
+                      className="control jfl-textarea-mono jfl-textarea-mono--short"
+                      rows={2}
+                      value={form.empty_text}
+                      onChange={(e) => setForm({ ...form, empty_text: e.target.value })}
+                      spellCheck={false}
+                    />
+                  </FormField>
+                </div>
+              </div>
             </section>
-
-            <div className="jfl-actions">
-              <button type="button" className="btn-primary" onClick={() => void handleSave()} disabled={saving}>
-                <Save size={17} />
-                {saving ? 'Сохранение…' : 'Сохранить'}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => void handlePreview()}
-                disabled={previewing}
-              >
-                <Eye size={17} />
-                {previewing ? 'Рендер…' : 'Предпросмотр'}
-              </button>
-            </div>
           </div>
 
-          <aside className="jfl-aside">
-            <section className="jfl-card jfl-card--aside">
-              <h3 className="jfl-aside-title">Раздел форума</h3>
-              <p className="jfl-aside-text">
-                Список судей публикуется только в фиксированном разделе Arizona RP.
-              </p>
-              <a href={REQUIRED_FORUM_URL} target="_blank" rel="noreferrer" className="jfl-forum-link">
-                forum.arizona-rp.com/forums/3758/
-                <ExternalLink size={14} aria-hidden />
-              </a>
+          <aside className="jfl-side">
+            <section className="glass-card jfl-card">
+              <div className="jfl-card-head">
+                <h2 className="jfl-card-title">Предпросмотр</h2>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => void handlePreview()}
+                  disabled={previewing}
+                >
+                  <Eye size={14} />
+                  {previewing ? '…' : 'Обновить'}
+                </button>
+              </div>
+              {preview ? (
+                <pre className="jfl-preview">{preview}</pre>
+              ) : (
+                <div className="jfl-preview jfl-preview--empty">
+                  Нажмите «Предпросмотр» в шапке или «Обновить»
+                </div>
+              )}
             </section>
 
-            <section className="jfl-card jfl-card--aside">
-              <h3 className="jfl-aside-title">Placeholder&apos;ы темы</h3>
-              <PlaceholderList items={BODY_PLACEHOLDERS} />
-            </section>
-
-            <section className="jfl-card jfl-card--aside">
-              <h3 className="jfl-aside-title">Placeholder&apos;ы строки</h3>
-              <PlaceholderList items={LINE_PLACEHOLDERS} />
-            </section>
-
-            <section className="jfl-card jfl-card--aside">
-              <h3 className="jfl-aside-title">BBCode</h3>
-              <div className="jfl-bbcode-tags">
+            <section className="glass-card jfl-card">
+              <h3 className="jfl-ref-title">Плейсхолдеры</h3>
+              <div className="jfl-ref-block">
+                <PlaceholderList items={BODY_PLACEHOLDERS} />
+              </div>
+              <div className="jfl-ref-block">
+                <h3 className="jfl-ref-title">Строка</h3>
+                <PlaceholderList items={LINE_PLACEHOLDERS} />
+              </div>
+              <div className="jfl-tags">
                 <code>[b]</code>
                 <code>[i]</code>
                 <code>[center]</code>
-                <code>[size=5]</code>
-                <code>[url=…]</code>
+                <code>[url]</code>
               </div>
             </section>
-
-            {preview && (
-              <section className="jfl-card jfl-card--aside jfl-preview-card">
-                <h3 className="jfl-aside-title">Предпросмотр</h3>
-                <pre className="jfl-preview">{preview}</pre>
-              </section>
-            )}
           </aside>
         </div>
       )}

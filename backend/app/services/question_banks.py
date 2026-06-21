@@ -116,6 +116,8 @@ def can_view_item(user: dict, item: QuestionBankItem) -> bool:
 
 def can_edit_item(user: dict, item: QuestionBankItem, bank: QuestionBank) -> bool:
     perms = bank_permissions(user, bank)
+    if perms["can_manage"]:
+        return True
     if perms["can_review"] and item.status == "pending":
         return True
     if item.created_by_vk_id != user["vk_id"]:

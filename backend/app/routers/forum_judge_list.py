@@ -155,14 +155,15 @@ async def save_judge_list_settings(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if body.enabled and not thread_id:
+    next_enabled = body.enabled if "enabled" in fields_set else settings.enabled
+    if "enabled" in fields_set and body.enabled and not thread_id:
         raise HTTPException(
             status_code=400,
             detail="Укажите ссылку или ID темы в разделе forums/3758/",
         )
 
     validation_warning: str | None = None
-    if thread_id:
+    if thread_id and next_enabled:
         check, err = await validate_judge_list_thread(body.server_id, thread_id)
         if err:
             if _bot_unreachable(err):
@@ -179,7 +180,8 @@ async def save_judge_list_settings(
             )
 
     settings.thread_id = thread_id
-    settings.enabled = body.enabled
+    if "enabled" in fields_set:
+        settings.enabled = body.enabled
     body_tpl, line_tpl, empty_tpl = _normalize_templates(
         body.body_template.strip() or DEFAULT_BODY_TEMPLATE,
         body.line_template.strip() or DEFAULT_LINE_TEMPLATE,
@@ -196,7 +198,7 @@ async def save_judge_list_settings(
         "judge_forum_template_save",
         "judge_forum_list",
         body.server_id,
-        {"thread_id": thread_id, "enabled": body.enabled},
+        {"thread_id": thread_id, "enabled": next_enabled},
     )
     result = serialize_settings(settings)
     if validation_warning:

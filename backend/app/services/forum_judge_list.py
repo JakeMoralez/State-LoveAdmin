@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app.models.bot import JudgeForumListSettings, Server, User, UserServerAccess
+from app.services.display_names import resolve_bot_nickname, resolve_display_name
 from app.services.staff import resolve_judge_position_for_forum
 
 MSK = timezone(timedelta(hours=3))
@@ -29,14 +30,17 @@ JUDGE_LIST_FORUM_URL = f"https://forum.arizona-rp.com/forums/{JUDGE_LIST_FORUM_I
 
 ZGS_MIN_LEVEL = 3
 
-_LIST_BB_RE = re.compile(r"\[(?:/?list|\*)\]", re.IGNORECASE)
+_LIST_BB_RE = re.compile(r"\[(?:/?list(?:=[^\]]*)?|\*)\]", re.IGNORECASE)
+_LINE_BULLET_RE = re.compile(r"^\s*\[\*\]\s*", re.IGNORECASE)
 
 
 def strip_list_bbcode(text: str) -> str:
     """Убрать [list], [/list], [*] — список судей без XenForo-списка."""
     if not text:
         return text
-    return _LIST_BB_RE.sub("", text)
+    cleaned = _LIST_BB_RE.sub("", text)
+    lines = [_LINE_BULLET_RE.sub("", line) for line in cleaned.splitlines()]
+    return "\n".join(lines)
 
 
 def _normalize_templates(
@@ -134,13 +138,8 @@ def format_vk_forum_link(vk_id: int, label: str) -> str:
 
 async def _build_judge_line_context(user: User, server_id: int) -> dict[str, str]:
     access = await UserServerAccess.get_or_none(user_id=user.vk_id, server_id=server_id)
-    raw_nick = ""
-    if access and (access.nickname or "").strip():
-        raw_nick = access.nickname.strip()
-    elif user.username and user.username.strip():
-        raw_nick = user.username.strip()
-    else:
-        raw_nick = f"id{user.vk_id}"
+    bot_nick = await resolve_bot_nickname(user.vk_id, server_id, access=access, user=user)
+    raw_nick = bot_nick or await resolve_display_name(user.vk_id, server_id)
 
     full_nick, clean_nick, tag_str = split_nickname_tags(raw_nick)
     position = await resolve_judge_position_for_forum(user.vk_id, server_id, user)
@@ -165,7 +164,7 @@ def _apply_line_template(template: str, values: dict[str, str], *, index: int) -
     result = template.replace("{{index}}", str(index))
     for key, value in values.items():
         result = result.replace(key, value)
-    return result
+    return strip_list_bbcode(result)
 
 
 async def build_judges_block(
@@ -227,6 +226,7 @@ async def get_or_create_settings(server_id: int) -> JudgeForumListSettings:
     settings, _ = await JudgeForumListSettings.get_or_create(
         server_id=server_id,
         defaults={
+            "enabled": False,
             "body_template": DEFAULT_BODY_TEMPLATE,
             "line_template": DEFAULT_LINE_TEMPLATE,
             "empty_text": DEFAULT_EMPTY_TEXT,

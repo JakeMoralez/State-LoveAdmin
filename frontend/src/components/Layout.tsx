@@ -83,7 +83,6 @@ function SidebarNavLink({
       className={({ isActive }) =>
         cn(
           'sidebar-nav-link',
-          collapsed && 'sidebar-nav-link--collapsed',
           isActive
             ? 'nav-active'
             : collapsed
@@ -234,11 +233,15 @@ function LayoutShell() {
               )}
             </div>
 
-            <nav className="sidebar-nav flex flex-1 flex-col overflow-y-auto ll-scroll">
+            <nav className="sidebar-nav flex flex-1 flex-col overflow-y-auto">
               {navCategories.map((category, idx) => (
                 <div
                   key={category.title}
-                  className={cn('sidebar-nav-group', idx > 0 && 'sidebar-nav-group--spaced')}
+                  className={cn(
+                    'sidebar-nav-group',
+                    idx > 0 && 'sidebar-nav-group--spaced',
+                    idx >= 2 && 'sidebar-nav-group--rail-break',
+                  )}
                 >
                   <div className="sidebar-nav-category">{category.title}</div>
                   <div className="sidebar-nav-divider" aria-hidden />
@@ -259,7 +262,7 @@ function LayoutShell() {
                 </div>
               ))}
               {(user?.access_level ?? 0) >= 3 && (
-                <div className="sidebar-nav-group sidebar-nav-group--spaced">
+                <div className="sidebar-nav-group sidebar-nav-group--spaced sidebar-nav-group--rail-break">
                   <div className="sidebar-nav-category">Форум</div>
                   <div className="sidebar-nav-divider" aria-hidden />
                   <div className="sidebar-nav-items">
@@ -272,7 +275,7 @@ function LayoutShell() {
                 </div>
               )}
               {(user?.can_dev_panel || user?.can_manage_leaders) && (
-                <div className="sidebar-nav-group sidebar-nav-group--spaced">
+                <div className="sidebar-nav-group sidebar-nav-group--spaced sidebar-nav-group--rail-break">
                   <div className="sidebar-nav-category">Разработка</div>
                   <div className="sidebar-nav-divider" aria-hidden />
                   <div className="sidebar-nav-items">

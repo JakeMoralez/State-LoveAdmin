@@ -42,6 +42,9 @@ def panel_role(level: int) -> str:
     return "member"
 
 
+from app.services.display_names import resolve_bot_nickname
+
+
 async def get_user_profile(
     vk_id: int,
     server_id: int = DEFAULT_SERVER_ID,
@@ -53,11 +56,13 @@ async def get_user_profile(
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     level = dev_level if dev_level is not None else await get_access_level(vk_id, server_id)
     has_ca = dev_ca if dev_ca is not None else bool(access and access.has_ca_access)
+    nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    if not nickname and user and user.username and user.username.strip():
+        nickname = user.username.strip().lstrip("@")
     return {
         "vk_id": vk_id,
         "username": user.username if user else None,
-        "nickname": (access.nickname if access and access.nickname else None)
-        or (user.nickname if user else None),
+        "nickname": nickname,
         "access_level": level,
         "access_level_name": AccessLevel.title(level),
         "has_ca_access": has_ca,

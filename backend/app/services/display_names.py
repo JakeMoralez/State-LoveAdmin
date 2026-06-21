@@ -10,6 +10,18 @@ from app.models.bot import User, UserServerAccess
 _cache: dict[int, str] = {}
 
 
+def _is_placeholder_username(username: str, vk_id: int) -> bool:
+    """username в боте часто равен vk_id — не показываем его вместо имени."""
+    text = username.strip().lstrip("@")
+    if not text:
+        return True
+    if text == str(vk_id):
+        return True
+    if text.isdigit() and len(text) >= 6:
+        return True
+    return False
+
+
 def invalidate_display_names(vk_ids: int | set[int]) -> None:
     if isinstance(vk_ids, int):
         vk_ids = {vk_ids}
@@ -78,14 +90,15 @@ async def resolve_display_names(
 
     missing = vk_ids - result.keys()
     if missing:
-        for user in await User.filter(vk_id__in=list(missing)):
-            if user.username and user.username.strip():
-                result[user.vk_id] = user.username.strip().lstrip("@")
+        for vid, name in (await _vk_full_names(missing)).items():
+            result[vid] = name
 
     missing = vk_ids - result.keys()
     if missing:
-        for vid, name in (await _vk_full_names(missing)).items():
-            result[vid] = name
+        for user in await User.filter(vk_id__in=list(missing)):
+            username = (user.username or "").strip()
+            if username and not _is_placeholder_username(username, user.vk_id):
+                result[user.vk_id] = username.lstrip("@")
 
     for vid in vk_ids - result.keys():
         result[vid] = f"id{vid}"

@@ -39,7 +39,6 @@ class AccessLevel:
 class User(Model):
     vk_id = fields.BigIntField(pk=True)
     username = fields.CharField(max_length=128, null=True)
-    nickname = fields.CharField(max_length=64, null=True)
     note = fields.TextField(null=True)
     added_at = fields.DatetimeField(null=True)
     last_used = fields.DatetimeField(null=True)

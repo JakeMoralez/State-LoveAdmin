@@ -184,6 +184,7 @@ export function QuestionItemModal({
   }
 
   const isNew = !item
+  const isConfirmedEdit = item?.status === 'confirmed'
 
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
@@ -261,10 +262,16 @@ export function QuestionItemModal({
               Опубликовать
             </button>
           )}
-          <button type="button" className="btn-primary" disabled={saving} onClick={() => void run(onSubmit)}>
-            <Send size={16} className="mr-1.5 inline" />
-            {item && item.status !== 'draft' ? 'Сохранить и отправить' : 'Отправить на проверку'}
-          </button>
+          {isConfirmedEdit ? (
+            <button type="button" className="btn-primary" disabled={saving} onClick={() => void run(onSaveDraft)}>
+              Сохранить
+            </button>
+          ) : (
+            <button type="button" className="btn-primary" disabled={saving} onClick={() => void run(onSubmit)}>
+              <Send size={16} className="mr-1.5 inline" />
+              {item && item.status !== 'draft' ? 'Сохранить и отправить' : 'Отправить на проверку'}
+            </button>
+          )}
         </div>
       </div>
     </ModalViewport>
@@ -439,6 +446,7 @@ export function QuestionList({
       {items.map((item, idx) => {
         const isAuthor = currentVkId != null && item.created_by_vk_id === currentVkId
         const canEdit =
+          permissions.can_manage ||
           (isAuthor && ['draft', 'needs_revision', 'rejected'].includes(item.status)) ||
           (permissions.can_review && item.status === 'pending')
         const canDelete =
@@ -478,6 +486,11 @@ export function QuestionList({
                 </div>
               </div>
               <div className="qb-question-actions">
+                {canEdit && (
+                  <button type="button" className="btn-icon h-8 w-8" title="Редактировать" onClick={() => onEdit(item)}>
+                    <Pencil size={16} />
+                  </button>
+                )}
                 <button type="button" className="btn-icon h-8 w-8" title="История" onClick={() => onShowHistory(item)}>
                   <History size={16} />
                 </button>
@@ -489,11 +502,6 @@ export function QuestionList({
                 {canReviewItem && (
                   <button type="button" className="btn-primary btn-sm" onClick={() => onReview(item)}>
                     Проверить
-                  </button>
-                )}
-                {canEdit && (
-                  <button type="button" className="btn-icon h-8 w-8" title="Редактировать" onClick={() => onEdit(item)}>
-                    <Pencil size={16} />
                   </button>
                 )}
                 {canDelete && (

@@ -2,6 +2,15 @@
  * Shared UI components: surfaces, toolbars, buttons, registries, feature panels
  */
 
+.link-gold {
+  color: var(--accent-gold);
+  text-decoration: none;
+}
+
+.link-gold:hover {
+  text-decoration: underline;
+}
+
 /* Page enter / modals */
 .page-enter,
 .page-enter-fade,
@@ -284,6 +293,41 @@ button.glass-card:hover {
 
 .control::placeholder {
   color: rgba(255, 255, 255, 0.28);
+}
+
+textarea.control,
+.jfl-textarea-mono,
+.jfl-preview {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 162, 39, 0.4) transparent;
+}
+
+textarea.control::-webkit-scrollbar,
+.jfl-textarea-mono::-webkit-scrollbar,
+.jfl-preview::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+textarea.control::-webkit-scrollbar-thumb,
+.jfl-textarea-mono::-webkit-scrollbar-thumb,
+.jfl-preview::-webkit-scrollbar-thumb {
+  background: rgba(201, 162, 39, 0.42);
+  border-radius: 999px;
+}
+
+textarea.control::-webkit-scrollbar-track,
+.jfl-textarea-mono::-webkit-scrollbar-track,
+.jfl-preview::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea.control::-webkit-scrollbar-button,
+.jfl-textarea-mono::-webkit-scrollbar-button,
+.jfl-preview::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
 }
 
 .select-menu {

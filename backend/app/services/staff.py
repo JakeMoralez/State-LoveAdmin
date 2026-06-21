@@ -448,11 +448,6 @@ async def _persist_member_nickname(
     access.nickname = value
     await access.save()
 
-    # Сбрасываем legacy-поле, чтобы старые данные не подмешивались в UI.
-    if user.nickname is not None:
-        user.nickname = None
-        await user.save()
-
     invalidate_display_names(vk_id)
 
 
