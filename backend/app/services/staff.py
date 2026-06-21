@@ -324,6 +324,38 @@ def parse_vk_id(raw: str) -> int | None:
     return None
 
 
+async def resolve_judge_position_for_forum(vk_id: int, server_id: int, user: User) -> str:
+    """Должность для {{position}}: users.note, затем staff_notes."""
+    bot_note = (user.note or "").strip()
+    if bot_note:
+        return bot_note
+    row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    if not row:
+        return ""
+    for value in (row.leader_position, row.note, row.leader_note):
+        text = (value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+async def _sync_judge_position_to_bot(
+    vk_id: int,
+    server_id: int,
+    position: str,
+) -> None:
+    """Должность из панели → users.note, чтобы бот видел {{position}} без panel.db."""
+    cleaned = (position or "").strip()
+    if not cleaned:
+        return
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access or not access.is_judge:
+        return
+    user = await User.get(vk_id=vk_id)
+    user.note = cleaned
+    await user.save()
+
+
 async def set_ca_leader(
     server_id: int,
     vk_id: int,
@@ -357,6 +389,7 @@ async def set_ca_leader(
         note_row.leader_position = position_clean
         note_row.updated_by = updated_by
         await note_row.save()
+        await _sync_judge_position_to_bot(vk_id, server_id, position_clean)
 
     bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
     nick_fields = _leader_nick_fields(bot_nickname, vk_id)
@@ -491,9 +524,10 @@ async def update_ca_leader_meta(
     await note_row.save()
 
     if position is not None and access.is_judge:
-        user = await User.get(vk_id=vk_id)
-        user.note = position.strip()
-        await user.save()
+        await _sync_judge_position_to_bot(vk_id, server_id, position.strip())
+
+
+async def list_leadership_candidates(server_id: int) -> list[dict]:
     """Все пользователи БД с ником, кроме следящих и is_admin."""
     access_rows = await UserServerAccess.filter(server_id=server_id).prefetch_related("user")
     access_by_vk = {row.user_id: row for row in access_rows}

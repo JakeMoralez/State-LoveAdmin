@@ -31,7 +31,7 @@ function parseThreadInput(raw: string): number | null {
 }
 
 const BODY_PLACEHOLDERS = [
-  { key: '{{judges_block}}', desc: 'Блок [LIST] со списком судей' },
+  { key: '{{judges_block}}', desc: 'Блок строк судей (каждый судья с новой строки)' },
   { key: '{{judges_count}}', desc: 'Количество судей' },
   { key: '{{updated_at}}', desc: 'Дата и время обновления' },
   { key: '{{server_name}}', desc: 'Название сервера' },
@@ -480,8 +480,7 @@ export function JudgeForumListPage() {
                 <code>[i]</code>
                 <code>[center]</code>
                 <code>[size=5]</code>
-                <code>[LIST]</code>
-                <code>[*]</code>
+                <code>[url=…]</code>
               </div>
             </section>
 

@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app.models.bot import JudgeForumListSettings, Server, User, UserServerAccess
-from app.models.panel import StaffNote
+from app.services.staff import resolve_judge_position_for_forum
 
 MSK = timezone(timedelta(hours=3))
 
@@ -20,7 +20,7 @@ DEFAULT_BODY_TEMPLATE = """[center][size=5][b]Список судей[/b][/size]
 
 {{judges_block}}"""
 
-DEFAULT_LINE_TEMPLATE = "[*][b]{{clean_nickname}}[/b] — {{position}} с {{since}}"
+DEFAULT_LINE_TEMPLATE = "[b]{{clean_nickname}}[/b] — {{position}} с {{since}}"
 
 DEFAULT_EMPTY_TEXT = "[i]Судей нет.[/i]"
 
@@ -105,17 +105,6 @@ def split_nickname_tags(raw: str) -> tuple[str, str, str]:
     return text, clean, " ".join(tags)
 
 
-async def _resolve_panel_position(vk_id: int, server_id: int) -> str:
-    row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
-    if not row:
-        return ""
-    for value in (row.leader_position, row.note):
-        text = (value or "").strip()
-        if text:
-            return text
-    return ""
-
-
 def format_vk_forum_link(vk_id: int, label: str) -> str:
     url = f"https://vk.ru/id{vk_id}"
     text = escape_bbcode_text(label.strip()) if label.strip() else f"id{vk_id}"
@@ -133,9 +122,7 @@ async def _build_judge_line_context(user: User, server_id: int) -> dict[str, str
         raw_nick = f"id{user.vk_id}"
 
     full_nick, clean_nick, tag_str = split_nickname_tags(raw_nick)
-    bot_position = (user.note or "").strip()
-    panel_position = await _resolve_panel_position(user.vk_id, server_id)
-    position = bot_position or panel_position
+    position = await resolve_judge_position_for_forum(user.vk_id, server_id, user)
     since = _judge_since(user)
     position_esc = escape_bbcode_text(position) if position else ""
     note_suffix = f" — {position_esc}" if position_esc else ""
@@ -179,7 +166,7 @@ async def build_judges_block(
         user = access.user
         ctx = await _build_judge_line_context(user, server_id)
         lines.append(_apply_line_template(line_template, ctx, index=index))
-    return "[LIST]\n" + "\n".join(lines) + "\n[/LIST]", len(lines)
+    return "\n".join(lines), len(lines)
 
 
 async def render_judge_list_body(
