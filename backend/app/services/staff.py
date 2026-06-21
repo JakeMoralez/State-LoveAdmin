@@ -490,8 +490,10 @@ async def update_ca_leader_meta(
     note_row.updated_by = updated_by
     await note_row.save()
 
-
-async def list_leadership_candidates(server_id: int) -> list[dict]:
+    if position is not None and access.is_judge:
+        user = await User.get(vk_id=vk_id)
+        user.note = position.strip()
+        await user.save()
     """Все пользователи БД с ником, кроме следящих и is_admin."""
     access_rows = await UserServerAccess.filter(server_id=server_id).prefetch_related("user")
     access_by_vk = {row.user_id: row for row in access_rows}

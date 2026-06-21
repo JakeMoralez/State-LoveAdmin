@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app.models.bot import JudgeForumListSettings, Server, User, UserServerAccess
+from app.models.panel import StaffNote
 
 MSK = timezone(timedelta(hours=3))
 
@@ -19,7 +20,7 @@ DEFAULT_BODY_TEMPLATE = """[center][size=5][b]Список судей[/b][/size]
 
 {{judges_block}}"""
 
-DEFAULT_LINE_TEMPLATE = "[*]{{nickname}} — судья с {{since}}{{note_suffix}}"
+DEFAULT_LINE_TEMPLATE = "[*][b]{{clean_nickname}}[/b] — {{position}} с {{since}}"
 
 DEFAULT_EMPTY_TEXT = "[i]Судей нет.[/i]"
 
@@ -45,6 +46,27 @@ def parse_thread_id(raw: str | int | None) -> int | None:
     return None
 
 
+def resolve_save_thread_id(
+    *,
+    thread_url: str | None,
+    thread_id: int | None,
+    thread_url_set: bool,
+    thread_id_set: bool,
+    current_thread_id: int | None,
+) -> int | None:
+    """Не затирать thread_id, если клиент не передал тему (только шаблоны)."""
+    if thread_url and thread_url.strip():
+        parsed = parse_thread_id(thread_url)
+        if not parsed:
+            raise ValueError("Некорректная ссылка на тему")
+        return parsed
+    if thread_id_set:
+        return thread_id if thread_id and thread_id > 0 else None
+    if thread_url_set:
+        return None
+    return current_thread_id
+
+
 def escape_bbcode_text(value: str) -> str:
     return value.replace("[", "［").replace("]", "］")
 
@@ -67,35 +89,75 @@ def _format_updated_at(when: datetime | None = None) -> str:
     return dt.astimezone(MSK).strftime("%d.%m.%Y %H:%M")
 
 
-def _apply_line_template(
-    template: str,
-    *,
-    nickname: str,
-    since: str,
-    note: str,
-    index: int,
-) -> str:
-    note_suffix = f" — {escape_bbcode_text(note)}" if note.strip() else ""
-    result = template
-    replacements = {
-        "{{nickname}}": nickname,
+def split_nickname_tags(raw: str) -> tuple[str, str, str]:
+    text = (raw or "").strip()
+    if not text:
+        return "", "", ""
+    tags: list[str] = []
+    rest = text
+    while True:
+        match = re.match(r"^(\[[^\]]+\])\s*", rest)
+        if not match:
+            break
+        tags.append(match.group(1))
+        rest = rest[match.end() :].strip()
+    clean = rest or text
+    return text, clean, " ".join(tags)
+
+
+async def _resolve_panel_position(vk_id: int, server_id: int) -> str:
+    row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    if not row:
+        return ""
+    for value in (row.leader_position, row.note):
+        text = (value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def format_vk_forum_link(vk_id: int, label: str) -> str:
+    url = f"https://vk.ru/id{vk_id}"
+    text = escape_bbcode_text(label.strip()) if label.strip() else f"id{vk_id}"
+    return f"[url={url}]{text}[/url]"
+
+
+async def _build_judge_line_context(user: User, server_id: int) -> dict[str, str]:
+    access = await UserServerAccess.get_or_none(user_id=user.vk_id, server_id=server_id)
+    raw_nick = ""
+    if access and (access.nickname or "").strip():
+        raw_nick = access.nickname.strip()
+    elif user.username and user.username.strip():
+        raw_nick = user.username.strip()
+    else:
+        raw_nick = f"id{user.vk_id}"
+
+    full_nick, clean_nick, tag_str = split_nickname_tags(raw_nick)
+    bot_position = (user.note or "").strip()
+    panel_position = await _resolve_panel_position(user.vk_id, server_id)
+    position = bot_position or panel_position
+    since = _judge_since(user)
+    position_esc = escape_bbcode_text(position) if position else ""
+    note_suffix = f" — {position_esc}" if position_esc else ""
+
+    return {
+        "{{nickname}}": escape_bbcode_text(full_nick),
+        "{{clean_nickname}}": escape_bbcode_text(clean_nick),
+        "{{tag}}": escape_bbcode_text(tag_str),
+        "{{position}}": position_esc,
+        "{{note}}": position_esc,
         "{{since}}": since,
-        "{{note}}": escape_bbcode_text(note) if note.strip() else "",
         "{{note_suffix}}": note_suffix,
-        "{{index}}": str(index),
+        "{{vk}}": format_vk_forum_link(user.vk_id, clean_nick or full_nick),
+        "{{vk_url}}": f"https://vk.ru/id{user.vk_id}",
     }
-    for key, value in replacements.items():
+
+
+def _apply_line_template(template: str, values: dict[str, str], *, index: int) -> str:
+    result = template.replace("{{index}}", str(index))
+    for key, value in values.items():
         result = result.replace(key, value)
     return result
-
-
-async def _resolve_nickname(user: User, server_id: int) -> str:
-    access = await UserServerAccess.get_or_none(user_id=user.vk_id, server_id=server_id)
-    if access and (access.nickname or "").strip():
-        return escape_bbcode_text(access.nickname.strip())
-    if user.username and user.username.strip():
-        return escape_bbcode_text(user.username.strip())
-    return f"id{user.vk_id}"
 
 
 async def build_judges_block(
@@ -115,18 +177,8 @@ async def build_judges_block(
     lines: list[str] = []
     for index, access in enumerate(rows, start=1):
         user = access.user
-        nickname = await _resolve_nickname(user, server_id)
-        since = _judge_since(user)
-        note = (user.note or "").strip()
-        lines.append(
-            _apply_line_template(
-                line_template,
-                nickname=nickname,
-                since=since,
-                note=note,
-                index=index,
-            )
-        )
+        ctx = await _build_judge_line_context(user, server_id)
+        lines.append(_apply_line_template(line_template, ctx, index=index))
     return "[LIST]\n" + "\n".join(lines) + "\n[/LIST]", len(lines)
 
 
@@ -178,7 +230,7 @@ def serialize_settings(settings: JudgeForumListSettings) -> dict:
         "server_id": settings.server_id,
         "thread_id": settings.thread_id,
         "thread_url": (
-            f"https://arizona-rp.com/threads/{settings.thread_id}/"
+            f"https://forum.arizona-rp.com/threads/{settings.thread_id}/"
             if settings.thread_id
             else None
         ),

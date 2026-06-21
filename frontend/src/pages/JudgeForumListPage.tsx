@@ -19,6 +19,17 @@ import { cn } from '../lib/utils'
 
 const REQUIRED_FORUM_URL = 'https://forum.arizona-rp.com/forums/3758/'
 
+const THREAD_ID_RE =
+  /(?:https?:\/\/)?(?:[\w.-]+\.)?arizona-rp\.com\/threads\/(?:[^/\s?#]+\.)?(\d+)/i
+
+function parseThreadInput(raw: string): number | null {
+  const text = raw.trim()
+  if (!text) return null
+  if (/^\d+$/.test(text)) return Number(text)
+  const match = THREAD_ID_RE.exec(text)
+  return match ? Number(match[1]) : null
+}
+
 const BODY_PLACEHOLDERS = [
   { key: '{{judges_block}}', desc: 'Блок [LIST] со списком судей' },
   { key: '{{judges_count}}', desc: 'Количество судей' },
@@ -27,10 +38,15 @@ const BODY_PLACEHOLDERS = [
 ]
 
 const LINE_PLACEHOLDERS = [
-  { key: '{{nickname}}', desc: 'Ник судьи' },
-  { key: '{{since}}', desc: 'Дата назначения' },
-  { key: '{{note}}', desc: 'Заметка из /addcourt' },
-  { key: '{{note_suffix}}', desc: '« — заметка», если есть' },
+  { key: '{{nickname}}', desc: 'Ник с тегами ([Судья] Name_Surname)' },
+  { key: '{{clean_nickname}}', desc: 'Ник без тегов (Name_Surname)' },
+  { key: '{{tag}}', desc: 'Только теги ([Судья] или [GOV][9])' },
+  { key: '{{position}}', desc: 'Должность (VK /setpost или панель «Руководство»)' },
+  { key: '{{vk}}', desc: 'Ссылка на VK ([url=…]ник[/url])' },
+  { key: '{{vk_url}}', desc: 'URL профиля VK без BBCode' },
+  { key: '{{since}}', desc: 'Дата назначения судьёй' },
+  { key: '{{note}}', desc: 'То же, что {{position}}' },
+  { key: '{{note_suffix}}', desc: '« — должность», если задана' },
   { key: '{{index}}', desc: 'Порядковый номер' },
 ]
 
@@ -193,23 +209,43 @@ export function JudgeForumListPage() {
 
   const handleSave = async () => {
     if (!form) return
+    const trimmedThread = threadInput.trim()
+    const parsedThreadId = parseThreadInput(trimmedThread)
+    const effectiveThreadId = parsedThreadId ?? form.thread_id ?? null
+
+    if (form.enabled && !effectiveThreadId) {
+      setError('Укажите ссылку или ID темы в разделе forums/3758/')
+      return
+    }
+
     setSaving(true)
     clearAlerts()
     try {
-      const saved = await api.saveJudgeForumListSettings({
+      const payload: Parameters<typeof api.saveJudgeForumListSettings>[0] = {
         server_id: serverId,
-        thread_url: threadInput.trim() || undefined,
         enabled: form.enabled,
         body_template: form.body_template,
         line_template: form.line_template,
         empty_text: form.empty_text,
-      })
+      }
+      if (trimmedThread) {
+        payload.thread_url = trimmedThread
+      }
+      if (effectiveThreadId) {
+        payload.thread_id = effectiveThreadId
+      }
+
+      const saved = await api.saveJudgeForumListSettings(payload)
       setForm(saved)
       setThreadInput(saved.thread_url ?? (saved.thread_id ? String(saved.thread_id) : ''))
       if (saved.warning) {
         setWarning(saved.warning)
       } else {
-        setMessage('Сохранено. Тема обновится при следующем назначении или снятии судьи.')
+        setMessage(
+          saved.thread_id
+            ? `Сохранено (тема #${saved.thread_id}, сервер ${serverId}). Обновление на форуме — при /addcourt, /removecourt или /syncjudges.`
+            : 'Сохранено. Тема обновится при следующем назначении или снятии судьи.',
+        )
       }
     } catch (e: unknown) {
       setError(e instanceof ApiError ? e.message : 'Ошибка сохранения')
@@ -341,6 +377,16 @@ export function JudgeForumListPage() {
                   <p className="jfl-thread-bad">
                     <AlertCircle size={14} aria-hidden />
                     {threadCheck.error}
+                  </p>
+                )}
+                {form.thread_id ? (
+                  <p className="jfl-hint jfl-hint--ok">
+                    <CheckCircle2 size={14} aria-hidden />
+                    В базе бота: тема #{form.thread_id} · сервер {serverId}
+                  </p>
+                ) : (
+                  <p className="jfl-hint jfl-hint--warn">
+                    Тема ещё не сохранена — укажите ссылку и нажмите «Сохранить»
                   </p>
                 )}
               </div>

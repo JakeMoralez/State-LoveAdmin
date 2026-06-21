@@ -18,6 +18,7 @@ from app.services.forum_judge_list import (
     get_or_create_settings,
     parse_thread_id,
     render_judge_list_body,
+    resolve_save_thread_id,
     serialize_settings,
 )
 from app.services.sled_client import validate_judge_list_thread
@@ -139,14 +140,25 @@ async def save_judge_list_settings(
     if not server:
         raise HTTPException(status_code=404, detail="Сервер не найден")
 
-    thread_id = body.thread_id
-    if body.thread_url:
-        parsed = parse_thread_id(body.thread_url)
-        if not parsed:
-            raise HTTPException(status_code=400, detail="Некорректная ссылка на тему")
-        thread_id = parsed
-    elif thread_id is not None and thread_id <= 0:
-        thread_id = None
+    settings = await get_or_create_settings(body.server_id)
+    fields_set = body.model_fields_set
+
+    try:
+        thread_id = resolve_save_thread_id(
+            thread_url=body.thread_url,
+            thread_id=body.thread_id,
+            thread_url_set="thread_url" in fields_set,
+            thread_id_set="thread_id" in fields_set,
+            current_thread_id=settings.thread_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if body.enabled and not thread_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите ссылку или ID темы в разделе forums/3758/",
+        )
 
     validation_warning: str | None = None
     if thread_id:
@@ -165,7 +177,6 @@ async def save_judge_list_settings(
                 detail=(check or {}).get("error") or "Тема не из раздела судей.",
             )
 
-    settings = await get_or_create_settings(body.server_id)
     settings.thread_id = thread_id
     settings.enabled = body.enabled
     settings.body_template = body.body_template.strip() or DEFAULT_BODY_TEMPLATE

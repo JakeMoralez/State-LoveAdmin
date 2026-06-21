@@ -5987,6 +5987,17 @@ body {
   color: rgba(255, 255, 255, 0.45);
 }
 
+.jfl-hint--ok {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgb(134, 239, 172);
+}
+
+.jfl-hint--warn {
+  color: rgb(253, 186, 116);
+}
+
 .jfl-link {
   display: inline-flex;
   align-items: center;
