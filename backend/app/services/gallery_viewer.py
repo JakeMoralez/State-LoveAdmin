@@ -47,18 +47,21 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     }}
     .app {{
       display: grid;
-      grid-template-rows: auto auto auto 1fr;
+      grid-template-rows: auto auto 1fr auto auto;
       height: 100dvh;
+      height: 100vh;
     }}
     .topbar {{
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       padding: 10px 14px;
+      padding-top: max(10px, env(safe-area-inset-top));
       border-bottom: 1px solid rgba(255, 255, 255, 0.07);
       background: rgba(8, 8, 12, 0.96);
       backdrop-filter: blur(12px);
       z-index: 5;
+      flex-wrap: wrap;
     }}
     .brand {{
       display: flex;
@@ -74,10 +77,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       background: linear-gradient(145deg, #d4af37, #8a7120);
       flex-shrink: 0;
     }}
-    .brand-text {{
-      min-width: 0;
-      line-height: 1.25;
-    }}
+    .brand-text {{ min-width: 0; line-height: 1.25; }}
     .brand-title {{
       display: block;
       font-size: 0.8125rem;
@@ -92,7 +92,13 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       font-size: 0.6875rem;
       color: rgba(255, 255, 255, 0.38);
     }}
-    .topbar-spacer {{ flex: 1; }}
+    .topbar-spacer {{ flex: 1; min-width: 0.5rem; }}
+    .toolbar-group {{
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }}
     .pill, .tool-btn {{
       display: inline-flex;
       align-items: center;
@@ -120,20 +126,10 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       border-color: rgba(255, 255, 255, 0.14);
       color: #fff;
     }}
-    .pill.active {{
+    .pill.active, .tool-btn.active {{
       border-color: rgba(201, 162, 39, 0.35);
       background: rgba(201, 162, 39, 0.1);
       color: #d4af37;
-    }}
-    .progress-wrap {{
-      height: 3px;
-      background: rgba(255, 255, 255, 0.06);
-    }}
-    .progress-bar {{
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #c9a227, #d4af37);
-      transition: width 0.25s ease;
     }}
     .meta-bar {{
       display: flex;
@@ -144,25 +140,19 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       background: rgba(6, 6, 8, 0.85);
       font-size: 0.75rem;
       color: rgba(255, 255, 255, 0.42);
-      align-self: start;
+      min-height: 0;
     }}
     .meta-bar strong {{
       color: rgba(255, 255, 255, 0.72);
       font-weight: 500;
     }}
     .meta-spacer {{ flex: 1; }}
-    .body {{
-      grid-row: 4;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      min-height: 0;
-    }}
-    .body.filmstrip-hidden {{ grid-template-columns: 1fr; }}
     .stage-wrap {{
       position: relative;
       min-width: 0;
       min-height: 0;
       background: #060608;
+      overflow: hidden;
     }}
     .stage {{
       position: absolute;
@@ -202,57 +192,28 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       transition: opacity 0.15s, background 0.15s;
     }}
     .stage-wrap:hover .nav-btn {{ opacity: 1; }}
-    .nav-btn:hover {{
-      background: rgba(255, 255, 255, 0.1);
-    }}
+    .nav-btn:hover {{ background: rgba(255, 255, 255, 0.1); }}
     .nav-btn:disabled {{
       opacity: 0.2 !important;
       cursor: default;
     }}
     .nav-btn.prev {{ left: 10px; }}
     .nav-btn.next {{ right: 10px; }}
-    .filmstrip {{
-      width: 120px;
-      border-left: 1px solid rgba(255, 255, 255, 0.07);
-      background: rgba(8, 8, 12, 0.98);
-      overflow-y: auto;
-      padding: 8px 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }}
-    .filmstrip-item {{
-      display: block;
-      width: 100%;
-      aspect-ratio: 16 / 10;
-      border-radius: 6px;
-      overflow: hidden;
-      border: 2px solid transparent;
-      padding: 0;
-      background: #101016;
-      transition: border-color 0.12s;
-    }}
-    .filmstrip-item img {{
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }}
-    .filmstrip-item.active {{
-      border-color: #c9a227;
-    }}
-    .grid-panel {{
+    .grid-overlay {{
       display: none;
-      grid-row: 4;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       gap: 10px;
       padding: 14px;
       overflow: auto;
-      min-height: 0;
       align-content: start;
+      background: rgba(6, 6, 8, 0.97);
     }}
-    .app.grid-mode .body {{ display: none; }}
-    .app.grid-mode .grid-panel {{ display: grid; }}
+    .app.grid-mode .grid-overlay {{ display: grid; }}
+    .app.grid-mode .stage {{ visibility: hidden; pointer-events: none; }}
+    .app.grid-mode .nav-btn {{ display: none; }}
     .grid-tile {{
       position: relative;
       border-radius: 8px;
@@ -261,6 +222,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       background: #101016;
       cursor: pointer;
       transition: border-color 0.12s;
+      padding: 0;
     }}
     .grid-tile:hover {{ border-color: rgba(201, 162, 39, 0.35); }}
     .grid-tile img {{
@@ -279,6 +241,50 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       font-weight: 600;
       color: rgba(255, 255, 255, 0.85);
     }}
+    .progress-wrap {{
+      height: 3px;
+      background: rgba(255, 255, 255, 0.06);
+    }}
+    .progress-bar {{
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #c9a227, #d4af37);
+      transition: width 0.25s ease;
+    }}
+    .filmstrip {{
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+      padding: 8px 14px;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      background: rgba(8, 8, 12, 0.98);
+      overflow-x: auto;
+      overflow-y: hidden;
+      min-height: 0;
+      scrollbar-width: thin;
+    }}
+    .app.filmstrip-hidden .filmstrip {{ display: none; }}
+    .app.filmstrip-hidden {{ grid-template-rows: auto auto 1fr auto; }}
+    .filmstrip-item {{
+      display: block;
+      width: 96px;
+      height: 60px;
+      flex-shrink: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      padding: 0;
+      background: #101016;
+      transition: border-color 0.12s;
+    }}
+    .filmstrip-item img {{
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }}
+    .filmstrip-item.active {{ border-color: #c9a227; }}
     .help {{
       position: fixed;
       inset: 0;
@@ -326,7 +332,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     }}
     .toast {{
       position: fixed;
-      bottom: 20px;
+      bottom: max(20px, env(safe-area-inset-bottom));
       left: 50%;
       transform: translateX(-50%) translateY(12px);
       z-index: 60;
@@ -346,27 +352,9 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     }}
     @media (max-width: 720px) {{
       .brand-sub {{ display: none; }}
-      .pill span {{ display: none; }}
-      .body {{ grid-template-columns: 1fr; }}
-      .filmstrip {{
-        position: absolute;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        width: auto;
-        height: 84px;
-        flex-direction: row;
-        border-left: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.07);
-        overflow-x: auto;
-        overflow-y: hidden;
-      }}
-      .filmstrip-item {{
-        width: 96px;
-        flex-shrink: 0;
-      }}
-      .body.filmstrip-hidden .filmstrip {{ display: none; }}
+      .toolbar-group--export .pill span {{ display: none; }}
       .nav-btn {{ opacity: 1; width: 34px; height: 48px; }}
+      .filmstrip-item {{ width: 80px; height: 52px; }}
     }}
   </style>
 </head>
@@ -382,40 +370,42 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       </div>
       <span class="pill" id="counter">1 / {count}</span>
       <div class="topbar-spacer"></div>
-      <span class="pill" id="zoomLabel">100%</span>
-      <button type="button" class="tool-btn" id="zoomOutBtn" title="Уменьшить (−)">−</button>
-      <button type="button" class="tool-btn" id="zoomInBtn" title="Увеличить (+)">+</button>
-      <button type="button" class="tool-btn" id="fitBtn" title="Вписать (0)">⤢</button>
-      <button type="button" class="tool-btn" id="playBtn" title="Слайдшоу">▶</button>
-      <button type="button" class="tool-btn" id="gridBtn" title="Сетка (G)">▦</button>
-      <button type="button" class="tool-btn" id="stripBtn" title="Лента (T)">☰</button>
-      <button type="button" class="tool-btn" id="copyBtn" title="Копировать ссылку">⎘</button>
-      <a class="pill" id="openBtn" href="#" target="_blank" rel="noreferrer" title="Открыть фото">↗</a>
-      <a class="pill" id="downloadBtn" href="#" download title="Скачать">↓</a>
-      <button type="button" class="tool-btn" id="fsBtn" title="Полный экран (F)">⛶</button>
-      <button type="button" class="tool-btn" id="helpBtn" title="Горячие клавиши (?)">?</button>
-      <button type="button" class="tool-btn" id="closeBtn" title="Закрыть (Esc)">✕</button>
+      <div class="toolbar-group">
+        <span class="pill" id="zoomLabel">100%</span>
+        <button type="button" class="tool-btn" id="zoomOutBtn" title="Уменьшить (−)">−</button>
+        <button type="button" class="tool-btn" id="zoomInBtn" title="Увеличить (+)">+</button>
+        <button type="button" class="tool-btn" id="fitBtn" title="Вписать (0)">⤢</button>
+        <button type="button" class="tool-btn" id="playBtn" title="Слайдшоу">▶</button>
+        <button type="button" class="tool-btn" id="gridBtn" title="Сетка (G)">▦</button>
+        <button type="button" class="tool-btn active" id="stripBtn" title="Лента (T)">☰</button>
+      </div>
+      <div class="toolbar-group toolbar-group--export">
+        <button type="button" class="tool-btn" id="copyBtn" title="Копировать ссылку">⎘</button>
+        <a class="pill" id="openBtn" href="#" target="_blank" rel="noreferrer" title="Открыть фото"><span>↗</span></a>
+        <a class="pill" id="downloadBtn" href="#" download title="Скачать"><span>↓</span></a>
+        <button type="button" class="tool-btn" id="fsBtn" title="Полный экран (F)">⛶</button>
+        <button type="button" class="tool-btn" id="helpBtn" title="Горячие клавиши (?)">?</button>
+        <button type="button" class="tool-btn" id="closeBtn" title="Закрыть (Esc)">✕</button>
+      </div>
     </header>
-    <div class="progress-wrap" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
     <div class="meta-bar">
       <span id="fileName">—</span>
       <span id="dimensions">—</span>
       <span class="meta-spacer"></span>
       <span id="galleryId">#{gid[:8]}…</span>
     </div>
-    <div class="body" id="body">
-      <div class="stage-wrap">
-        <button type="button" class="nav-btn prev" id="prevBtn" aria-label="Назад">‹</button>
-        <div class="stage" id="stage">
-          <img id="mainImg" alt="" draggable="false" />
-        </div>
-        <button type="button" class="nav-btn next" id="nextBtn" aria-label="Вперёд">›</button>
+    <div class="stage-wrap" id="stageWrap">
+      <button type="button" class="nav-btn prev" id="prevBtn" aria-label="Назад">‹</button>
+      <div class="stage" id="stage">
+        <img id="mainImg" alt="" draggable="false" />
       </div>
-      <aside class="filmstrip" id="filmstrip">
-        {"".join(thumb_items)}
-      </aside>
+      <button type="button" class="nav-btn next" id="nextBtn" aria-label="Вперёд">›</button>
+      <div class="grid-overlay" id="gridOverlay"></div>
     </div>
-    <div class="grid-panel" id="gridPanel"></div>
+    <div class="progress-wrap" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+    <aside class="filmstrip" id="filmstrip">
+      {"".join(thumb_items)}
+    </aside>
   </div>
 
   <div class="help" id="help">
@@ -440,7 +430,6 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
   <script>
     const images = {images_json};
     const app = document.getElementById('app');
-    const body = document.getElementById('body');
     const stage = document.getElementById('stage');
     const mainImg = document.getElementById('mainImg');
     const counter = document.getElementById('counter');
@@ -450,7 +439,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     const dimensions = document.getElementById('dimensions');
     const downloadBtn = document.getElementById('downloadBtn');
     const openBtn = document.getElementById('openBtn');
-    const gridPanel = document.getElementById('gridPanel');
+    const gridOverlay = document.getElementById('gridOverlay');
     const filmstrip = document.getElementById('filmstrip');
     const toast = document.getElementById('toast');
     const help = document.getElementById('help');
@@ -464,6 +453,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     let pinchStart = null;
     let slideshow = null;
     let filmstripVisible = true;
+    let swipeStart = null;
 
     function clamp(v, min, max) {{ return Math.min(max, Math.max(min, v)); }}
 
@@ -504,7 +494,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
         el.classList.toggle('active', i === index);
       }});
       const active = filmstrip.querySelector('.filmstrip-item.active');
-      if (active) active.scrollIntoView({{ block: 'nearest', inline: 'nearest', behavior: 'smooth' }});
+      if (active) active.scrollIntoView({{ block: 'nearest', inline: 'center', behavior: 'smooth' }});
       document.getElementById('prevBtn').disabled = index <= 0;
       document.getElementById('nextBtn').disabled = index >= images.length - 1;
       prefetch(index + 1);
@@ -556,14 +546,15 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     }}
 
     function buildGrid() {{
-      gridPanel.innerHTML = images.map((src, i) =>
+      gridOverlay.innerHTML = images.map((src, i) =>
         `<button type="button" class="grid-tile" data-index="${{i}}">` +
         `<span class="grid-tile-num">${{i + 1}}</span>` +
         `<img src="${{src}}" alt="" loading="lazy" /></button>`
       ).join('');
-      gridPanel.querySelectorAll('.grid-tile').forEach((btn) => {{
+      gridOverlay.querySelectorAll('.grid-tile').forEach((btn) => {{
         btn.addEventListener('click', () => {{
           app.classList.remove('grid-mode');
+          document.getElementById('gridBtn').classList.remove('active');
           show(Number(btn.dataset.index));
         }});
       }});
@@ -576,7 +567,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
 
     function toggleFilmstrip() {{
       filmstripVisible = !filmstripVisible;
-      body.classList.toggle('filmstrip-hidden', !filmstripVisible);
+      app.classList.toggle('filmstrip-hidden', !filmstripVisible);
       document.getElementById('stripBtn').classList.toggle('active', filmstripVisible);
     }}
 
@@ -649,6 +640,7 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       if (e.button !== 0) return;
       dragging = true;
       dragStart = {{ x: e.clientX, y: e.clientY, tx, ty }};
+      swipeStart = {{ x: e.clientX, y: e.clientY, t: Date.now() }};
       stage.classList.add('dragging');
       stage.setPointerCapture(e.pointerId);
     }});
@@ -660,8 +652,14 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
     }});
     const endDrag = (e) => {{
       if (!dragging) return;
+      if (swipeStart && scale <= 1.05) {{
+        const dx = e.clientX - swipeStart.x;
+        const dt = Date.now() - swipeStart.t;
+        if (Math.abs(dx) > 60 && dt < 400) step(dx > 0 ? -1 : 1);
+      }}
       dragging = false;
       dragStart = null;
+      swipeStart = null;
       stage.classList.remove('dragging');
       try {{ stage.releasePointerCapture(e.pointerId); }} catch (_) {{}}
     }};
@@ -721,7 +719,6 @@ def render_gallery_html(gallery_id: str, filenames: list[str]) -> str:
       if (scale < 1.05) fitToScreen();
     }});
 
-    document.getElementById('stripBtn').classList.add('active');
     const start = Number(new URLSearchParams(location.search).get('i'));
     buildGrid();
     show(Number.isFinite(start) ? start : 0);

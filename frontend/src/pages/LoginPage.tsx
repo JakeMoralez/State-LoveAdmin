@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { MessageCircle } from 'lucide-react'
 import { api, ApiError } from '../api'
 import { BrandLogo } from '../components/BrandLogo'
+import { DiscordIcon } from '../components/DiscordIcon'
 import { LoginMarquee } from '../components/LoginMarquee'
 import { Select } from '../components/ui/Select'
 import { useAuth } from '../context/AuthContext'
@@ -143,16 +143,12 @@ export function LoginPage() {
           <section className="login-panel">
             <div className="login-auth-card">
               <header className="login-auth-head">
-                <BrandLogo size="lg" plain className="login-emblem" />
+                <BrandLogo size="xl" plain className="login-emblem" />
                 <div>
                   <p className="login-brand">State Love</p>
                   <h1 className="login-auth-title">Портал ЦА</h1>
                 </div>
-                {devMode ? (
-                  <span className="login-auth-badge login-auth-badge--dev">Dev</span>
-                ) : showDiscord ? (
-                  <span className="login-auth-badge login-auth-badge--discord">Discord</span>
-                ) : null}
+                {devMode && <span className="login-auth-badge login-auth-badge--dev">Dev</span>}
               </header>
 
               {showError && (
@@ -207,7 +203,7 @@ export function LoginPage() {
                     disabled={busy || !canLogin}
                     className={`btn w-full ${devMode ? 'btn-gold' : 'btn-discord'}`}
                   >
-                    {!devMode && <MessageCircle size={18} aria-hidden />}
+                    {!devMode && <DiscordIcon size={18} className="login-btn-icon" />}
                     {busy ? 'Вход…' : devMode ? 'Войти' : 'Войти через Discord'}
                   </button>
                 </div>
@@ -226,7 +222,8 @@ export function LoginPage() {
                         rel="noopener noreferrer"
                         className="btn btn-vk w-full"
                       >
-                        Войти через VK · /panel
+                        <span className="btn-vk-label">Войти через VK</span>
+                        <span className="btn-vk-subtitle">отправьте боту /panel</span>
                       </a>
                     ) : (
                       <p className="login-alt-hint">

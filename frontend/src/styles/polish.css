@@ -852,6 +852,23 @@
   border-bottom-color: var(--accent-gold);
 }
 
+.checklist-member-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.checklist-member-ca-badge {
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent-gold);
+  border: 1px solid rgba(201, 162, 39, 0.35);
+  background: rgba(201, 162, 39, 0.08);
+}
+
 /* ── Projects ── */
 .page-toolbar:has(input[type='search']) .control {
   flex: 1 1 100%;
@@ -1223,6 +1240,11 @@
 .login-auth-head .brand-logo {
   box-shadow: none !important;
   margin: 0 auto;
+}
+
+.login-auth-head .brand-logo--xl {
+  width: 5.25rem;
+  height: 5.25rem;
 }
 
 .login-auth-title {

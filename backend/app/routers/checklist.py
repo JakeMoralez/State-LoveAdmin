@@ -413,6 +413,7 @@ async def get_checklist_settings(
                 "display_name": m.get("display_name") or m["nickname"],
                 "access_level": m["access_level"],
                 "access_level_name": m["access_level_name"],
+                "has_ca_access": bool(m.get("has_ca_access")),
                 "in_checklist": m["vk_id"] in member_ids,
                 "is_self": m["vk_id"] == user["vk_id"],
             }

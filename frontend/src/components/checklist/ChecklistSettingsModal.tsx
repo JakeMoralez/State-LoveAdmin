@@ -341,7 +341,12 @@ export function ChecklistSettingsModal({
                           {c.display_name}
                           {c.is_self && <span className="text-[var(--accent-gold)] text-xs ml-1.5">(вы)</span>}
                         </span>
-                        <span className="text-xs text-white/35 shrink-0">{c.access_level_name}</span>
+                        <span className="checklist-member-meta shrink-0">
+                          {c.has_ca_access && (
+                            <span className="checklist-member-ca-badge">ЦА</span>
+                          )}
+                          <span className="text-xs text-white/35">{c.access_level_name}</span>
+                        </span>
                       </label>
                     </li>
                   ))}

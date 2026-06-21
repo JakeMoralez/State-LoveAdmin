@@ -2732,6 +2732,11 @@ body {
     height: 3.75rem;
   }
 
+  .brand-logo--xl {
+    width: 5.25rem;
+    height: 5.25rem;
+  }
+
   .login-brand {
     font-size: 0.6875rem;
     font-weight: 700;
@@ -2758,9 +2763,14 @@ body {
   }
 
   .btn-vk {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
     width: 100%;
-    min-height: 48px;
-    padding: 0.75rem 1rem;
+    min-height: 52px;
+    padding: 0.65rem 1rem;
     border-radius: 12px;
     font-size: 0.9375rem;
     font-weight: 600;
@@ -2769,6 +2779,18 @@ body {
     border: none;
     box-shadow: 0 6px 20px rgba(201, 162, 39, 0.3);
     font-weight: 700;
+    text-decoration: none;
+  }
+
+  .btn-vk-label {
+    line-height: 1.2;
+  }
+
+  .btn-vk-subtitle {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    opacity: 0.75;
+    line-height: 1.2;
   }
 
   .btn-vk:hover:not(:disabled) {

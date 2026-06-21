@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from tortoise.expressions import Q
 
 from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
 from app.services.display_names import invalidate_display_names, resolve_bot_nickname
+
+logger = logging.getLogger(__name__)
 
 LEADER_ROLE = "leader"
 
@@ -134,7 +138,16 @@ async def list_staff(server_id: int) -> list[dict]:
     result: list[dict] = []
     for user, level, access in by_id.values():
         if access and (access.is_judge or access.is_congress_speaker or access.is_leader):
+            logger.debug(
+                "list_staff: skip vk_id=%s (role flag judge=%s speaker=%s leader=%s)",
+                user.vk_id,
+                access.is_judge,
+                access.is_congress_speaker,
+                access.is_leader,
+            )
             continue
+        if access is None:
+            logger.warning("list_staff: vk_id=%s has no user_server_access row for server_id=%s", user.vk_id, server_id)
         eff_level = max(level, await get_access_level(user.vk_id, server_id))
         bot_nickname = await resolve_bot_nickname(
             user.vk_id, server_id, access=access, user=user

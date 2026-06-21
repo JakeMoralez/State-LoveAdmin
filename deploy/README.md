@@ -51,6 +51,20 @@ cd ../backend && ./venv/bin/pip install -r requirements.txt
 sudo systemctl restart state-love-admin
 ```
 
+### БД бота и список следящих
+
+Панель читает staff **только** из `BOT_DATABASE_URL` (файл SQLite бота). Путь **должен совпадать** с `DATABASE_URL` в `.env` бота:
+
+```bash
+grep DATABASE /opt/State-LoveBot/.env
+grep BOT_DATABASE /opt/State-Love-Admin/.env
+curl -s https://love.vlesnix.site/api/health
+# staff_count > 0, bot_db_exists: true
+journalctl -u state-love-admin -n 20 | grep Startup
+```
+
+Если новые ПГС есть в боте, но нет в «Следящие» — почти всегда разные файлы БД (`users.db` vs `bot.db` или старый путь после миграции).
+
 ## Бот (git, отдельный репозиторий)
 
 Если бот ещё в `/root` вручную — миграция без простоя: **State-LoveBot** → `deploy/README.md` → `migrate-from-manual.sh`.

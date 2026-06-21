@@ -1,9 +1,10 @@
-type BrandLogoSize = 'sm' | 'md' | 'lg'
+type BrandLogoSize = 'sm' | 'md' | 'lg' | 'xl'
 
 const sizeClass: Record<BrandLogoSize, string> = {
   sm: 'brand-logo--sm',
   md: 'brand-logo--md',
   lg: 'brand-logo--lg',
+  xl: 'brand-logo--xl',
 }
 
 interface BrandLogoProps {

@@ -592,6 +592,7 @@ export interface ChecklistSettings {
     display_name: string
     access_level: number
     access_level_name: string
+    has_ca_access?: boolean
     in_checklist: boolean
     is_self?: boolean
   }[]
