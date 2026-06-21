@@ -306,6 +306,25 @@ export const api = {
     return request<DevErrorListResponse>(`/dev/errors${suffix}`)
   },
   clearDevErrors: () => request<{ ok: boolean; deleted: number }>('/dev/errors', { method: 'DELETE' }),
+  judgeForumListServers: () =>
+    request<{ servers: JudgeForumServer[] }>('/forum/judge-list/servers'),
+  judgeForumListSettings: (serverId: number) =>
+    request<JudgeForumListSettings>(`/forum/judge-list?server_id=${serverId}`),
+  saveJudgeForumListSettings: (body: JudgeForumListSaveBody) =>
+    request<JudgeForumListSettings>('/forum/judge-list', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  previewJudgeForumList: (body: JudgeForumListPreviewBody) =>
+    request<{ rendered: string }>('/forum/judge-list/preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  validateJudgeForumThread: (body: JudgeForumValidateThreadBody) =>
+    request<JudgeForumValidateThreadResult>('/forum/judge-list/validate-thread', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 }
 
 export interface AuthConfig {
@@ -747,4 +766,61 @@ export const QB_STATUS_LABELS: Record<QuestionBankItemStatus, string> = {
   confirmed: 'Подтверждён',
   rejected: 'Отклонён',
   needs_revision: 'Требует доработки',
+}
+
+export interface JudgeForumServer {
+  id: number
+  name: string
+  slug: string
+  tag: string | null
+  judge_forum_id: number | null
+  judge_forum_url: string | null
+}
+
+export interface JudgeForumListSettings {
+  server_id: number
+  thread_id: number | null
+  thread_url: string | null
+  required_forum_id: number | null
+  required_forum_url: string | null
+  enabled: boolean
+  body_template: string
+  line_template: string
+  empty_text: string
+  updated_by_vk_id: number | null
+  updated_at: string | null
+  warning?: string | null
+}
+
+export interface JudgeForumListSaveBody {
+  server_id: number
+  thread_id?: number | null
+  thread_url?: string
+  enabled: boolean
+  body_template: string
+  line_template: string
+  empty_text: string
+}
+
+export interface JudgeForumListPreviewBody {
+  server_id: number
+  body_template?: string
+  line_template?: string
+  empty_text?: string
+}
+
+export interface JudgeForumValidateThreadBody {
+  server_id: number
+  thread_id?: number | null
+  thread_url?: string
+}
+
+export interface JudgeForumValidateThreadResult {
+  valid: boolean | null
+  skipped: boolean
+  error?: string | null
+  title?: string | null
+  forum_name?: string | null
+  category_id?: number | null
+  required_forum_url: string
 }

@@ -5,6 +5,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   FolderKanban,
+  Gavel,
   LayoutDashboard,
   Library,
   LogOut,
@@ -257,6 +258,19 @@ function LayoutShell() {
                   </div>
                 </div>
               ))}
+              {(user?.access_level ?? 0) >= 3 && (
+                <div className="sidebar-nav-group sidebar-nav-group--spaced">
+                  <div className="sidebar-nav-category">Форум</div>
+                  <div className="sidebar-nav-divider" aria-hidden />
+                  <div className="sidebar-nav-items">
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/forum/judge-list', label: 'Список судей', icon: Gavel }}
+                    />
+                  </div>
+                </div>
+              )}
               {(user?.can_dev_panel || user?.can_manage_leaders) && (
                 <div className="sidebar-nav-group sidebar-nav-group--spaced">
                   <div className="sidebar-nav-category">Разработка</div>

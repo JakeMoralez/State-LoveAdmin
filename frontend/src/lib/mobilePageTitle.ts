@@ -5,6 +5,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/tasks': 'Задачи',
   '/checklist': 'Чеклист',
   '/question-banks': 'Банки вопросов',
+  '/forum/judge-list': 'Список судей',
   '/projects': 'Проекты',
   '/profile': 'Профиль',
   '/dev': 'Лог ошибок',

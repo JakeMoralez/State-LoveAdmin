@@ -41,12 +41,42 @@ class User(Model):
     username = fields.CharField(max_length=128, null=True)
     nickname = fields.CharField(max_length=64, null=True)
     note = fields.TextField(null=True)
+    added_at = fields.DatetimeField(null=True)
+    last_used = fields.DatetimeField(null=True)
     is_admin = fields.BooleanField(default=False)
 
     server_accesses: fields.ReverseRelation["UserServerAccess"]
 
     class Meta:
         table = "users"
+        app = "bot"
+
+
+class Server(Model):
+    id = fields.IntField(pk=True)
+    slug = fields.CharField(max_length=64)
+    name = fields.CharField(max_length=128)
+    tag = fields.CharField(max_length=64, null=True)
+    judge_forum_id = fields.IntField(null=True)
+    is_active = fields.BooleanField(default=True)
+
+    class Meta:
+        table = "servers"
+        app = "bot"
+
+
+class JudgeForumListSettings(Model):
+    server_id = fields.IntField(pk=True)
+    thread_id = fields.IntField(null=True)
+    enabled = fields.BooleanField(default=True)
+    body_template = fields.TextField(default="")
+    line_template = fields.TextField(default="")
+    empty_text = fields.TextField(default="")
+    updated_by_vk_id = fields.BigIntField(null=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "judge_forum_list_settings"
         app = "bot"
 
 

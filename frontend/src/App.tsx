@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
+import { JudgeForumListPage } from './pages/JudgeForumListPage'
 import { QuestionBankDetailPage } from './pages/QuestionBankDetailPage'
 import { QuestionBankReviewPage } from './pages/QuestionBankReviewPage'
 import { QuestionBanksPage } from './pages/QuestionBanksPage'
@@ -36,6 +37,7 @@ function AppRoutes() {
           <Route path="/question-banks" element={<QuestionBanksPage />} />
           <Route path="/question-banks/review" element={<QuestionBankReviewPage />} />
           <Route path="/question-banks/:id" element={<QuestionBankDetailPage />} />
+          <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />
