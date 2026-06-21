@@ -15,6 +15,7 @@ from app.services.forum_judge_list import (
     JUDGE_LIST_FORUM_ID,
     JUDGE_LIST_FORUM_URL,
     ZGS_MIN_LEVEL,
+    _normalize_templates,
     get_or_create_settings,
     parse_thread_id,
     render_judge_list_body,
@@ -179,9 +180,14 @@ async def save_judge_list_settings(
 
     settings.thread_id = thread_id
     settings.enabled = body.enabled
-    settings.body_template = body.body_template.strip() or DEFAULT_BODY_TEMPLATE
-    settings.line_template = body.line_template.strip() or DEFAULT_LINE_TEMPLATE
-    settings.empty_text = body.empty_text.strip() or DEFAULT_EMPTY_TEXT
+    body_tpl, line_tpl, empty_tpl = _normalize_templates(
+        body.body_template.strip() or DEFAULT_BODY_TEMPLATE,
+        body.line_template.strip() or DEFAULT_LINE_TEMPLATE,
+        body.empty_text.strip() or DEFAULT_EMPTY_TEXT,
+    )
+    settings.body_template = body_tpl
+    settings.line_template = line_tpl
+    settings.empty_text = empty_tpl
     settings.updated_by_vk_id = int(user["vk_id"])
     await settings.save()
 

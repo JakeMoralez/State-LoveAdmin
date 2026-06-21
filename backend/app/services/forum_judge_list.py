@@ -29,6 +29,27 @@ JUDGE_LIST_FORUM_URL = f"https://forum.arizona-rp.com/forums/{JUDGE_LIST_FORUM_I
 
 ZGS_MIN_LEVEL = 3
 
+_LIST_BB_RE = re.compile(r"\[(?:/?list|\*)\]", re.IGNORECASE)
+
+
+def strip_list_bbcode(text: str) -> str:
+    """Убрать [list], [/list], [*] — список судей без XenForo-списка."""
+    if not text:
+        return text
+    return _LIST_BB_RE.sub("", text)
+
+
+def _normalize_templates(
+    body_template: str,
+    line_template: str,
+    empty_text: str,
+) -> tuple[str, str, str]:
+    return (
+        strip_list_bbcode(body_template),
+        strip_list_bbcode(line_template),
+        strip_list_bbcode(empty_text),
+    )
+
 
 def parse_thread_id(raw: str | int | None) -> int | None:
     if raw is None:
@@ -162,10 +183,11 @@ async def build_judges_block(
         return empty_text, 0
 
     lines: list[str] = []
+    clean_line = strip_list_bbcode(line_template)
     for index, access in enumerate(rows, start=1):
         user = access.user
         ctx = await _build_judge_line_context(user, server_id)
-        lines.append(_apply_line_template(line_template, ctx, index=index))
+        lines.append(_apply_line_template(clean_line, ctx, index=index))
     return "\n".join(lines), len(lines)
 
 
@@ -179,6 +201,7 @@ async def render_judge_list_body(
     body = body_template or DEFAULT_BODY_TEMPLATE
     line = line_template or DEFAULT_LINE_TEMPLATE
     empty = empty_text or DEFAULT_EMPTY_TEXT
+    body, line, empty = _normalize_templates(body, line, empty)
 
     judges_block, judges_count = await build_judges_block(
         server_id,
@@ -197,7 +220,7 @@ async def render_judge_list_body(
     result = body
     for key, value in replacements.items():
         result = result.replace(key, value)
-    return result
+    return strip_list_bbcode(result)
 
 
 async def get_or_create_settings(server_id: int) -> JudgeForumListSettings:
@@ -209,10 +232,29 @@ async def get_or_create_settings(server_id: int) -> JudgeForumListSettings:
             "empty_text": DEFAULT_EMPTY_TEXT,
         },
     )
+    body, line, empty = _normalize_templates(
+        settings.body_template or DEFAULT_BODY_TEMPLATE,
+        settings.line_template or DEFAULT_LINE_TEMPLATE,
+        settings.empty_text or DEFAULT_EMPTY_TEXT,
+    )
+    if (
+        body != (settings.body_template or "")
+        or line != (settings.line_template or "")
+        or empty != (settings.empty_text or "")
+    ):
+        settings.body_template = body
+        settings.line_template = line
+        settings.empty_text = empty
+        await settings.save(update_fields=["body_template", "line_template", "empty_text"])
     return settings
 
 
 def serialize_settings(settings: JudgeForumListSettings) -> dict:
+    body, line, empty = _normalize_templates(
+        settings.body_template or DEFAULT_BODY_TEMPLATE,
+        settings.line_template or DEFAULT_LINE_TEMPLATE,
+        settings.empty_text or DEFAULT_EMPTY_TEXT,
+    )
     return {
         "server_id": settings.server_id,
         "thread_id": settings.thread_id,
@@ -224,9 +266,9 @@ def serialize_settings(settings: JudgeForumListSettings) -> dict:
         "required_forum_id": JUDGE_LIST_FORUM_ID,
         "required_forum_url": JUDGE_LIST_FORUM_URL,
         "enabled": settings.enabled,
-        "body_template": settings.body_template or DEFAULT_BODY_TEMPLATE,
-        "line_template": settings.line_template or DEFAULT_LINE_TEMPLATE,
-        "empty_text": settings.empty_text or DEFAULT_EMPTY_TEXT,
+        "body_template": body,
+        "line_template": line,
+        "empty_text": empty,
         "updated_by_vk_id": settings.updated_by_vk_id,
         "updated_at": settings.updated_at.isoformat() if settings.updated_at else None,
     }
