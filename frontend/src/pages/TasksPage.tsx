@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ClipboardList, Plus } from 'lucide-react'
+import { ClipboardList, type LucideIcon } from 'lucide-react'
 import { api, STATUS_LABELS, type Project, type StaffMember, type TaskDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { TaskCard, TaskCardPreview, TaskListRow } from '../components/tasks/TaskCard'
@@ -37,6 +37,7 @@ interface TasksWorkspaceProps {
   title?: string
   subtitle?: string
   section?: string
+  headerIcon?: LucideIcon
   headerBack?: { href: string; label: string }
   taskPathPrefix?: string
   taskIdParam?: string
@@ -47,6 +48,7 @@ export function TasksWorkspace({
   title = 'Задачи',
   subtitle,
   section = 'Работа',
+  headerIcon: HeaderIcon = ClipboardList,
   headerBack,
   taskPathPrefix = '/tasks',
   taskIdParam,
@@ -205,20 +207,14 @@ export function TasksWorkspace({
   }
 
   return (
-    <div className={filters.view === 'kanban' ? 'content-fixed' : ''}>
+    <div className={cn('page-stack page-stack--tasks', filters.view === 'kanban' && 'content-fixed')}>
       <PageHeader
         section={section}
         title={title}
-        icon={ClipboardList}
+        icon={HeaderIcon}
         subtitle={subtitle}
         back={headerBack}
         shrink
-        actions={
-          <button type="button" onClick={() => setCreateOpen(true)} className="btn btn-gold tasks-page-create">
-            <Plus size={16} />
-            Задача
-          </button>
-        }
       />
 
       <TasksToolbar
@@ -251,7 +247,7 @@ export function TasksWorkspace({
       {loading ? (
         <div className="page-loading">Загрузка…</div>
       ) : filters.view === 'list' ? (
-        <div className="flex flex-col gap-2">
+        <div className="list-stack">
           {listTasks.length === 0 ? (
             <p className="text-white/40">Задач нет</p>
           ) : (
@@ -259,8 +255,8 @@ export function TasksWorkspace({
           )}
         </div>
       ) : (
-        <>
-          <p className="kanban-scroll-hint" aria-hidden>
+        <div className="tasks-kanban-view flex min-h-0 flex-1 flex-col">
+          <p className="kanban-scroll-hint shrink-0" aria-hidden>
             Листайте колонки →
           </p>
           <DndContext
@@ -269,7 +265,7 @@ export function TasksWorkspace({
           onDragStart={(e) => setActiveId(Number(e.active.id))}
           onDragEnd={onDragEnd}
         >
-          <div className="kanban-board flex-1 min-h-0">
+          <div className="kanban-board min-h-0 flex-1">
             {KANBAN_STATUSES.map((status) => (
               <KanbanColumn
                 key={status}
@@ -283,7 +279,7 @@ export function TasksWorkspace({
           </div>
           <DragOverlay>{activeTask ? <TaskCardPreview task={activeTask} /> : null}</DragOverlay>
         </DndContext>
-        </>
+        </div>
       )}
 
       <TaskCreateModal

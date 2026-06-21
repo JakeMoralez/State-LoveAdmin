@@ -93,7 +93,7 @@ export function TaskCreateModal({
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
       <div
-        className="glass-card task-create-modal modal-pop relative z-10 flex w-full max-w-lg flex-col shadow-2xl"
+        className="glass-card task-create-modal task-create-modal--wide modal-pop relative z-10 flex w-full flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 p-6 pb-4">

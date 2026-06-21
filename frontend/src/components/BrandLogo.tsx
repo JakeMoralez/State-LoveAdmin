@@ -9,9 +9,18 @@ const sizeClass: Record<BrandLogoSize, string> = {
 interface BrandLogoProps {
   size?: BrandLogoSize
   className?: string
+  plain?: boolean
 }
 
-export function BrandLogo({ size = 'md', className = '' }: BrandLogoProps) {
+export function BrandLogo({ size = 'md', className = '', plain = false }: BrandLogoProps) {
+  if (plain) {
+    return (
+      <div className={`brand-logo brand-logo--plain ${sizeClass[size]} ${className}`.trim()} aria-hidden>
+        <div className="brand-logo-mark" />
+      </div>
+    )
+  }
+
   return (
     <div className={`brand-logo ${sizeClass[size]} ${className}`.trim()} aria-hidden>
       <div className="brand-logo-frame">

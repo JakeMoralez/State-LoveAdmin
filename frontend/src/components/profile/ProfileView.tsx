@@ -2,7 +2,9 @@ import { useState } from 'react'
 import {
   AtSign,
   Check,
+  Code2,
   Copy,
+  Crown,
   ExternalLink,
   Hash,
   Server,
@@ -10,6 +12,7 @@ import {
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../PageHeader'
 
@@ -47,14 +50,27 @@ function avatarInitial(title: string) {
   return (letter || '?').toUpperCase()
 }
 
+function panelRoleBadge(role: string) {
+  const key = role.toLowerCase()
+  if (key === 'owner') {
+    return { label: 'Владелец', icon: Crown, gold: true }
+  }
+  if (key === 'admin') {
+    return { label: 'Администратор', icon: Shield, gold: true }
+  }
+  return { label: 'Участник', icon: UserRound, gold: false }
+}
+
 export function ProfileView({
   profile,
   showQuickLinks = false,
   backTo,
+  headerActions,
 }: {
   profile: ProfileViewData
   showQuickLinks?: boolean
   backTo?: { label: string; href: string }
+  headerActions?: ReactNode
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -64,6 +80,8 @@ export function ProfileView({
   const vkUrl = `https://vk.com/id${profile.vk_id}`
   const roleTitle = profile.access_role_title || profile.access_level_name
   const panelRole = profile.panel_role || 'member'
+  const roleBadge = panelRoleBadge(panelRole)
+  const RoleIcon = roleBadge.icon
 
   const copyVkId = async () => {
     try {
@@ -112,7 +130,7 @@ export function ProfileView({
       icon: AtSign,
       mono: Boolean(profile.username),
     },
-    { label: 'Роль в панели', value: panelRole, icon: Shield },
+    { label: 'Роль в панели', value: roleBadge.label, icon: RoleIcon },
     {
       label: 'Уровень доступа',
       value: `${profile.access_level_name} · ${profile.access_level}`,
@@ -124,12 +142,13 @@ export function ProfileView({
   ]
 
   return (
-    <div className="profile-page w-full min-w-0">
+    <div className="page-stack page-stack--profile w-full min-w-0">
       <PageHeader
         section="Аккаунт"
         title="Профиль"
         icon={UserRound}
         back={backTo}
+        actions={headerActions}
       />
 
       <section className="profile-hero-card glass-card">
@@ -153,24 +172,37 @@ export function ProfileView({
           </div>
 
           <div className="profile-hero-copy min-w-0">
-            {parsed.tag && <span className="profile-tag">{parsed.tag}</span>}
             <h2 className="profile-name">{parsed.title}</h2>
             <p className="profile-subtitle">{roleTitle}</p>
 
             <div className="profile-badges">
-              <span className="badge-pill badge-gold">{panelRole}</span>
+              {parsed.tag && (
+                <span className="profile-badge profile-badge--gold">
+                  <Shield size={11} aria-hidden />
+                  {parsed.tag.replace(/^\[|\]$/g, '')}
+                </span>
+              )}
+              <span className={`profile-badge ${roleBadge.gold ? 'profile-badge--gold' : ''}`}>
+                <RoleIcon size={11} aria-hidden />
+                {roleBadge.label}
+              </span>
               {hasAccess && (
-                <span className="badge-pill badge-gold inline-flex items-center gap-1">
-                  <Shield size={11} />
-                  ЦА
+                <span className="profile-badge profile-badge--gold">
+                  <ShieldCheck size={11} aria-hidden />
+                  Доступ ЦА
+                </span>
+              )}
+              {profile.dev_persona && (
+                <span className="profile-badge">
+                  <Code2 size={11} aria-hidden />
+                  Разработчик
                 </span>
               )}
               {(profile.badges ?? []).map((b) => (
-                <span key={b} className="badge-pill">
+                <span key={b} className="profile-badge">
                   {b}
                 </span>
               ))}
-              {profile.dev_persona && <span className="badge-pill">dev</span>}
             </div>
           </div>
 

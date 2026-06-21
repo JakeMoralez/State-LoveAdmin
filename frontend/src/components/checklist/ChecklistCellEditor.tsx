@@ -228,26 +228,23 @@ export function ChecklistCellEditor({
                   e.target.value = ''
                 }}
               />
-              {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-              <span>{galleryUrl ? 'Ещё скрины' : 'Скрины'}</span>
+              {uploading ? <Loader2 size={13} className="animate-spin" /> : <ImagePlus size={13} />}
+              <span>{galleryUrl ? 'Ещё' : 'Скрины'}</span>
             </label>
-            <div className="checklist-cell-video-field">
-              <Video size={13} className="checklist-cell-video-icon" />
-              <input
-                value={videoDraft}
-                onChange={(e) => setVideoDraft(e.target.value)}
-                onBlur={flushVideo}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    flushVideo()
-                    ;(e.target as HTMLInputElement).blur()
-                  }
-                }}
-                placeholder="Видео (необязательно)"
-                className="checklist-cell-video-input"
-              />
-            </div>
+            <input
+              value={videoDraft}
+              onChange={(e) => setVideoDraft(e.target.value)}
+              onBlur={flushVideo}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  flushVideo()
+                  ;(e.target as HTMLInputElement).blur()
+                }
+              }}
+              placeholder="Ссылка на видео"
+              className="checklist-cell-video-input"
+            />
           </div>
         </div>
       ) : (

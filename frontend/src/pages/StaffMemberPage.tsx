@@ -61,15 +61,14 @@ export function StaffMemberPage() {
 
   return (
     <>
-      <div className="staff-member-toolbar">
-        {canOpenSettings && (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettingsOpen(true)}>
-            Настройки
-          </button>
-        )}
-      </div>
-
       <ProfileView
+        headerActions={
+          canOpenSettings ? (
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSettingsOpen(true)}>
+              Настройки
+            </button>
+          ) : undefined
+        }
         profile={{
           vk_id: member.vk_id,
           nickname: member.nickname,

@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react'
 import type { StaffMember } from '../../api'
+import { StaffNickInline } from '../staff/StaffNickInline'
 import { staffLabel } from '../../lib/staff'
 import { cn } from '../../lib/utils'
 
@@ -28,7 +29,7 @@ export function MultiAssigneePicker({
             const m = staff.find((s) => s.vk_id === id)
             return (
               <span key={id} className="assignee-chip">
-                {m ? staffLabel(m) : `id${id}`}
+                {m ? <StaffNickInline label={staffLabel(m)} compact /> : `id${id}`}
                 <button type="button" className="assignee-chip-x" onClick={() => toggle(id)}>
                   ×
                 </button>
@@ -50,8 +51,10 @@ export function MultiAssigneePicker({
               <span className={cn('assignee-picker-check', on && 'assignee-picker-check--on')}>
                 {on && <Check size={12} strokeWidth={3} />}
               </span>
-              <span className="truncate flex-1 text-left">{staffLabel(s)}</span>
-              <span className="text-xs text-white/30 shrink-0">{s.access_level_name}</span>
+              <span className="assignee-picker-nick min-w-0 flex-1 text-left">
+                <StaffNickInline label={staffLabel(s)} />
+              </span>
+              <span className="assignee-picker-role shrink-0">{s.access_level_name}</span>
             </button>
           )
         })}

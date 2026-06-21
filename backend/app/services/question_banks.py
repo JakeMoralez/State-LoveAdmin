@@ -375,6 +375,7 @@ async def serialize_bank(
         "id": bank.id,
         "title": bank.title,
         "description": bank.description,
+        "emoji": bank.emoji or "",
         "min_submit_level": bank.min_submit_level,
         "min_approve_level": bank.min_approve_level,
         "min_submit_level_label": AccessLevel.title(bank.min_submit_level),

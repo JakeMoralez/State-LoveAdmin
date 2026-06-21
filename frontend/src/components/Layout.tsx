@@ -1,8 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Bug,
-  ChevronLeft,
-  ChevronRight,
+  ChevronsLeft,
   ClipboardList,
   ClipboardCheck,
   FolderKanban,
@@ -10,14 +9,12 @@ import {
   Library,
   LogOut,
   Menu,
-  User,
   Shield,
   Users,
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import type { UserProfile } from '../api'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { MOBILE_NAV_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
@@ -58,50 +55,9 @@ const navCategories: NavCategory[] = [
       { to: '/projects', label: 'Проекты', icon: FolderKanban },
     ],
   },
-  {
-    title: 'Аккаунт',
-    items: [{ to: '/profile', label: 'Профиль', icon: User }],
-  },
 ]
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
-
-function SidebarUserCard({
-  user,
-  collapsed,
-  onNavigate,
-}: {
-  user: UserProfile
-  collapsed: boolean
-  onNavigate?: () => void
-}) {
-  const name = user.nickname || String(user.vk_id)
-  const avatar = user.avatar_url || DEFAULT_AVATAR
-
-  return (
-    <NavLink
-      to="/profile"
-      title={name}
-      onClick={onNavigate}
-      className={cn('sidebar-user', collapsed && 'sidebar-user--collapsed')}
-    >
-      <span className="sidebar-user-avatar-ring">
-        <img
-          src={avatar}
-          alt=""
-          className="sidebar-user-avatar"
-          onError={(e) => {
-            e.currentTarget.src = DEFAULT_AVATAR
-          }}
-        />
-      </span>
-      <span className="sidebar-user-meta">
-        <span className="sidebar-user-name">{name}</span>
-        <span className="sidebar-user-role">{user.access_level_name}</span>
-      </span>
-    </NavLink>
-  )
-}
 
 function SidebarNavLink({
   item,
@@ -123,7 +79,11 @@ function SidebarNavLink({
         cn(
           'sidebar-nav-link',
           collapsed && 'sidebar-nav-link--collapsed',
-          isActive ? 'nav-active' : 'text-white/55 hover:bg-white/[0.04] hover:text-white',
+          isActive
+            ? 'nav-active'
+            : collapsed
+              ? 'text-white/55 hover:text-white/90'
+              : 'text-white/55 hover:bg-white/[0.04] hover:text-white',
         )
       }
     >
@@ -213,98 +173,97 @@ export function Layout() {
           isMobileNav && mobileOpen && 'sidebar-shell--mobile-open',
         )}
       >
-        <div className="sidebar-header">
-          <div className="sidebar-brand">
-            <BrandLogo size="sm" />
-            <div className="sidebar-brand-text">
-              <div className="text-sm font-bold tracking-wide truncate">State Love</div>
-              <div className="text-[10px] text-white/35">Следящие ЦА</div>
-            </div>
-          </div>
+        {!isMobileNav && (
           <button
             type="button"
             onClick={toggleSidebar}
-            className="sidebar-toggle"
-            aria-label={
-              isMobileNav
-                ? mobileOpen
-                  ? 'Закрыть меню'
-                  : 'Открыть меню'
-                : collapsed
-                  ? 'Развернуть панель'
-                  : 'Свернуть панель'
-            }
+            className={cn('sidebar-edge-toggle', sidebarCollapsed && 'sidebar-edge-toggle--collapsed')}
+            aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
           >
-            {isMobileNav ? (
-              mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />
-            ) : collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
+            <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} />
           </button>
-        </div>
-
-        {user && (
-          <SidebarUserCard user={user} collapsed={sidebarCollapsed} onNavigate={closeMobile} />
         )}
 
-        <nav className="sidebar-nav mt-5 flex flex-1 flex-col overflow-y-auto ll-scroll">
-          {navCategories.map((category, idx) => (
-            <div
-              key={category.title}
-              className={cn('sidebar-nav-group', idx > 0 && 'sidebar-nav-group--spaced')}
-            >
-              <div className="sidebar-nav-category">{category.title}</div>
-              <div className="sidebar-nav-divider" aria-hidden />
-              <div className="sidebar-nav-items">
-                {category.items.map((item) => (
-                  <SidebarNavLink
-                    key={item.to}
-                    item={
-                      item.to === '/question-banks'
-                        ? { ...item, badge: qbPendingCount }
-                        : item
-                    }
-                    collapsed={sidebarCollapsed}
-                    onNavigate={closeMobile}
-                  />
-                ))}
+        <div className="sidebar-clip">
+          <div className="sidebar-inner">
+            <div className="sidebar-header">
+              <div className="sidebar-brand">
+                <BrandLogo size="sm" plain />
+                <div className="sidebar-brand-text">
+                  <span className="sidebar-brand-title">State Love</span>
+                  <span className="sidebar-brand-tagline">Следящие ЦА</span>
+                </div>
               </div>
+              {isMobileNav && (
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="sidebar-toggle"
+                  aria-label={mobileOpen ? 'Закрыть меню' : 'Открыть меню'}
+                >
+                  {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                </button>
+              )}
             </div>
-          ))}
-          {(user?.can_dev_panel || user?.can_manage_leaders) && (
-            <div className="sidebar-nav-group sidebar-nav-group--spaced">
-              <div className="sidebar-nav-category">Разработка</div>
-              <div className="sidebar-nav-divider" aria-hidden />
-              <div className="sidebar-nav-items">
-                {user?.can_manage_leaders && (
-                  <SidebarNavLink
-                    collapsed={sidebarCollapsed}
-                    onNavigate={closeMobile}
-                    item={{ to: '/dev/leadership', label: 'Флаги руководства', icon: Shield }}
-                  />
-                )}
-                {user?.can_dev_panel && (
-                  <SidebarNavLink
-                    collapsed={sidebarCollapsed}
-                    onNavigate={closeMobile}
-                    item={{ to: '/dev', label: 'Лог ошибок', icon: Bug, end: true }}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-        </nav>
 
-        <button type="button" onClick={() => void handleLogout()} className="sidebar-logout">
-          <LogOut className="sidebar-logout-icon h-4 w-4 shrink-0" />
-          <span className="sidebar-logout-label">Выйти</span>
-        </button>
+            <nav className="sidebar-nav flex flex-1 flex-col overflow-y-auto ll-scroll">
+              {navCategories.map((category, idx) => (
+                <div
+                  key={category.title}
+                  className={cn('sidebar-nav-group', idx > 0 && 'sidebar-nav-group--spaced')}
+                >
+                  <div className="sidebar-nav-category">{category.title}</div>
+                  <div className="sidebar-nav-divider" aria-hidden />
+                  <div className="sidebar-nav-items">
+                    {category.items.map((item) => (
+                      <SidebarNavLink
+                        key={item.to}
+                        item={
+                          item.to === '/question-banks'
+                            ? { ...item, badge: qbPendingCount }
+                            : item
+                        }
+                        collapsed={sidebarCollapsed}
+                        onNavigate={closeMobile}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {(user?.can_dev_panel || user?.can_manage_leaders) && (
+                <div className="sidebar-nav-group sidebar-nav-group--spaced">
+                  <div className="sidebar-nav-category">Разработка</div>
+                  <div className="sidebar-nav-divider" aria-hidden />
+                  <div className="sidebar-nav-items">
+                    {user?.can_manage_leaders && (
+                      <SidebarNavLink
+                        collapsed={sidebarCollapsed}
+                        onNavigate={closeMobile}
+                        item={{ to: '/dev/leadership', label: 'Флаги руководства', icon: Shield }}
+                      />
+                    )}
+                    {user?.can_dev_panel && (
+                      <SidebarNavLink
+                        collapsed={sidebarCollapsed}
+                        onNavigate={closeMobile}
+                        item={{ to: '/dev', label: 'Лог ошибок', icon: Bug, end: true }}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </nav>
+
+            <button type="button" onClick={() => void handleLogout()} className="sidebar-logout">
+              <LogOut className="sidebar-logout-icon h-4 w-4 shrink-0" />
+              <span className="sidebar-logout-label">Выйти</span>
+            </button>
+          </div>
+        </div>
       </aside>
 
-      <div className={cn('app-main-column flex min-w-0 flex-1 flex-col', isMobileNav && 'has-mobile-top-bar')}>
-        {isMobileNav && (
+      <div className={cn('app-main-column flex min-w-0 flex-1 flex-col', 'has-app-top-bar')}>
+        {isMobileNav ? (
           <header className="mobile-top-bar">
             <button
               type="button"
@@ -315,7 +274,7 @@ export function Layout() {
               <Menu className="h-5 w-5" />
             </button>
             <div className="mobile-top-bar-brand">
-              <BrandLogo size="sm" />
+              <BrandLogo size="sm" plain />
               <span className="mobile-top-bar-title">State Love</span>
             </div>
             {user && (
@@ -330,11 +289,31 @@ export function Layout() {
               </NavLink>
             )}
           </header>
+        ) : (
+          <header className="app-top-bar">
+            {user && (
+              <NavLink
+                to="/profile"
+                className="app-top-bar-profile"
+                title={user.nickname || String(user.vk_id)}
+              >
+                <span className="app-top-bar-profile-name">{user.nickname || String(user.vk_id)}</span>
+                <img
+                  src={user.avatar_url || DEFAULT_AVATAR}
+                  alt=""
+                  className="app-top-bar-profile-avatar"
+                  onError={(e) => {
+                    e.currentTarget.src = DEFAULT_AVATAR
+                  }}
+                />
+              </NavLink>
+            )}
+          </header>
         )}
 
         <main
           key={location.pathname}
-          className="app-main flex flex-1 min-h-0 min-w-0 flex-col overflow-y-auto p-4 md:p-6 lg:p-8 ll-scroll page-enter-fade"
+          className="app-main ll-scroll page-enter-fade"
         >
           <Outlet />
         </main>

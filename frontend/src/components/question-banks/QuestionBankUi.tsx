@@ -10,7 +10,9 @@ import {
   type QuestionBankReviewBody,
 } from '../../api'
 import { ACCESS_LEVEL_OPTIONS } from '../../lib/accessLevels'
+import { BANK_ICON_PRESETS, DEFAULT_BANK_ICON } from '../../lib/questionBanks'
 import { cn } from '../../lib/utils'
+import { BankIcon } from './BankIcon'
 import { FormField } from '../ui/FormField'
 import { ModalViewport } from '../ui/ModalViewport'
 import { Select } from '../ui/Select'
@@ -19,6 +21,7 @@ import { TagInput } from '../ui/TagInput'
 export interface BankFormValues {
   title: string
   description: string
+  emoji: string
   min_submit_level: number
   min_approve_level: number
 }
@@ -36,6 +39,7 @@ export function BankForm({
 }) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
+  const [emoji, setEmoji] = useState(initial?.emoji?.trim() || DEFAULT_BANK_ICON)
   const [minSubmit, setMinSubmit] = useState(String(initial?.min_submit_level ?? 1))
   const [minApprove, setMinApprove] = useState(String(initial?.min_approve_level ?? 3))
   const [saving, setSaving] = useState(false)
@@ -44,6 +48,7 @@ export function BankForm({
   useEffect(() => {
     setTitle(initial?.title ?? '')
     setDescription(initial?.description ?? '')
+    setEmoji(initial?.emoji?.trim() || DEFAULT_BANK_ICON)
     setMinSubmit(String(initial?.min_submit_level ?? 1))
     setMinApprove(String(initial?.min_approve_level ?? 3))
   }, [initial])
@@ -56,6 +61,7 @@ export function BankForm({
       await onSubmit({
         title: title.trim(),
         description: description.trim(),
+        emoji: emoji.trim() || DEFAULT_BANK_ICON,
         min_submit_level: parseInt(minSubmit, 10),
         min_approve_level: parseInt(minApprove, 10),
       })
@@ -67,7 +73,30 @@ export function BankForm({
   }
 
   return (
-    <div className="qb-bank-form space-y-4">
+    <div className="qb-bank-form">
+      <FormField label="Иконка">
+        <div className="qb-icon-picker">
+          <div className="qb-icon-picker-preview">
+            <BankIcon iconKey={emoji} size={20} boxed />
+            <span className="qb-icon-picker-label">
+              {BANK_ICON_PRESETS.find((p) => p.id === emoji)?.label ?? 'Банк'}
+            </span>
+          </div>
+          <div className="qb-icon-presets">
+            {BANK_ICON_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                className={cn('qb-icon-preset', emoji === preset.id && 'qb-icon-preset--active')}
+                onClick={() => setEmoji(preset.id)}
+                title={preset.label}
+              >
+                <preset.icon size={16} strokeWidth={1.75} />
+              </button>
+            ))}
+          </div>
+        </div>
+      </FormField>
       <FormField label="Название банка">
         <input className="control" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
       </FormField>
@@ -78,7 +107,7 @@ export function BankForm({
           onChange={(e) => setDescription(e.target.value)}
         />
       </FormField>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="qb-bank-form-grid">
         <FormField label="Кто может добавлять" hint="Минимальный уровень доступа">
           <Select value={minSubmit} onChange={setMinSubmit} options={ACCESS_LEVEL_OPTIONS} />
         </FormField>
@@ -87,7 +116,7 @@ export function BankForm({
         </FormField>
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
-      <div className="flex flex-wrap gap-2 justify-end">
+      <div className="qb-bank-form-actions">
         <button type="button" className="btn-secondary" onClick={onCancel}>
           Отмена
         </button>
@@ -178,24 +207,25 @@ export function QuestionItemModal({
 
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
-      <div className="glass-card qb-modal modal-pop relative z-10 flex w-full max-w-xl flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+      <div className="glass-card qb-modal qb-modal--editor modal-pop relative z-10" onClick={(e) => e.stopPropagation()}>
+        <div className="qb-modal-head">
           <h2 className="text-lg font-bold">{item ? 'Редактировать вопрос' : 'Новый вопрос'}</h2>
           <button type="button" className="btn-icon h-9 w-9" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 ll-scroll space-y-4">
+        <div className="qb-modal-body ll-scroll">
           <FormField label="Текст вопроса *">
             <textarea
-              className="control min-h-[100px] resize-y"
+              className="control qb-field-textarea--question"
               value={body.text}
               onChange={(e) => setBody({ ...body, text: e.target.value })}
+              autoFocus
             />
           </FormField>
           <FormField label="Правильный ответ">
             <textarea
-              className="control min-h-[60px] resize-y"
+              className="control qb-field-textarea--md"
               value={body.correct_answer}
               onChange={(e) => setBody({ ...body, correct_answer: e.target.value })}
             />
@@ -210,7 +240,7 @@ export function QuestionItemModal({
           </FormField>
           <FormField label="Комментарий к ответу">
             <textarea
-              className="control min-h-[60px] resize-y"
+              className="control qb-field-textarea--md"
               value={body.answer_comment}
               onChange={(e) => setBody({ ...body, answer_comment: e.target.value })}
             />
@@ -227,7 +257,7 @@ export function QuestionItemModal({
           </FormField>
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
-        <div className="flex flex-wrap gap-2 justify-end border-t border-white/10 px-6 py-4">
+        <div className="qb-modal-foot">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Отмена
           </button>
@@ -319,27 +349,27 @@ export function ReviewQuestionModal({
 
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
-      <div className="glass-card qb-modal modal-pop relative z-10 flex w-full max-w-xl flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+      <div className="glass-card qb-modal qb-modal--editor modal-pop relative z-10" onClick={(e) => e.stopPropagation()}>
+        <div className="qb-modal-head">
           <h2 className="text-lg font-bold">Проверка вопроса</h2>
           <button type="button" className="btn-icon h-9 w-9" onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 ll-scroll space-y-4">
+        <div className="qb-modal-body ll-scroll">
           <p className="text-sm text-white/50">
             Автор: {item.author_name ?? '—'} · {item.status_label ?? QB_STATUS_LABELS[item.status]}
           </p>
           <FormField label="Текст вопроса">
             <textarea
-              className="control min-h-[100px] resize-y"
+              className="control qb-field-textarea--question"
               value={body.text}
               onChange={(e) => setBody({ ...body, text: e.target.value })}
             />
           </FormField>
           <FormField label="Правильный ответ">
             <textarea
-              className="control min-h-[60px] resize-y"
+              className="control qb-field-textarea--md"
               value={body.correct_answer}
               onChange={(e) => setBody({ ...body, correct_answer: e.target.value })}
             />
@@ -349,7 +379,7 @@ export function ReviewQuestionModal({
           </FormField>
           <FormField label="Комментарий к ответу">
             <textarea
-              className="control min-h-[60px] resize-y"
+              className="control qb-field-textarea--md"
               value={body.answer_comment}
               onChange={(e) => setBody({ ...body, answer_comment: e.target.value })}
             />
@@ -366,7 +396,7 @@ export function ReviewQuestionModal({
           </FormField>
           <FormField label="Комментарий проверяющего">
             <textarea
-              className="control min-h-[60px] resize-y"
+              className="control qb-field-textarea--md"
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
               placeholder="Замечания автору…"
@@ -374,7 +404,7 @@ export function ReviewQuestionModal({
           </FormField>
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
-        <div className="flex flex-wrap gap-2 justify-end border-t border-white/10 px-6 py-4">
+        <div className="qb-modal-foot">
           <button type="button" className="btn-secondary" disabled={saving} onClick={() => void run('needs_revision')}>
             На доработку
           </button>

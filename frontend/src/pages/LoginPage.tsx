@@ -140,24 +140,14 @@ export function LoginPage() {
 
       <div className="login-card">
         <div className="login-card-grid">
-          <section className="login-hero">
-            <BrandLogo size="lg" className="login-emblem" />
-            <p className="login-brand">State Love</p>
-            <h1 className="login-title">Портал ЦА</h1>
-            <p className="login-subtitle">
-              Рабочее пространство следящей администрации: задачи, чеклист и реестры.
-            </p>
-            <ul className="login-features">
-              <li>Реестры следящих и руководства</li>
-              <li>Задачи и недельный чеклист</li>
-              <li>Доступ: ЗГС ГОС+ или флаг ЦА в боте</li>
-            </ul>
-          </section>
-
           <section className="login-panel">
             <div className="login-auth-card">
               <header className="login-auth-head">
-                <h2 className="login-auth-title">Вход</h2>
+                <BrandLogo size="lg" plain className="login-emblem" />
+                <div>
+                  <p className="login-brand">State Love</p>
+                  <h1 className="login-auth-title">Портал ЦА</h1>
+                </div>
                 {devMode ? (
                   <span className="login-auth-badge login-auth-badge--dev">Dev</span>
                 ) : showDiscord ? (
@@ -211,12 +201,6 @@ export function LoginPage() {
 
               {showDiscord && (
                 <div className="login-primary-action">
-                  {!devMode && (
-                    <p className="login-auth-lead">
-                      Основной способ входа. Discord должен быть привязан к VK —{' '}
-                      <code className="login-alt-code">/editmydiscord</code> в боте.
-                    </p>
-                  )}
                   <button
                     type="button"
                     onClick={handleDiscordLogin}
@@ -224,7 +208,7 @@ export function LoginPage() {
                     className={`btn w-full ${devMode ? 'btn-gold' : 'btn-discord'}`}
                   >
                     {!devMode && <MessageCircle size={18} aria-hidden />}
-                    {busy ? 'Вход…' : devMode ? 'Войти с выбранными правами' : 'Войти через Discord'}
+                    {busy ? 'Вход…' : devMode ? 'Войти' : 'Войти через Discord'}
                   </button>
                 </div>
               )}
@@ -235,14 +219,6 @@ export function LoginPage() {
                     <span>или</span>
                   </div>
                   <div className="login-vk-block">
-                    <h3 className="login-vk-title">Через VK</h3>
-                    <ol className="login-method-steps">
-                      <li>Откройте бота в личных сообщениях</li>
-                      <li>
-                        Отправьте <code className="login-alt-code">/panel</code>
-                      </li>
-                      <li>Нажмите «Открыть портал» в ответе</li>
-                    </ol>
                     {vkBotUrl ? (
                       <a
                         href={vkBotUrl}
@@ -250,11 +226,11 @@ export function LoginPage() {
                         rel="noopener noreferrer"
                         className="btn btn-vk w-full"
                       >
-                        Написать боту VK
+                        Войти через VK · /panel
                       </a>
                     ) : (
                       <p className="login-alt-hint">
-                        Откройте бота VK вручную и отправьте <code className="login-alt-code">/panel</code> в ЛС.
+                        Откройте бота VK и отправьте <code className="login-alt-code">/panel</code>
                       </p>
                     )}
                   </div>
@@ -266,8 +242,7 @@ export function LoginPage() {
               )}
 
               <p className="login-footer">
-                Нет доступа — обратитесь к ЗГС ЦА+. Привязка Discord:{' '}
-                <code className="login-alt-code">/editmydiscord</code>
+                Нет доступа — обратитесь к ЗГС ЦА+
               </p>
             </div>
           </section>

@@ -5,20 +5,39 @@ import { type CSSProperties, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { PRIORITY_LABELS, STATUS_LABELS, type Task, type TaskDetail } from '../../api'
 import { normalizeLabels } from '../../lib/labels'
+import { StaffNickInline } from '../staff/StaffNickInline'
 import { cn, formatDueDate, isOverdue, priorityBadgeClass, statusBadgeClass, TASK_TYPE_LABELS, taskTypeBadgeClass } from '../../lib/utils'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
-function assigneeLine(task: Task): string {
-  if (task.assignee_names?.length) return task.assignee_names.join(', ')
-  if (task.assignee_name) return task.assignee_name
-  const ids = task.assignee_vk_ids?.length
-    ? task.assignee_vk_ids
-    : task.assignee_vk_id
-      ? [task.assignee_vk_id]
-      : []
-  if (!ids.length) return 'Не назначен'
-  return ids.map((id) => `id${id}`).join(', ')
+function assigneeNames(task: Task): string[] {
+  if (task.assignee_names?.length) return task.assignee_names
+  if (task.assignee_name) return [task.assignee_name]
+  return []
+}
+
+function TaskAssignees({ task }: { task: Task }) {
+  const names = assigneeNames(task)
+  if (!names.length) {
+    const ids = task.assignee_vk_ids?.length
+      ? task.assignee_vk_ids
+      : task.assignee_vk_id
+        ? [task.assignee_vk_id]
+        : []
+    if (!ids.length) return <>Не назначен</>
+    return <>{ids.map((id) => `id${id}`).join(', ')}</>
+  }
+
+  return (
+    <span className="task-card-assignees">
+      {names.map((name, i) => (
+        <span key={`${name}-${i}`} className="task-card-assignee">
+          {i > 0 && ', '}
+          <StaffNickInline label={name} compact />
+        </span>
+      ))}
+    </span>
+  )
 }
 
 function commentMeta(task: Task) {
@@ -42,19 +61,19 @@ function TaskCardContent({ task }: { task: Task }) {
         <span className="shrink-0 text-[10px] text-white/30">#{task.id}</span>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 overflow-hidden">
         {task.task_type && task.task_type !== 'assignment' && (
-          <span className={cn('badge-pill text-[10px]', taskTypeBadgeClass(task.task_type))}>
+          <span className={cn('badge-pill text-[10px] max-w-full truncate', taskTypeBadgeClass(task.task_type))}>
             {TASK_TYPE_LABELS[task.task_type] || task.task_type}
           </span>
         )}
-        <span className={cn('badge-pill text-[10px]', priorityBadgeClass(priority))}>
+        <span className={cn('badge-pill text-[10px] shrink-0', priorityBadgeClass(priority))}>
           {PRIORITY_LABELS[priority] || priority}
         </span>
         {task.project_title && (
-          <span className="badge-pill text-[10px] badge-gold inline-flex items-center gap-1">
-            <FolderKanban size={10} />
-            {task.project_title}
+          <span className="badge-pill text-[10px] badge-gold inline-flex max-w-full items-center gap-1 truncate">
+            <FolderKanban size={10} className="shrink-0" />
+            <span className="truncate">{task.project_title}</span>
           </span>
         )}
         {labels.slice(0, 3).map((label) => (
@@ -76,7 +95,9 @@ function TaskCardContent({ task }: { task: Task }) {
       )}
 
       <div className="mt-2 flex min-w-0 items-center justify-between gap-2 text-xs text-white/40">
-        <span className="min-w-0 flex-1 truncate">{assigneeLine(task)}</span>
+        <span className="min-w-0 flex-1 truncate">
+          <TaskAssignees task={task} />
+        </span>
         {commentCount > 0 && (
           <span className="flex shrink-0 items-center gap-1.5" title={name ? `Последний: ${name}` : undefined}>
             {avatar && (

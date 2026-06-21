@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FolderKanban } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api'
 import { TasksWorkspace } from './TasksPage'
@@ -12,19 +13,18 @@ export function ProjectDetailPage() {
     api.project(projectId).then(setProject)
   }, [projectId])
 
-  if (!project) return <div className="text-white/40">Загрузка…</div>
+  if (!project) return <div className="page-loading">Загрузка…</div>
 
   return (
-    <div>
-      <TasksWorkspace
-        projectId={projectId}
-        title={project.title}
-        subtitle={project.description || 'Задачи проекта'}
-        section="Работа"
-        headerBack={{ href: '/projects', label: 'Проекты' }}
-        taskPathPrefix={`/projects/${projectId}/tasks`}
-        taskIdParam={taskId}
-      />
-    </div>
+    <TasksWorkspace
+      projectId={projectId}
+      title={project.title}
+      subtitle={project.description || 'Задачи проекта'}
+      section="Работа"
+      headerIcon={FolderKanban}
+      headerBack={{ href: '/projects', label: 'Проекты' }}
+      taskPathPrefix={`/projects/${projectId}/tasks`}
+      taskIdParam={taskId}
+    />
   )
 }

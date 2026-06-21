@@ -110,7 +110,8 @@ export function Select({
             <li key={opt.value} role="option" aria-selected={active}>
               <button
                 type="button"
-                onMouseDown={(e) => {
+                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => {
                   e.preventDefault()
                   onChange(opt.value)
                   setOpen(false)
@@ -136,7 +137,7 @@ export function Select({
         onClick={() => !disabled && setOpen((v) => !v)}
         className={cn(
           'control flex w-full items-center justify-between gap-2 text-left',
-          size === 'sm' ? 'control-sm h-8 px-2.5 text-xs' : 'h-10',
+          size === 'sm' ? 'control-sm' : 'control-md',
           open && 'control-focus',
         )}
       >

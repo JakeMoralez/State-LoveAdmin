@@ -18,7 +18,9 @@ import {
   QuestionList,
   ReviewQuestionModal,
 } from '../components/question-banks/QuestionBankUi'
+import { BankIcon } from '../components/question-banks/BankIcon'
 import { PageHeader } from '../components/PageHeader'
+import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { Select, recordToOptions } from '../components/ui/Select'
 
@@ -31,6 +33,7 @@ export function QuestionBankDetailPage() {
   const [bank, setBank] = useState<QuestionBankDetail | null>(null)
   const [meta, setMeta] = useState<QuestionBankMeta | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
+  const [q, setQ] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -67,10 +70,30 @@ export function QuestionBankDetailPage() {
 
   const permissions = bank?.permissions ?? meta?.permissions
 
+  const filteredQuestions = useMemo(() => {
+    if (!bank) return []
+    const needle = q.trim().toLowerCase()
+    if (!needle) return bank.questions
+    return bank.questions.filter(
+      (item) =>
+        item.text.toLowerCase().includes(needle) ||
+        (item.author_name ?? '').toLowerCase().includes(needle) ||
+        (item.status_label ?? '').toLowerCase().includes(needle),
+    )
+  }, [bank, q])
+
   const statusOptions = useMemo(() => {
     const labels = meta?.status_labels ?? QB_STATUS_LABELS
     return [{ value: '', label: 'Все статусы' }, ...recordToOptions(labels as Record<string, string>)]
   }, [meta])
+
+  const bankSubtitle = useMemo(() => {
+    if (!bank) return undefined
+    const stats = `${bank.question_count} подтверждённых${(bank.pending_count ?? 0) > 0 ? ` · ${bank.pending_count} на проверке` : ''}`
+    const desc = bank.description?.trim()
+    if (desc && desc !== bank.title.trim()) return `${desc} · ${stats}`
+    return stats
+  }, [bank])
 
   const openCreate = () => {
     setActiveItem(null)
@@ -138,23 +161,21 @@ export function QuestionBankDetailPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--qb">
       <PageHeader
         section="Работа"
         title={bank?.title ?? 'Банк вопросов'}
+        leading={bank ? <BankIcon iconKey={bank.emoji} size={18} boxed className="page-title-bank-icon" /> : undefined}
         back={{ href: '/question-banks', label: 'Банки' }}
-        subtitle={
-          bank
-            ? bank.description ||
-              `${bank.question_count} подтверждённых${(bank.pending_count ?? 0) > 0 ? ` · ${bank.pending_count} на проверке` : ''}`
-            : undefined
-        }
+        shrink
+        subtitle={bankSubtitle}
       />
 
       {permissions && (
-        <div className="qb-toolbar qb-toolbar--detail">
+        <PageToolbarRow className="qb-toolbar-panel--detail">
+          <PageSearch variant="row" value={q} onChange={setQ} placeholder="Поиск вопросов…" />
           <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} className="qb-toolbar-filter" />
-          <div className="qb-toolbar-actions">
+          <PageToolbarActions>
             {permissions.can_submit && (
               <button type="button" className="btn-primary" onClick={openCreate}>
                 <Plus size={18} className="mr-1.5" />
@@ -173,8 +194,8 @@ export function QuestionBankDetailPage() {
                 </button>
               </>
             )}
-          </div>
-        </div>
+          </PageToolbarActions>
+        </PageToolbarRow>
       )}
 
       {permissions?.can_submit && !permissions.can_direct_confirm && (
@@ -189,7 +210,7 @@ export function QuestionBankDetailPage() {
       {bank && permissions && (
         <>
           <QuestionList
-            items={bank.questions}
+            items={filteredQuestions}
             permissions={permissions}
             currentVkId={user?.vk_id}
             onEdit={openEdit}
@@ -232,13 +253,14 @@ export function QuestionBankDetailPage() {
       />
 
       <ModalViewport open={editBankOpen} onBackdropClick={() => setEditBankOpen(false)}>
-        <div className="glass-card qb-modal modal-pop relative z-10 w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="glass-card qb-modal modal-pop modal-card modal-card--sm relative z-10 w-full" onClick={(e) => e.stopPropagation()}>
           <h2 className="text-lg font-bold mb-4">Редактировать банк</h2>
           {bank && (
             <BankForm
               initial={{
                 title: bank.title,
                 description: bank.description,
+                emoji: bank.emoji,
                 min_submit_level: bank.min_submit_level,
                 min_approve_level: bank.min_approve_level,
               }}

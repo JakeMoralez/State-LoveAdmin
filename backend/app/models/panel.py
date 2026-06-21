@@ -227,6 +227,7 @@ class QuestionBank(Model):
     server_id = fields.IntField(index=True)
     title = fields.CharField(max_length=256)
     description = fields.TextField(default="")
+    emoji = fields.CharField(max_length=16, default="")
     min_submit_level = fields.IntField(default=1)
     min_approve_level = fields.IntField(default=3)
     created_by_vk_id = fields.BigIntField(index=True)

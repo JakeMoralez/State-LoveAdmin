@@ -60,6 +60,11 @@ export function TaskDrawer({
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    document.body.classList.add('sl-drawer-open')
+    return () => document.body.classList.remove('sl-drawer-open')
+  }, [])
+
   const load = () => api.task(taskId).then(setTask)
 
   useEffect(() => {

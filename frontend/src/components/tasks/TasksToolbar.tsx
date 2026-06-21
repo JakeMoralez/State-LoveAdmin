@@ -66,10 +66,10 @@ export function TasksToolbar({
     })
 
   return (
-    <div className="tasks-toolbar shrink-0">
-      <div className="tasks-toolbar-row">
+    <div className="tasks-toolbar-panel shrink-0">
+      <div className="tasks-toolbar-panel-row">
         {onCreate && (
-          <button type="button" onClick={onCreate} className="btn btn-gold tasks-toolbar-create">
+          <button type="button" onClick={onCreate} className="btn-primary btn-sm tasks-toolbar-create shrink-0">
             <Plus size={16} />
             Задача
           </button>
@@ -77,35 +77,36 @@ export function TasksToolbar({
 
         <button
           type="button"
-          className={cn('tasks-filter-toggle', (open || activeCount > 0) && 'tasks-filter-toggle--active')}
+          className={cn('btn-secondary btn-sm tasks-filter-toggle', open && 'tasks-filter-toggle--open')}
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
         >
-          <Filter size={15} />
+          <Filter size={14} />
           Фильтры
           {activeCount > 0 && <span className="tasks-filter-count">{activeCount}</span>}
-          <ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} />
+          <ChevronDown size={14} className={cn('tasks-filter-chevron', open && 'tasks-filter-chevron--open')} />
         </button>
 
-        <span className="tasks-count text-sm text-white/40">
+        <span className="tasks-count">
           {shown} из {total}
         </span>
 
-        <div className="view-toggle tasks-view-toggle flex rounded-xl border border-white/10 bg-black/20 p-0.5">
+        <div className="tasks-view-toggle">
           <button
             type="button"
-            className={cn('px-2.5 py-1.5 rounded-lg border-0 bg-transparent cursor-pointer', filters.view === 'kanban' && 'view-toggle-active')}
+            className={cn('tasks-view-btn', filters.view === 'kanban' && 'tasks-view-btn--active')}
             onClick={() => onChange({ view: 'kanban' })}
             title="Канбан"
           >
-            <LayoutGrid size={15} />
+            <LayoutGrid size={14} />
           </button>
           <button
             type="button"
-            className={cn('px-2.5 py-1.5 rounded-lg border-0 bg-transparent cursor-pointer', filters.view === 'list' && 'view-toggle-active')}
+            className={cn('tasks-view-btn', filters.view === 'list' && 'tasks-view-btn--active')}
             onClick={() => onChange({ view: 'list' })}
             title="Список"
           >
-            <List size={15} />
+            <List size={14} />
           </button>
         </div>
       </div>
@@ -114,16 +115,22 @@ export function TasksToolbar({
         <div className="tasks-filters-panel">
           <button
             type="button"
-            className={cn('filter-chip', filters.mine && 'active')}
+            className={cn('btn-secondary btn-sm tasks-filter-mine', filters.mine && 'tasks-filter-mine--active')}
             onClick={() => onChange({ mine: !filters.mine, assigneeVkId: '' })}
           >
             Мои
           </button>
-          <div className="w-full sm:w-44">
-            <Select value={filters.assigneeVkId} onChange={(v) => onChange({ assigneeVkId: v, mine: false })} options={assigneeOptions} />
-          </div>
-          <div className="w-full sm:w-40">
+          <div className="tasks-filter-field">
             <Select
+              size="sm"
+              value={filters.assigneeVkId}
+              onChange={(v) => onChange({ assigneeVkId: v, mine: false })}
+              options={assigneeOptions}
+            />
+          </div>
+          <div className="tasks-filter-field">
+            <Select
+              size="sm"
               value={filters.priority}
               onChange={(v) => onChange({ priority: v })}
               options={[
@@ -133,11 +140,16 @@ export function TasksToolbar({
             />
           </div>
           {!hideProjectFilter && (
-            <div className="w-full sm:w-48">
-              <Select value={filters.projectId} onChange={(v) => onChange({ projectId: v })} options={projectOptions} />
+            <div className="tasks-filter-field">
+              <Select
+                size="sm"
+                value={filters.projectId}
+                onChange={(v) => onChange({ projectId: v })}
+                options={projectOptions}
+              />
             </div>
           )}
-          <button type="button" className="filter-chip" onClick={reset}>
+          <button type="button" className="btn-ghost btn-sm tasks-filter-reset" onClick={reset}>
             <RotateCcw size={14} />
             Сброс
           </button>

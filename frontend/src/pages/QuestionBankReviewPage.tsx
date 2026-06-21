@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
@@ -14,6 +14,7 @@ import {
   qbStatusClass,
 } from '../components/question-banks/QuestionBankUi'
 import { PageHeader } from '../components/PageHeader'
+import { PageSearch } from '../components/ui/PageSearch'
 
 export function QuestionBankReviewPage() {
   const [items, setItems] = useState<QuestionBankPendingItem[]>([])
@@ -21,6 +22,7 @@ export function QuestionBankReviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reviewItem, setReviewItem] = useState<QuestionBankPendingItem | null>(null)
+  const [q, setQ] = useState('')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyEvents, setHistoryEvents] = useState<QuestionBankItemEvent[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -51,6 +53,17 @@ export function QuestionBankReviewPage() {
     can_direct_confirm: false,
   }
 
+  const visibleItems = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return items
+    return items.filter(
+      (item) =>
+        item.text.toLowerCase().includes(needle) ||
+        item.bank_title.toLowerCase().includes(needle) ||
+        item.author_name?.toLowerCase().includes(needle),
+    )
+  }, [items, q])
+
   const openHistory = async (item: QuestionBankPendingItem) => {
     setHistoryOpen(true)
     setHistoryLoading(true)
@@ -66,31 +79,36 @@ export function QuestionBankReviewPage() {
 
   if (!permissions.can_review && !loading) {
     return (
-      <div className="page-stack">
-        <PageHeader section="Работа" title="Очередь проверки" icon={ClipboardCheck} back={{ href: '/question-banks', label: 'Банки' }} />
+      <div className="page-stack page-stack--qb">
+        <PageHeader section="Работа" title="Очередь проверки" icon={ClipboardCheck} back={{ href: '/question-banks', label: 'Банки' }} shrink />
         <p className="text-white/50">Очередь проверки доступна ГС/ЗГС+.</p>
       </div>
     )
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--qb">
       <PageHeader
         section="Работа"
         title="На проверке"
         icon={ClipboardCheck}
         back={{ href: '/question-banks', label: 'Банки' }}
+        shrink
         subtitle={items.length ? `${items.length} вопросов ожидают ГС/ЗГС` : 'Очередь пуста'}
       />
+
+      {!loading && items.length > 0 && (
+        <PageSearch value={q} onChange={setQ} placeholder="Поиск по тексту, банку или автору…" />
+      )}
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
       {loading && <p className="text-white/40 text-sm">Загрузка…</p>}
 
-      {!loading && items.length > 0 && (
+      {!loading && visibleItems.length > 0 && (
         <ul className="qb-review-queue">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <li key={item.id} className="qb-review-queue-item">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="qb-review-item-head">
                 <div className="min-w-0 flex-1">
                   <Link to={`/question-banks/${item.bank_id}`} className="text-xs text-amber-400/80 hover:underline">
                     {item.bank_title}
@@ -101,7 +119,7 @@ export function QuestionBankReviewPage() {
                     <span>{item.author_name}</span>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="action-row">
                   <button type="button" className="btn-secondary btn-sm" onClick={() => void openHistory(item)}>
                     История
                   </button>
@@ -117,6 +135,10 @@ export function QuestionBankReviewPage() {
 
       {!loading && !items.length && !error && (
         <p className="text-white/40 text-center py-12">Нет вопросов на проверке</p>
+      )}
+
+      {!loading && items.length > 0 && visibleItems.length === 0 && (
+        <p className="text-white/40 text-center py-12">Ничего не найдено</p>
       )}
 
       <ReviewQuestionModal

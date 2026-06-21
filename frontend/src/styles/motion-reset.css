@@ -1,0 +1,62 @@
+/**
+ * Disable legacy index.css motion (stagger, shimmer, slide, translateX hovers)
+ * Loaded last — overrides @layer components in index.css
+ */
+
+.btn-primary::after,
+.btn-gold::after,
+.btn-sky::after,
+.btn-vk::after {
+  display: none !important;
+  animation: none !important;
+}
+
+.stat-card,
+.stat-card:nth-child(n),
+.kanban-column,
+.kanban-card,
+.sidebar-nav-group,
+.sidebar-nav-group:nth-child(n),
+.staff-registry-body .staff-registry-row,
+.staff-registry-body .staff-registry-row:nth-child(n),
+.staff-registry-row,
+.glass-card,
+.dev-log-card {
+  animation: none !important;
+}
+
+.staff-registry-row:hover,
+.leaders-registry-row:hover,
+.kanban-card:hover {
+  transform: none !important;
+}
+
+.sidebar-nav a:not(.nav-active):hover,
+.sidebar-nav-link:not(.nav-active):hover {
+  transform: none !important;
+}
+
+.page-enter,
+.page-enter-fade,
+.animate-fade-in,
+.animate-fade-up {
+  animation: sl-fade-in var(--motion-base) var(--ease) both !important;
+}
+
+.page-enter--stagger > *,
+.stagger-children > * {
+  animation: sl-fade-in var(--motion-base) var(--ease) both !important;
+  animation-delay: 0s !important;
+}
+
+.modal-pop {
+  animation: sl-modal-in var(--motion-base) var(--ease) both !important;
+}
+
+.overlay-backdrop {
+  animation: sl-backdrop-in var(--motion-fast) var(--ease) both !important;
+}
+
+.login-emblem {
+  animation: none !important;
+}

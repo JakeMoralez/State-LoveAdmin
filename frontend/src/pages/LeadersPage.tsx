@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Shield } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type LeaderMember, type LeaderMemberDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { PageSearch } from '../components/ui/PageSearch'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 import { staffLabel } from '../lib/staff'
 
@@ -91,24 +92,19 @@ export function LeadersPage() {
   }
 
   return (
-    <div className="content-fixed">
+    <div className="page-stack">
       <PageHeader
         section="Команда"
         title="Руководство"
         icon={Shield}
         subtitle={`${total} в реестре · ник — профиль, ⚙ — настройки`}
         shrink
-        actions={
-          <div className="w-full max-w-sm">
-            <input
-              type="search"
-              placeholder="Поиск по нику, должности или заметке…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="control w-full"
-            />
-          </div>
-        }
+      />
+
+      <PageSearch
+        value={q}
+        onChange={setQ}
+        placeholder="Поиск по нику, должности или заметке…"
       />
 
       {settingsError && (
@@ -117,66 +113,68 @@ export function LeadersPage() {
         </p>
       )}
 
-      <div className="staff-registry leaders-registry">
-        <div className="staff-registry-head leaders-registry-head">
-          {columns.map((col) => (
-            <button
-              key={col.key}
-              type="button"
-              className={`staff-registry-th ${col.className}`}
-              onClick={() => toggleSort(col.key)}
-            >
-              <span>{col.label}</span>
-              <SortIcon active={sortKey === col.key} dir={sortDir} />
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="staff-registry-empty page-loading">Загрузка…</div>
-        ) : sorted.length === 0 ? (
-          <div className="staff-registry-empty">Никого не найдено</div>
-        ) : (
-          <div className="staff-registry-body ll-scroll">
-            {sorted.map((m, i) => (
-              <div key={m.vk_id} className="staff-registry-row leaders-registry-row">
-                <div className="staff-col-num">{i + 1}</div>
-                <div className="staff-col-nick">
-                  <span className="staff-avatar-wrap">
-                    <img
-                      src={m.avatar_url || DEFAULT_AVATAR}
-                      alt=""
-                      className="staff-avatar"
-                      loading="lazy"
-                    />
-                  </span>
-                  <Link
-                    to={`/leaders/${m.vk_id}`}
-                    className="staff-nick staff-nick-btn link-gold no-underline"
-                  >
-                    {staffLabel(m)}
-                  </Link>
-                  <button
-                    type="button"
-                    className="staff-settings-btn"
-                    title="Настройки"
-                    aria-label={`Настройки: ${staffLabel(m)}`}
-                    disabled={settingsLoadingVkId === m.vk_id}
-                    onClick={() => void openSettings(m)}
-                  >
-                    <Settings
-                      size={15}
-                      className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
-                    />
-                  </button>
-                  <span className="staff-badges">🛡</span>
-                </div>
-                <div className="staff-col-position staff-col-readonly">{m.position || '—'}</div>
-              </div>
+      {loading ? (
+        <div className="page-loading">Загрузка…</div>
+      ) : (
+        <div className="staff-registry leaders-registry">
+          <div className="staff-registry-head leaders-registry-head">
+            {columns.map((col) => (
+              <button
+                key={col.key}
+                type="button"
+                className={`staff-registry-th ${col.className}`}
+                onClick={() => toggleSort(col.key)}
+              >
+                <span>{col.label}</span>
+                <SortIcon active={sortKey === col.key} dir={sortDir} />
+              </button>
             ))}
           </div>
-        )}
-      </div>
+
+          {sorted.length === 0 ? (
+            <div className="staff-registry-empty">Никого не найдено</div>
+          ) : (
+            <div className="staff-registry-body ll-scroll">
+              {sorted.map((m, i) => (
+                <div key={m.vk_id} className="staff-registry-row leaders-registry-row">
+                  <div className="staff-col-num">{i + 1}</div>
+                  <div className="staff-col-nick">
+                    <span className="staff-avatar-wrap">
+                      <img
+                        src={m.avatar_url || DEFAULT_AVATAR}
+                        alt=""
+                        className="staff-avatar"
+                        loading="lazy"
+                      />
+                    </span>
+                    <Link
+                      to={`/leaders/${m.vk_id}`}
+                      className="staff-nick staff-nick-btn staff-nick-link no-underline"
+                    >
+                      {staffLabel(m)}
+                    </Link>
+                    <button
+                      type="button"
+                      className="staff-settings-btn"
+                      title="Настройки"
+                      aria-label={`Настройки: ${staffLabel(m)}`}
+                      disabled={settingsLoadingVkId === m.vk_id}
+                      onClick={() => void openSettings(m)}
+                    >
+                      <Settings
+                        size={15}
+                        className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
+                      />
+                    </button>
+                    <span className="staff-badges">🛡</span>
+                  </div>
+                  <div className="staff-col-position staff-col-readonly">{m.position || '—'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <LeaderProfileModal
         member={settingsMember}

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Bug, RefreshCw, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, Bug, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react'
 import { ApiError, api, type DevErrorItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { PageSearch } from '../components/ui/PageSearch'
 
 function formatWhen(iso: string | null) {
   if (!iso) return '—'
@@ -26,6 +27,7 @@ export function DevPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [q, setQ] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -47,6 +49,18 @@ export function DevPage() {
     return () => window.clearInterval(id)
   }, [load])
 
+  const filteredItems = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return items
+    return items.filter(
+      (item) =>
+        item.message.toLowerCase().includes(needle) ||
+        item.source.toLowerCase().includes(needle) ||
+        item.level.toLowerCase().includes(needle) ||
+        (item.url ?? '').toLowerCase().includes(needle),
+    )
+  }, [items, q])
+
   const clearAll = async () => {
     if (!window.confirm('Очистить весь лог ошибок?')) return
     await api.clearDevErrors()
@@ -54,12 +68,13 @@ export function DevPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="page-stack page-stack--dev">
       <PageHeader
         section="Разработка"
         title="Лог ошибок"
         icon={Bug}
-        subtitle={`Клиентские и серверные ошибки панели. Хранится последние ${total} записей.`}
+        subtitle={`Клиентские и серверные ошибки панели · ${total} записей`}
+        shrink
         actions={
           <>
             <button
@@ -68,7 +83,7 @@ export function DevPage() {
               onClick={() => void load()}
               disabled={loading}
             >
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={15} className={loading ? 'animate-spin' : undefined} />
               Обновить
             </button>
             <button
@@ -83,62 +98,78 @@ export function DevPage() {
         }
       />
 
-      {error && (
-        <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200 flex items-center gap-2">
-          <AlertTriangle size={16} />
-          {error}
-        </div>
+      {items.length > 0 && (
+        <PageSearch value={q} onChange={setQ} placeholder="Поиск по сообщению, источнику или URL…" />
       )}
 
-      <div className="dev-log-list">
-        {loading && items.length === 0 ? (
-          <div className="page-loading text-center py-12">Загрузка…</div>
-        ) : items.length === 0 ? (
-          <div className="text-white/35 text-sm py-12 text-center">Ошибок пока нет</div>
-        ) : (
-          items.map((item) => (
-            <article key={item.id} className="dev-log-card">
-              <button
-                type="button"
-                className="dev-log-card-head"
-                onClick={() => setExpanded((v) => (v === item.id ? null : item.id))}
-              >
-                <span className={levelClass(item.level)}>{item.level}</span>
-                <span className="dev-log-source">{item.source}</span>
-                <span className="dev-log-message">{item.message}</span>
-                <span className="dev-log-time">{formatWhen(item.created_at)}</span>
-              </button>
-              {expanded === item.id && (
-                <div className="dev-log-card-body">
-                  <div className="dev-log-meta">
-                    {item.url && (
-                      <div>
-                        <span>URL</span>
-                        <code>{item.url}</code>
-                      </div>
-                    )}
-                    {item.method && (
-                      <div>
-                        <span>Method</span>
-                        <code>{item.method}</code>
-                      </div>
-                    )}
-                    {item.user_vk_id != null && (
-                      <div>
-                        <span>VK</span>
-                        <code>{item.user_vk_id}</code>
-                      </div>
+      <div className="page-body page-body--wide">
+        {error && (
+          <div className="alert-banner">
+            <AlertTriangle size={16} />
+            {error}
+          </div>
+        )}
+
+        <div className="dev-log-list">
+          {loading && items.length === 0 ? (
+            <div className="page-empty-state page-empty-state--card page-loading">Загрузка…</div>
+          ) : items.length === 0 ? (
+            <div className="page-empty-state page-empty-state--card">
+              <CheckCircle2 size={32} strokeWidth={1.5} className="page-empty-state-icon" aria-hidden />
+              <p className="page-empty-state-title">Ошибок пока нет</p>
+              <p className="page-empty-state-hint">
+                Записи появятся здесь автоматически при сбоях клиента или сервера
+              </p>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="page-empty-state page-empty-state--card">
+              <p className="page-empty-state-title">Ничего не найдено</p>
+            </div>
+          ) : (
+            filteredItems.map((item) => (
+              <article key={item.id} className="dev-log-card">
+                <button
+                  type="button"
+                  className="dev-log-card-head"
+                  onClick={() => setExpanded((v) => (v === item.id ? null : item.id))}
+                >
+                  <span className={levelClass(item.level)}>{item.level}</span>
+                  <span className="dev-log-source">{item.source}</span>
+                  <span className="dev-log-message">{item.message}</span>
+                  <span className="dev-log-time">{formatWhen(item.created_at)}</span>
+                </button>
+                {expanded === item.id && (
+                  <div className="dev-log-card-body">
+                    <div className="dev-log-meta">
+                      {item.url && (
+                        <div>
+                          <span>URL</span>
+                          <code>{item.url}</code>
+                        </div>
+                      )}
+                      {item.method && (
+                        <div>
+                          <span>Method</span>
+                          <code>{item.method}</code>
+                        </div>
+                      )}
+                      {item.user_vk_id != null && (
+                        <div>
+                          <span>VK</span>
+                          <code>{item.user_vk_id}</code>
+                        </div>
+                      )}
+                    </div>
+                    {item.stack && <pre className="dev-log-stack">{item.stack}</pre>}
+                    {item.context && (
+                      <pre className="dev-log-stack">{JSON.stringify(item.context, null, 2)}</pre>
                     )}
                   </div>
-                  {item.stack && <pre className="dev-log-stack">{item.stack}</pre>}
-                  {item.context && (
-                    <pre className="dev-log-stack">{JSON.stringify(item.context, null, 2)}</pre>
-                  )}
-                </div>
-              )}
-            </article>
-          ))
-        )}
+                )}
+              </article>
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

@@ -38,6 +38,7 @@ router = APIRouter(prefix="/api/question-banks", tags=["question-banks"])
 class BankBody(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     description: str = ""
+    emoji: str = Field(default="", max_length=16)
     min_submit_level: int = Field(default=1, ge=1, le=AccessLevel.DEVELOPER)
     min_approve_level: int = Field(default=ZGS_MIN_LEVEL, ge=1, le=AccessLevel.DEVELOPER)
     sort_order: int = 0
@@ -171,6 +172,7 @@ async def create_bank(body: BankBody, user: dict = Depends(require_ca_user)):
         server_id=DEFAULT_SERVER_ID,
         title=body.title.strip(),
         description=body.description.strip(),
+        emoji=body.emoji.strip(),
         min_submit_level=body.min_submit_level,
         min_approve_level=body.min_approve_level,
         created_by_vk_id=user["vk_id"],
@@ -225,6 +227,7 @@ async def update_bank(bank_id: int, body: BankBody, user: dict = Depends(require
     assert_can_manage(user)
     bank.title = body.title.strip()
     bank.description = body.description.strip()
+    bank.emoji = body.emoji.strip()
     bank.min_submit_level = body.min_submit_level
     bank.min_approve_level = body.min_approve_level
     bank.sort_order = body.sort_order

@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type StaffMember, type StaffMemberDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { PageSearch } from '../components/ui/PageSearch'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { staffLabel } from '../lib/staff'
 
@@ -102,24 +103,19 @@ export function StaffPage() {
   }
 
   return (
-    <div className="content-fixed">
+    <div className="page-stack">
       <PageHeader
         section="Команда"
         title="Следящие"
         icon={Users}
         subtitle={`${total} человек в реестре · ник — профиль, ⚙ — настройки`}
         shrink
-        actions={
-          <div className="w-full max-w-sm">
-            <input
-              type="search"
-              placeholder="Поиск по нику, VK или Discord…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              className="control w-full"
-            />
-          </div>
-        }
+      />
+
+      <PageSearch
+        value={q}
+        onChange={setQ}
+        placeholder="Поиск по нику, VK или Discord…"
       />
 
       {settingsError && (
@@ -128,69 +124,71 @@ export function StaffPage() {
         </p>
       )}
 
-      <div className="staff-registry">
-        <div className="staff-registry-head">
-          {columns.map((col) => (
-            <button
-              key={col.key}
-              type="button"
-              className={`staff-registry-th ${col.className}`}
-              onClick={() => toggleSort(col.key)}
-            >
-              <span>{col.label}</span>
-              <SortIcon active={sortKey === col.key} dir={sortDir} />
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="staff-registry-empty page-loading">Загрузка…</div>
-        ) : sorted.length === 0 ? (
-          <div className="staff-registry-empty">Никого не найдено</div>
-        ) : (
-          <div className="staff-registry-body ll-scroll">
-            {sorted.map((m, i) => (
-              <div key={m.vk_id} className="staff-registry-row">
-                <div className="staff-col-num">{i + 1}</div>
-                <div className="staff-col-nick">
-                  <span className="staff-avatar-wrap">
-                    <img
-                      src={m.avatar_url || DEFAULT_AVATAR}
-                      alt=""
-                      className="staff-avatar"
-                      loading="lazy"
-                    />
-                  </span>
-                  <Link
-                    to={`/staff/${m.vk_id}`}
-                    className="staff-nick staff-nick-btn link-gold no-underline"
-                  >
-                    {staffLabel(m)}
-                  </Link>
-                  <button
-                    type="button"
-                    className="staff-settings-btn"
-                    title="Настройки"
-                    aria-label={`Настройки: ${staffLabel(m)}`}
-                    disabled={settingsLoadingVkId === m.vk_id}
-                    onClick={() => void openSettings(m)}
-                  >
-                    <Settings
-                      size={15}
-                      className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
-                    />
-                  </button>
-                  {m.badges.length > 0 && (
-                    <span className="staff-badges">{m.badges.join(' ')}</span>
-                  )}
-                </div>
-                <div className="staff-col-role">{m.access_role_title || m.access_level_name}</div>
-                <div className="staff-col-sphere">{m.sphere || '—'}</div>
-              </div>
+      {loading ? (
+        <div className="page-loading">Загрузка…</div>
+      ) : (
+        <div className="staff-registry">
+          <div className="staff-registry-head">
+            {columns.map((col) => (
+              <button
+                key={col.key}
+                type="button"
+                className={`staff-registry-th ${col.className}`}
+                onClick={() => toggleSort(col.key)}
+              >
+                <span>{col.label}</span>
+                <SortIcon active={sortKey === col.key} dir={sortDir} />
+              </button>
             ))}
           </div>
-        )}
-      </div>
+
+          {sorted.length === 0 ? (
+            <div className="staff-registry-empty">Никого не найдено</div>
+          ) : (
+            <div className="staff-registry-body ll-scroll">
+              {sorted.map((m, i) => (
+                <div key={m.vk_id} className="staff-registry-row">
+                  <div className="staff-col-num">{i + 1}</div>
+                  <div className="staff-col-nick">
+                    <span className="staff-avatar-wrap">
+                      <img
+                        src={m.avatar_url || DEFAULT_AVATAR}
+                        alt=""
+                        className="staff-avatar"
+                        loading="lazy"
+                      />
+                    </span>
+                    <Link
+                      to={`/staff/${m.vk_id}`}
+                      className="staff-nick staff-nick-btn staff-nick-link no-underline"
+                    >
+                      {staffLabel(m)}
+                    </Link>
+                    <button
+                      type="button"
+                      className="staff-settings-btn"
+                      title="Настройки"
+                      aria-label={`Настройки: ${staffLabel(m)}`}
+                      disabled={settingsLoadingVkId === m.vk_id}
+                      onClick={() => void openSettings(m)}
+                    >
+                      <Settings
+                        size={15}
+                        className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
+                      />
+                    </button>
+                    {m.badges.length > 0 && (
+                      <span className="staff-badges">{m.badges.join(' ')}</span>
+                    )}
+                  </div>
+                  <div className="staff-col-role">{m.access_role_title || m.access_level_name}</div>
+                  <div className="staff-col-sphere">{m.sphere || '—'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <StaffProfileModal
         member={settingsMember}

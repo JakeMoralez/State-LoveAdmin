@@ -285,9 +285,9 @@ export function DatePicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={cn('control dp-trigger flex h-10 w-full items-center gap-2 text-left', open && 'control-focus')}
+        className={cn('control control-sm dp-trigger flex w-full items-center gap-2 text-left', open && 'control-focus')}
       >
-        <Calendar size={16} className="text-[var(--accent-gold)] shrink-0" />
+        <Calendar size={14} className="shrink-0 text-white/35" />
         <span className={cn('flex-1 truncate', !parsed.date && 'text-white/35')}>{label}</span>
         {allowEmpty && parsed.date && (
           <span

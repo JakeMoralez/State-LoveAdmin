@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { RefreshCw, Shield } from 'lucide-react'
 import { api, ApiError, type LeadershipCandidate } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
@@ -67,29 +68,17 @@ export function DevLeadershipPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="page-stack">
       <PageHeader
         section="Разработка"
         title="Флаги руководства"
         icon={Shield}
         subtitle={`${total} пользователей в БД (без следящих) · ${leadersCount} в реестре «Руководство»`}
-        actions={
-          <button type="button" className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            Обновить
-          </button>
-        }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          type="search"
-          placeholder="Поиск по нику или VK…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          className="control w-full max-w-sm"
-        />
-        <label className="ui-checkbox-label text-sm text-white/55">
+      <PageToolbarRow>
+        <PageSearch variant="row" value={q} onChange={setQ} placeholder="Поиск по нику или VK…" />
+        <label className="ui-checkbox-label text-sm text-white/55 shrink-0">
           <input
             type="checkbox"
             className="ui-checkbox"
@@ -99,63 +88,70 @@ export function DevLeadershipPage() {
           <span className="ui-checkbox-box" />
           Только с флагом
         </label>
-      </div>
+        <PageToolbarActions>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            Обновить
+          </button>
+        </PageToolbarActions>
+      </PageToolbarRow>
 
-      {error && <div className="glass-card p-4 text-red-400 text-sm">{error}</div>}
+      {error && <div className="glass-card glass-card-pad text-red-400 text-sm">{error}</div>}
 
-      <div className="staff-registry dev-leadership-table">
-        <div className="staff-registry-head dev-leadership-head">
-          <div className="staff-registry-th staff-col-num">#</div>
-          <div className="staff-registry-th staff-col-nick">Ник</div>
-          <div className="staff-registry-th dev-leadership-flag-col">Руководство</div>
-        </div>
-
-        {loading && visible.length === 0 ? (
-          <div className="staff-registry-empty page-loading">Загрузка…</div>
-        ) : visible.length === 0 ? (
-          <div className="staff-registry-empty">Никого не найдено</div>
-        ) : (
-          <div className="staff-registry-body ll-scroll dev-leadership-body">
-            {visible.map((m, i) => (
-              <div key={m.vk_id} className="staff-registry-row dev-leadership-row">
-                <div className="staff-col-num">{i + 1}</div>
-                <div className="staff-col-nick">
-                  <span className="staff-avatar-wrap">
-                    <img
-                      src={m.avatar_url || DEFAULT_AVATAR}
-                      alt=""
-                      className="staff-avatar"
-                      loading="lazy"
-                    />
-                  </span>
-                  <a
-                    href={`https://vk.com/id${m.vk_id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="staff-nick link-gold"
-                  >
-                    {m.display_name || m.nickname}
-                  </a>
-                  <span className="text-[10px] text-white/25 ml-1">#{m.vk_id}</span>
-                </div>
-                <div className="dev-leadership-flag-col">
-                  <label className="ui-checkbox-label dev-leader-toggle">
-                    <input
-                      type="checkbox"
-                      className="ui-checkbox"
-                      checked={m.is_leader}
-                      disabled={busyVkId === m.vk_id}
-                      onChange={(e) => void patch(m, e.target.checked)}
-                    />
-                    <span className="ui-checkbox-box" />
-                    <span>{m.is_leader ? 'В реестре' : 'Нет'}</span>
-                  </label>
-                </div>
-              </div>
-            ))}
+      {loading ? (
+        <div className="page-loading">Загрузка…</div>
+      ) : (
+        <div className="staff-registry dev-leadership-table">
+          <div className="staff-registry-head dev-leadership-head">
+            <div className="staff-registry-th staff-col-num">#</div>
+            <div className="staff-registry-th staff-col-nick">Ник</div>
+            <div className="staff-registry-th dev-leadership-flag-col">Руководство</div>
           </div>
-        )}
-      </div>
+
+          {visible.length === 0 ? (
+            <div className="staff-registry-empty">Никого не найдено</div>
+          ) : (
+            <div className="staff-registry-body ll-scroll dev-leadership-body">
+              {visible.map((m, i) => (
+                <div key={m.vk_id} className="staff-registry-row dev-leadership-row">
+                  <div className="staff-col-num">{i + 1}</div>
+                  <div className="staff-col-nick">
+                    <span className="staff-avatar-wrap">
+                      <img
+                        src={m.avatar_url || DEFAULT_AVATAR}
+                        alt=""
+                        className="staff-avatar"
+                        loading="lazy"
+                      />
+                    </span>
+                    <a
+                      href={`https://vk.com/id${m.vk_id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="staff-nick staff-nick-link no-underline"
+                    >
+                      {m.display_name || m.nickname}
+                    </a>
+                  </div>
+                  <div className="dev-leadership-flag-col">
+                    <label className="ui-checkbox-label dev-leader-toggle">
+                      <input
+                        type="checkbox"
+                        className="ui-checkbox"
+                        checked={m.is_leader}
+                        disabled={busyVkId === m.vk_id}
+                        onChange={(e) => void patch(m, e.target.checked)}
+                      />
+                      <span className="ui-checkbox-box" />
+                      <span>{m.is_leader ? 'В реестре' : 'Нет'}</span>
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

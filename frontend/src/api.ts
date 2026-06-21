@@ -651,6 +651,7 @@ export interface QuestionBank {
   id: number
   title: string
   description: string
+  emoji?: string
   min_submit_level: number
   min_approve_level: number
   min_submit_level_label?: string
@@ -668,6 +669,7 @@ export interface QuestionBank {
 export interface QuestionBankBody {
   title: string
   description?: string
+  emoji?: string
   min_submit_level?: number
   min_approve_level?: number
   sort_order?: number
