@@ -19,6 +19,7 @@ import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { MOBILE_NAV_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
 import { getMobilePageTitle } from '../lib/mobilePageTitle'
+import { MobileTopBarTitleProvider, useMobileTopBarTitleOverride } from '../context/MobileTopBarTitleContext'
 import { BrandLogo } from './BrandLogo'
 import { cn } from '../lib/utils'
 
@@ -99,7 +100,7 @@ function SidebarNavLink({
   )
 }
 
-export function Layout() {
+function LayoutShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -110,9 +111,10 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [qbPendingCount, setQbPendingCount] = useState(0)
 
+  const titleOverride = useMobileTopBarTitleOverride()
   const mobilePageTitle = useMemo(
-    () => getMobilePageTitle(location.pathname),
-    [location.pathname],
+    () => titleOverride ?? getMobilePageTitle(location.pathname),
+    [location.pathname, titleOverride],
   )
 
   const closeMobile = () => setMobileOpen(false)
@@ -343,5 +345,13 @@ export function Layout() {
         </main>
       </div>
     </div>
+  )
+}
+
+export function Layout() {
+  return (
+    <MobileTopBarTitleProvider>
+      <LayoutShell />
+    </MobileTopBarTitleProvider>
   )
 }

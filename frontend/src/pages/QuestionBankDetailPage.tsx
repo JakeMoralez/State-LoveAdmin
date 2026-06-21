@@ -11,6 +11,7 @@ import {
   type QuestionBankMeta,
 } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useMobileTopBarTitle } from '../context/MobileTopBarTitleContext'
 import {
   BankForm,
   QuestionHistoryPanel,
@@ -94,6 +95,8 @@ export function QuestionBankDetailPage() {
     if (desc && desc !== bank.title.trim()) return `${desc} · ${stats}`
     return stats
   }, [bank])
+
+  useMobileTopBarTitle(bank?.title)
 
   const openCreate = () => {
     setActiveItem(null)

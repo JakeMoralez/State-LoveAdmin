@@ -143,8 +143,17 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     display: none;
   }
 
+  .page-stack > .page-header:has(.page-header-crumb) .page-header-crumb {
+    margin-bottom: var(--space-2);
+  }
+
+  .page-stack > .page-header:has(.page-header-crumb) .page-header-heading {
+    gap: var(--space-2);
+  }
+
   .page-stack > .page-header:has(.page-header-crumb) .page-title {
-    display: none;
+    font-size: 1.125rem;
+    line-height: 1.3;
   }
 
   .page-stack > .page-header {
