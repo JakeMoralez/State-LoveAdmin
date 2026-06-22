@@ -120,12 +120,12 @@ async def _persist_staff_spheres(
     granted_by: int | None = None,
 ) -> list[str]:
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
+    normalized = validate_spheres(spheres, access.access_level)
     panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
     panel.spheres = normalized
     panel.updated_by = granted_by
     await panel.save(update_fields=["spheres", "updated_by", "updated_at"])
 
-    access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     await sync_ca_access_from_spheres(access, normalized)
     return normalized
 
