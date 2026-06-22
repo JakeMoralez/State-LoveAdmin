@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from tortoise.expressions import Q
 
 from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
-from app.services.bot_users import ensure_bot_user
+from app.services.bot_users import ensure_bot_user, ensure_server_access
 from app.services.display_names import invalidate_display_names, resolve_bot_nickname
 from app.services.staff_nickname import (
     extract_leading_nickname_tag,
@@ -118,22 +119,13 @@ async def _persist_staff_spheres(
     *,
     granted_by: int | None = None,
 ) -> list[str]:
-    access, _ = await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
-    normalized = validate_spheres(spheres, access.access_level)
+    access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
     panel.spheres = normalized
     panel.updated_by = granted_by
     await panel.save(update_fields=["spheres", "updated_by", "updated_at"])
 
-    access, _ = await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
+    access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     await sync_ca_access_from_spheres(access, normalized)
     return normalized
 
@@ -428,13 +420,7 @@ async def set_ca_leader(
     user, _ = await ensure_bot_user(vk_id)
     position_clean = (position if position is not None else faction).strip()
 
-    access, _ = await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
-
-    level = await get_access_level(vk_id, server_id)
+    access, _ = await ensure_server_access(vk_id, server_id, granted_by=updated_by)
     if is_supervisor(level, access):
         raise ValueError("Пользователь уже в реестре следящих — лидером не назначается")
 
@@ -503,12 +489,7 @@ async def _persist_member_nickname(
         if taken:
             raise ValueError("Этот ник уже занят")
 
-    await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
-    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(nickname=value)
+    await ensure_server_access(vk_id, server_id)
 
     invalidate_display_names(vk_id)
 
@@ -731,14 +712,11 @@ async def assign_staff_member(
 
     user, _ = await ensure_bot_user(vk_id, username=str(vk_id))
 
-    access, _ = await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
+    access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
         access_level=access_level,
         granted_by=granted_by,
+        granted_at=datetime.now(UTC),
     )
 
     normalized_spheres = validate_spheres(spheres, access_level)
@@ -778,11 +756,7 @@ async def update_staff_member(
     if not user:
         raise ValueError("Пользователь не найден")
 
-    access, _ = await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
+    access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     old_level = access.access_level
 
     if access_level is not None:

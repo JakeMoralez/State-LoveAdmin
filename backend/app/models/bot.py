@@ -91,7 +91,7 @@ class UserServerAccess(Model):
     is_congress_speaker = fields.BooleanField(default=False)
     is_congress_vice = fields.BooleanField(default=False)
     granted_by = fields.BigIntField(null=True)
-    granted_at = fields.DatetimeField(null=True)
+    granted_at = fields.DatetimeField()  # NOT NULL в bot.db
     has_ca_access = fields.BooleanField(default=False)
     ca_auto_peer_id = fields.BigIntField(null=True)
 

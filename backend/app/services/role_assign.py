@@ -8,7 +8,7 @@ from typing import Literal
 
 from app.models.bot import User, UserServerAccess
 from app.models.panel import StaffNote
-from app.services.bot_users import ensure_bot_user
+from app.services.bot_users import ensure_bot_user, ensure_server_access
 from app.services.display_names import invalidate_display_names
 from app.services.discord_links import set_discord_link
 from app.services.staff import _persist_member_nickname, assign_staff_member
@@ -112,15 +112,12 @@ async def assign_judge(
     forum = await _apply_forum_account(vk_id, forum_account)
     await _set_user_judge_note(vk_id, position_clean)
 
-    await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
+    await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
         is_judge=True,
         is_leader=True,
         granted_by=granted_by,
+        granted_at=datetime.now(UTC),
     )
 
     await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
@@ -173,13 +170,9 @@ async def assign_congress(
         )
         field = "is_congress_vice"
 
-    await UserServerAccess.get_or_create(
-        user_id=vk_id,
-        server_id=server_id,
-        defaults={"access_level": 0},
-    )
+    await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
-        **{field: True, "granted_by": granted_by},
+        **{field: True, "granted_by": granted_by, "granted_at": datetime.now(UTC)},
     )
 
     await _persist_member_nickname(vk_id, server_id, nick)
