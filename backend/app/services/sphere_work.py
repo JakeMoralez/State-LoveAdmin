@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from app.config import MAIN_ADMIN_ID
+from app.models.bot import AccessLevel
 from app.services.staff_spheres import (
     GOV_STRUCTURES,
     ILLEGAL_STRUCTURES,
@@ -38,6 +40,18 @@ _STRUCTURES = frozenset({GOV_STRUCTURES, ILLEGAL_STRUCTURES})
 _ALL_OPERATIONAL = _MINISTRY | _STRUCTURES
 
 
+def _operational_work_sphere_list() -> list[str]:
+    return [key for key in WORK_SPHERE_KEYS if key != SERVER]
+
+
+def _has_full_work_sphere_access(user: dict) -> bool:
+    level = int(user.get("access_level") or 0)
+    vk_id = int(user.get("vk_id") or 0)
+    if level >= AccessLevel.DEVELOPER:
+        return True
+    return bool(MAIN_ADMIN_ID and vk_id == MAIN_ADMIN_ID)
+
+
 def normalize_work_sphere(raw: str | None) -> str:
     cleaned = (raw or "").strip()
     if cleaned in WORK_SPHERE_KEYS:
@@ -50,7 +64,10 @@ def user_sphere_set(user: dict) -> set[str]:
 
 
 def visible_work_spheres(user: dict) -> list[str]:
-    """Вкладки: свои сферы; Гос/Нелег/Сервер — все операционные сферы."""
+    """Вкладки: свои сферы; Гос/Нелег/Сервер — все операционные; разработчик — все сферы."""
+    if _has_full_work_sphere_access(user):
+        return _operational_work_sphere_list()
+
     mine = user_sphere_set(user)
     if not mine:
         return []
