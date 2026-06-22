@@ -139,8 +139,8 @@ export function TasksWorkspace({
 
   useEffect(() => {
     if (workSpheres && workSpheres.length > 0 && !spheres?.length) return
-    load()
-  }, [load, workSpheres, spheres])
+    void load()
+  }, [load, workSpheres, spheres, apiSpheres])
 
   useEffect(() => {
     if (!spheres?.length && (workSpheres?.length ?? 0) > 0) return

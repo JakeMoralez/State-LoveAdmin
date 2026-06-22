@@ -36,7 +36,7 @@ export function ProjectsPage() {
 
   useEffect(() => {
     if (spheres.length > 0) load()
-  }, [apiKey, spheres.length])
+  }, [apiKey, apiSpheres, spheres.length])
 
   const openCreate = () => {
     setFormError(null)

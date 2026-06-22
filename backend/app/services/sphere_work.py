@@ -74,6 +74,9 @@ def visible_work_spheres(user: dict) -> list[str]:
         mine.add(CENTRAL_APPARATUS)
 
     level = int(user.get("access_level") or 0)
+    # ЗГС/ГС ЦА — задачи сводки и реестра в central_apparatus
+    if AccessLevel.ZGS <= level <= AccessLevel.GS:
+        mine.add(CENTRAL_APPARATUS)
     if not mine and level >= AccessLevel.PGS:
         mine.add(CENTRAL_APPARATUS)
 

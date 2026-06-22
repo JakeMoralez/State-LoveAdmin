@@ -67,16 +67,14 @@ async def get_user_profile(
 
     if dev_spheres is not None:
         spheres = dev_spheres
+    elif user and level >= AccessLevel.PGS:
+        from app.models.panel import StaffNote
+        from app.services.staff import _resolve_staff_spheres
+
+        panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+        spheres = await _resolve_staff_spheres(vk_id, server_id, level, access, user, panel)
     else:
         spheres = staff_row.get("spheres", []) if staff_row else []
-        if not spheres and level >= AccessLevel.PGS and user:
-            from app.models.panel import StaffNote
-            from app.services.staff_spheres import merge_spheres_for_display, migrate_legacy_sphere
-
-            panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
-            note = (panel.note if panel else "") or ""
-            derived = migrate_legacy_sphere(level, access, user, note)
-            spheres = merge_spheres_for_display(derived, access)
     sphere = format_spheres_display(spheres) if spheres else (
         staff_row.get("sphere", "") if staff_row else ""
     )

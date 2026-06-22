@@ -117,6 +117,15 @@ export function useActiveSpheres(pageKey: string, spheres: WorkSphere[]): string
     }
   }, [ids, pageKey, searchParams, setSearchParams])
 
+  // Сброс устаревшего ?sphere= из URL (после смены набора сфер в профиле)
+  useEffect(() => {
+    if (ids.length === 0) return
+    const fromUrl = searchParams.getAll('sphere')
+    const invalid = fromUrl.some((id) => !ids.includes(id))
+    if (!invalid) return
+    setSearchParams((prev) => writeSphereParams(prev, ids, ids), { replace: true })
+  }, [ids, searchParams, setSearchParams])
+
   useEffect(() => {
     try {
       sessionStorage.setItem(`${STORAGE_PREFIX}${pageKey}-multi`, JSON.stringify(active))
@@ -323,7 +332,18 @@ export function SphereTabs({
   selected,
   onSelectedChange,
 }: SphereTabsProps) {
-  if (spheres.length <= 1) return null
+  if (spheres.length === 0) return null
+
+  if (spheres.length === 1) {
+    return (
+      <div className={cn('sphere-select sphere-select--single', className)}>
+        <span className="sphere-select-label">Сфера</span>
+        <span className="control control-sm sphere-filter-trigger sphere-filter-trigger--static">
+          {spheres[0].label}
+        </span>
+      </div>
+    )
+  }
 
   if (mode === 'multi') {
     if (!selected || !onSelectedChange) return null
