@@ -12,7 +12,15 @@ from app.config import DEFAULT_SERVER_ID
 from app.models.panel import Project, Task, TaskAttachment, TaskComment
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
-from app.services.sphere_work import DEFAULT_WORK_SPHERE, resolve_work_sphere, resolve_work_spheres
+from tortoise.expressions import Q
+
+from app.services.sphere_work import (
+    DEFAULT_WORK_SPHERE,
+    db_sphere_filter_values,
+    resolve_work_sphere,
+    resolve_work_spheres,
+    work_item_sphere_filter,
+)
 from app.services.display_names import resolve_display_name, resolve_display_names, resolve_vk_photos
 from app.services.vk_notify import notify_task_assigned, notify_task_status
 
@@ -251,7 +259,13 @@ async def list_tasks(
     user: dict = Depends(require_ca_user),
 ):
     spheres = resolve_work_spheres(user, sphere)
-    qs = Task.filter(server_id=server_id, sphere__in=spheres)
+    sphere_clause = work_item_sphere_filter(spheres)
+    visible_project_ids = await Project.filter(
+        server_id=server_id,
+    ).filter(sphere_clause).values_list("id", flat=True)
+    qs = Task.filter(server_id=server_id).filter(
+        sphere_clause | Q(project_id__in=list(visible_project_ids)),
+    )
     if project_id is not None:
         qs = qs.filter(project_id=project_id)
     if status:

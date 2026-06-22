@@ -137,6 +137,90 @@ async def ensure_defaults() -> None:
 
     await _migrate_checklist_sphere_uniques(conn)
     await _migrate_staff_spheres_v1(conn)
+    await _migrate_work_item_spheres_v1(conn)
+    await _migrate_staff_spheres_v2(conn)
+    await _migrate_work_item_spheres_v2(conn)
+
+
+async def _migrate_work_item_spheres_v1(conn) -> None:
+    """Нормализовать sphere у задач, проектов и банков (legacy → central_apparatus и т.д.)."""
+    from app.services.sphere_work import normalize_stored_work_sphere
+
+    key = "work_item_spheres_v1"
+    if await _migration_done(conn, key):
+        return
+
+    for table in ("tasks", "projects", "question_banks"):
+        if not await _table_exists(table):
+            continue
+        if not await _column_exists(table, "sphere"):
+            continue
+        rows = await conn.execute_query_dict(f"SELECT id, sphere FROM {table}")
+        for row in rows:
+            current = row.get("sphere")
+            normalized = normalize_stored_work_sphere(current)
+            if normalized != (current or ""):
+                await conn.execute_query(
+                    f"UPDATE {table} SET sphere = ? WHERE id = ?",
+                    [normalized, row["id"]],
+                )
+
+    await _mark_migration(conn, key)
+
+
+async def _migrate_staff_spheres_v2(conn) -> None:
+    """Исправить ошибочный дефолт v1: единственная сфера «МО» у следящих ЦА."""
+    from app.models.panel import StaffNote
+    from app.services.staff_spheres import CENTRAL_APPARATUS, DEFENSE
+
+    key = "staff_spheres_v2"
+    if await _migration_done(conn, key):
+        return
+
+    if not await _table_exists("staff_notes"):
+        await _mark_migration(conn, key)
+        return
+
+    for panel in await StaffNote.all():
+        spheres = list(panel.spheres or [])
+        if spheres != [DEFENSE]:
+            continue
+        note = (panel.note or "").lower()
+        if any(x in note for x in ("оборон", "defense", "министерство обороны")):
+            continue
+        panel.spheres = [CENTRAL_APPARATUS]
+        await panel.save(update_fields=["spheres"])
+
+    await _mark_migration(conn, key)
+
+
+async def _migrate_work_item_spheres_v2(conn) -> None:
+    """Повторная нормализация sphere: legacy-алиасы и пустые значения → канон."""
+    from app.services.sphere_work import WORK_SPHERE_KEYS, normalize_stored_work_sphere
+
+    key = "work_item_spheres_v2"
+    if await _migration_done(conn, key):
+        return
+
+    allowed = set(WORK_SPHERE_KEYS)
+    for table in ("tasks", "projects", "question_banks"):
+        if not await _table_exists(table):
+            continue
+        if not await _column_exists(table, "sphere"):
+            continue
+        rows = await conn.execute_query_dict(f"SELECT id, sphere FROM {table}")
+        for row in rows:
+            current = row.get("sphere")
+            cleaned = (current or "").strip()
+            normalized = normalize_stored_work_sphere(current)
+            if cleaned in allowed and normalized == cleaned:
+                continue
+            await conn.execute_query(
+                f"UPDATE {table} SET sphere = ? WHERE id = ?",
+                [normalized, row["id"]],
+            )
+
+    await _mark_migration(conn, key)
 
 
 async def _migrate_staff_spheres_v1(conn) -> None:

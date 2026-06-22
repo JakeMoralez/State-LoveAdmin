@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import HTTPException
+from tortoise.expressions import Q
 
 from app.config import MAIN_ADMIN_ID
 from app.models.bot import AccessLevel
@@ -36,6 +37,23 @@ SPHERE_LABELS: dict[str, str] = {
     "server": "Сервер",
 }
 
+# Старые/ошибочные значения в panel.db до миграции сфер
+LEGACY_STORED_SPHERE_ALIASES: dict[str, str] = {
+    "ca": "central_apparatus",
+    "central": "central_apparatus",
+    "центральный аппарат": "central_apparatus",
+    "ца": "central_apparatus",
+    "gos": "gov_structures",
+    "gov": "gov_structures",
+    "гос": "gov_structures",
+    "illegal": "illegal_structures",
+    "нелег": "illegal_structures",
+    "нелегалы": "illegal_structures",
+    "мю": "justice",
+    "мо": "defense",
+    "мз": "health",
+}
+
 _MINISTRY = frozenset(MINISTRY_SPHERE_KEYS)
 _STRUCTURES = frozenset({GOV_STRUCTURES, ILLEGAL_STRUCTURES})
 _ALL_OPERATIONAL = _MINISTRY | _STRUCTURES
@@ -58,6 +76,39 @@ def normalize_work_sphere(raw: str | None) -> str:
     if cleaned in WORK_SPHERE_KEYS:
         return cleaned
     return DEFAULT_WORK_SPHERE
+
+
+def normalize_stored_work_sphere(raw: str | None) -> str:
+    """Привести значение sphere из БД к каноническому ключу."""
+    cleaned = (raw or "").strip()
+    if not cleaned:
+        return DEFAULT_WORK_SPHERE
+    if cleaned in WORK_SPHERE_KEYS:
+        return cleaned
+    mapped = LEGACY_STORED_SPHERE_ALIASES.get(cleaned.lower())
+    if mapped:
+        return mapped
+    return DEFAULT_WORK_SPHERE
+
+
+def db_sphere_filter_values(visible: list[str]) -> list[str]:
+    """Значения sphere для SQL-фильтра: канон + legacy-алиасы."""
+    result = set(visible)
+    for legacy, canonical in LEGACY_STORED_SPHERE_ALIASES.items():
+        if canonical in visible:
+            result.add(legacy)
+    if CENTRAL_APPARATUS in visible:
+        result.add("")
+    return list(result)
+
+
+def work_item_sphere_filter(visible: list[str]) -> Q:
+    """Фильтр задач/проектов: канон + legacy + пустые строки для ЦА."""
+    db_spheres = db_sphere_filter_values(visible)
+    clause = Q(sphere__in=db_spheres)
+    if CENTRAL_APPARATUS in visible:
+        clause = clause | Q(sphere__isnull=True)
+    return clause
 
 
 def user_sphere_set(user: dict) -> set[str]:

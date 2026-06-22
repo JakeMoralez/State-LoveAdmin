@@ -78,7 +78,7 @@ async def get_user_profile(
     sphere = format_spheres_display(spheres) if spheres else (
         staff_row.get("sphere", "") if staff_row else ""
     )
-    has_ca = has_central_apparatus(spheres)
+    has_ca = bool(access and access.has_ca_access) or has_central_apparatus(spheres)
 
     nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
     if staff_row:

@@ -96,14 +96,17 @@ async def _resolve_staff_spheres(
         stored = migrate_legacy_sphere(level, access, user, "")
 
     result = merge_spheres_for_display(stored, access)
-    if panel is not None and not panel.spheres and result:
-        try:
-            panel.spheres = validate_spheres(result, access_level=level)
-            await panel.save(update_fields=["spheres", "updated_at"])
-            if access:
-                await sync_ca_access_from_spheres(access, panel.spheres)
-        except ValueError:
-            pass
+    if result:
+        if panel is None:
+            panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+        if not panel.spheres:
+            try:
+                panel.spheres = validate_spheres(result, access_level=level)
+                await panel.save(update_fields=["spheres", "updated_at"])
+                if access:
+                    await sync_ca_access_from_spheres(access, panel.spheres)
+            except ValueError:
+                pass
     return result
 
 

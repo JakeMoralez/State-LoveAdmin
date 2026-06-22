@@ -10,7 +10,7 @@ from app.models.bot import AccessLevel
 from app.models.panel import QuestionBank, QuestionBankItem
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
-from app.services.sphere_work import resolve_work_sphere, resolve_work_spheres, resolve_work_spheres
+from app.services.sphere_work import resolve_work_sphere, resolve_work_spheres, work_item_sphere_filter
 from app.services.question_banks import (
     DIFFICULTY_LABELS,
     STATUS_LABELS,
@@ -149,7 +149,7 @@ async def list_banks(
 ):
     perms = bank_permissions(user)
     work_spheres = resolve_work_spheres(user, sphere)
-    qs = QuestionBank.filter(server_id=DEFAULT_SERVER_ID, sphere__in=work_spheres)
+    qs = QuestionBank.filter(server_id=DEFAULT_SERVER_ID).filter(work_item_sphere_filter(work_spheres))
     if not perms["can_manage"]:
         qs = qs.filter(is_active=True)
     if q:

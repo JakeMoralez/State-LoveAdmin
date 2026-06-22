@@ -10,7 +10,12 @@ from app.models.panel import Project, ProjectMember
 from app.models.bot import AccessLevel
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
-from app.services.sphere_work import DEFAULT_WORK_SPHERE, resolve_work_sphere, resolve_work_spheres
+from app.services.sphere_work import (
+    DEFAULT_WORK_SPHERE,
+    resolve_work_sphere,
+    resolve_work_spheres,
+    work_item_sphere_filter,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -57,7 +62,9 @@ async def list_projects(
     user: dict = Depends(require_ca_user),
 ):
     spheres = resolve_work_spheres(user, sphere)
-    projects = await Project.filter(server_id=server_id, sphere__in=spheres).order_by("-updated_at")
+    projects = await Project.filter(server_id=server_id).filter(
+        work_item_sphere_filter(spheres),
+    ).order_by("-updated_at")
     from app.models.panel import Task
 
     result = []
