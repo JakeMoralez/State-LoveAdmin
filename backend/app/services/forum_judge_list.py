@@ -28,7 +28,7 @@ DEFAULT_EMPTY_TEXT = "[i]Судей нет.[/i]"
 JUDGE_LIST_FORUM_ID = 3758
 JUDGE_LIST_FORUM_URL = f"https://forum.arizona-rp.com/forums/{JUDGE_LIST_FORUM_ID}/"
 
-ZGS_MIN_LEVEL = 3
+ZGS_MIN_LEVEL = 5  # ЗГС ГОС+ — список судей на форуме
 
 _LIST_BB_RE = re.compile(r"\[(?:/?list(?:=[^\]]*)?|\*)\]", re.IGNORECASE)
 _LINE_BULLET_RE = re.compile(r"^\s*\[\*\]\s*", re.IGNORECASE)

@@ -10,6 +10,7 @@ from app.models.bot import AccessLevel
 from app.models.panel import QuestionBank, QuestionBankItem
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
+from app.services.sphere_work import resolve_work_sphere, resolve_work_spheres, resolve_work_spheres
 from app.services.question_banks import (
     DIFFICULTY_LABELS,
     STATUS_LABELS,
@@ -39,6 +40,7 @@ class BankBody(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     description: str = ""
     emoji: str = Field(default="", max_length=16)
+    sphere: str | None = None
     min_submit_level: int = Field(default=1, ge=1, le=AccessLevel.DEVELOPER)
     min_approve_level: int = Field(default=ZGS_MIN_LEVEL, ge=1, le=AccessLevel.DEVELOPER)
     sort_order: int = 0
@@ -142,10 +144,12 @@ async def pending_review(user: dict = Depends(require_ca_user)):
 @router.get("")
 async def list_banks(
     q: str | None = None,
+    sphere: list[str] | None = Query(default=None),
     user: dict = Depends(require_ca_user),
 ):
     perms = bank_permissions(user)
-    qs = QuestionBank.filter(server_id=DEFAULT_SERVER_ID)
+    work_spheres = resolve_work_spheres(user, sphere)
+    qs = QuestionBank.filter(server_id=DEFAULT_SERVER_ID, sphere__in=work_spheres)
     if not perms["can_manage"]:
         qs = qs.filter(is_active=True)
     if q:
@@ -168,8 +172,10 @@ async def list_banks(
 @router.post("")
 async def create_bank(body: BankBody, user: dict = Depends(require_ca_user)):
     assert_can_manage(user)
+    work_sphere = resolve_work_sphere(user, body.sphere)
     bank = await QuestionBank.create(
         server_id=DEFAULT_SERVER_ID,
+        sphere=work_sphere,
         title=body.title.strip(),
         description=body.description.strip(),
         emoji=body.emoji.strip(),
@@ -190,6 +196,7 @@ async def get_bank(
     user: dict = Depends(require_ca_user),
 ):
     bank = await _get_bank(bank_id)
+    resolve_work_sphere(user, getattr(bank, "sphere", None))
     perms = bank_permissions(user, bank)
     if not bank.is_active and not perms["can_manage"]:
         raise HTTPException(status_code=404, detail="Банк не найден")

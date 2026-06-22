@@ -4,6 +4,8 @@ import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
 import { JudgeForumListPage } from './pages/JudgeForumListPage'
+import { AccessGuidePage } from './pages/AccessGuidePage'
+import { AssignPage } from './pages/AssignPage'
 import { QuestionBankDetailPage } from './pages/QuestionBankDetailPage'
 import { QuestionBankReviewPage } from './pages/QuestionBankReviewPage'
 import { QuestionBanksPage } from './pages/QuestionBanksPage'
@@ -27,6 +29,7 @@ function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/access" element={<AccessGuidePage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/staff/:vkId" element={<StaffMemberPage />} />
           <Route path="/leaders" element={<LeadersPage />} />
@@ -37,7 +40,9 @@ function AppRoutes() {
           <Route path="/question-banks" element={<QuestionBanksPage />} />
           <Route path="/question-banks/review" element={<QuestionBankReviewPage />} />
           <Route path="/question-banks/:id" element={<QuestionBankDetailPage />} />
+          <Route path="/assign" element={<AssignPage />} />
           <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
+          <Route path="/forum/judge-assign" element={<Navigate to="/assign?type=judge" replace />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />

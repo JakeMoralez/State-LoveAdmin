@@ -10,6 +10,8 @@ import './styles/sidebar.css'
 import './styles/mobile.css'
 import './styles/registry.css'
 import './styles/judge-forum-list.css'
+import './styles/assign.css'
+import './styles/access-guide.css'
 import App from './App.tsx'
 import { installGlobalErrorHandlers } from './lib/errorReporter'
 

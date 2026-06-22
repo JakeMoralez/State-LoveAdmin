@@ -3,9 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type LeaderMemberDetail } from '../api'
 import { ProfileView } from '../components/profile/ProfileView'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
+import { useAuth } from '../context/AuthContext'
+import { effectiveLeaderPermissions } from '../lib/leaderPermissions'
 import { staffLabel } from '../lib/staff'
 
 export function LeaderMemberPage() {
+  const { user } = useAuth()
   const { vkId } = useParams()
   const navigate = useNavigate()
   const parsedId = vkId ? parseInt(vkId, 10) : NaN
@@ -51,14 +54,12 @@ export function LeaderMemberPage() {
     )
   }
 
-  const perms = member.permissions
-  const canOpenSettings =
-    perms.edit_nickname ||
-    perms.edit_position ||
-    perms.edit_note ||
-    perms.edit_discord ||
-    perms.clear_nickname ||
-    perms.remove_from_registry
+  const perms = effectiveLeaderPermissions(
+    member,
+    user?.access_level ?? 0,
+    user?.vk_id ?? 0,
+  )
+  const canOpenSettings = perms.manage_registry || perms.edit_discord
 
   return (
     <>

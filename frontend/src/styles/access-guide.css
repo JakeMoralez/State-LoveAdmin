@@ -1,0 +1,59 @@
+.access-guide-table-wrap {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.access-guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.access-guide-table th,
+.access-guide-table td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.access-guide-table th {
+  color: rgb(255 255 255 / 0.45);
+  font-weight: 500;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.access-guide-table tbody tr:hover {
+  background: rgb(255 255 255 / 0.03);
+}
+
+.access-guide-link {
+  color: rgb(201 162 39 / 0.95);
+  text-decoration: none;
+}
+
+.access-guide-link:hover {
+  text-decoration: underline;
+}
+
+.access-guide-path {
+  font-size: 0.8125rem;
+  color: rgb(255 255 255 / 0.55);
+}
+
+.access-guide-footnote {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: rgb(255 255 255 / 0.4);
+  line-height: 1.5;
+}
+
+@media (max-width: 767px) {
+  .access-guide-table th:nth-child(3),
+  .access-guide-table td:nth-child(3) {
+    display: none;
+  }
+}

@@ -10,6 +10,21 @@ from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
 from app.services.display_names import invalidate_display_names, resolve_bot_nickname
+from app.services.staff_nickname import (
+    extract_leading_nickname_tag,
+    format_staff_nickname,
+    normalize_custom_tag,
+    strip_nickname_tags,
+)
+from app.services.staff_spheres import (
+    CENTRAL_APPARATUS,
+    DEFENSE,
+    format_spheres_display,
+    merge_spheres_for_display,
+    migrate_legacy_sphere,
+    sync_ca_access_from_spheres,
+    validate_spheres,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +41,8 @@ def _leader_nick_fields(bot_nickname: str | None, vk_id: int) -> dict[str, str |
     }
 
 
-def format_badges(access: UserServerAccess | None, user: User) -> list[str]:
+def format_badges(access: UserServerAccess | None, user: User, spheres: list[str] | None = None) -> list[str]:
     badges: list[str] = []
-    if access and access.has_ca_access:
-        badges.append("ЦА")
     if access and access.is_judge:
         badges.append("⚖")
     if access and access.is_congress_speaker:
@@ -48,10 +61,10 @@ def format_badges(access: UserServerAccess | None, user: User) -> list[str]:
 FULL_ROLE_TITLES: dict[int, str] = {
     1: "Помощник Главного Следящего",
     2: "Следящий",
-    3: "Зам. Главного Следящего",
-    4: "Главный Следящий",
-    5: "Зам. Главного Следящего ГОС",
-    6: "Главный Следящий ГОС",
+    3: "Зам. Главного следящего сферы",
+    4: "Главный следящий сферы",
+    5: "Зам. Главного следящего структуры",
+    6: "Главный следящий структуры",
     7: "Куратор",
     8: "Зам. Главного Администратора",
     9: "Главный Администратор",
@@ -63,41 +76,52 @@ def role_title(level: int) -> str:
     return FULL_ROLE_TITLES.get(level, AccessLevel.title(level))
 
 
-def derive_sphere(
+def derive_sphere_from_spheres(spheres: list[str]) -> str:
+    return format_spheres_display(spheres)
+
+
+async def _resolve_staff_spheres(
+    vk_id: int,
+    server_id: int,
     level: int,
     access: UserServerAccess | None,
     user: User,
-    staff_note: str,
-) -> str:
-    custom = (staff_note or "").strip() or (user.note or "").strip()
-    if custom:
-        return custom
+    panel: StaffNote | None,
+) -> list[str]:
+    if panel and panel.spheres:
+        stored = list(panel.spheres)
+    elif panel and (panel.note or "").strip():
+        stored = migrate_legacy_sphere(level, access, user, panel.note)
+    else:
+        stored = migrate_legacy_sphere(level, access, user, "")
+    return merge_spheres_for_display(stored, access)
 
-    parts: list[str] = []
-    if access:
-        if access.is_congress_vice:
-            parts.append("Центральное Управление")
-        if access.is_congress_speaker:
-            parts.append("Средства Массовой Информации")
-        if access.is_judge:
-            parts.append("Министерство Юстиции")
-        if access.is_attorney:
-            parts.append("Прокуратура")
-        if access.is_leader and not parts:
-            parts.append("Лидер фракции")
 
-    if parts:
-        return ", ".join(parts)
+async def _persist_staff_spheres(
+    vk_id: int,
+    server_id: int,
+    spheres: list[str],
+    *,
+    granted_by: int | None = None,
+) -> list[str]:
+    access, _ = await UserServerAccess.get_or_create(
+        user_id=vk_id,
+        server_id=server_id,
+        defaults={"access_level": 0},
+    )
+    normalized = validate_spheres(spheres, access.access_level)
+    panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+    panel.spheres = normalized
+    panel.updated_by = granted_by
+    await panel.save(update_fields=["spheres", "updated_by", "updated_at"])
 
-    if level >= AccessLevel.CURATOR:
-        return "Сервер"
-    if level >= AccessLevel.ZGS_GOS:
-        return "Государственные организации"
-    if level >= AccessLevel.ZGS:
-        return "Нелегальные организации"
-    if access and access.has_ca_access:
-        return "ЦА"
-    return "—"
+    access, _ = await UserServerAccess.get_or_create(
+        user_id=vk_id,
+        server_id=server_id,
+        defaults={"access_level": 0},
+    )
+    await sync_ca_access_from_spheres(access, normalized)
+    return normalized
 
 
 def ca_source(access: UserServerAccess | None) -> str | None:
@@ -131,7 +155,7 @@ async def list_staff(server_id: int) -> list[dict]:
 
     rows = await UserServerAccess.filter(server_id=server_id).prefetch_related("user")
     for row in rows:
-        if row.access_level >= AccessLevel.PGS or row.has_ca_access:
+        if row.access_level >= AccessLevel.PGS:
             by_id[row.user_id] = (row.user, row.access_level, row)
 
     role_q = Q(is_congress_vice=True) | Q(is_attorney=True)
@@ -149,7 +173,7 @@ async def list_staff(server_id: int) -> list[dict]:
         by_id[user.vk_id] = (user, level, acc)
 
     notes = {
-        (n.vk_id, n.server_id): n.note
+        (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
 
@@ -171,7 +195,11 @@ async def list_staff(server_id: int) -> list[dict]:
             user.vk_id, server_id, access=access, user=user
         )
         nick_fields = _leader_nick_fields(bot_nickname, user.vk_id)
-        panel_note = notes.get((user.vk_id, server_id), "")
+        panel = notes.get((user.vk_id, server_id))
+        panel_note = (panel.note if panel else "") or ""
+        spheres = await _resolve_staff_spheres(
+            user.vk_id, server_id, eff_level, access, user, panel
+        )
         result.append(
             {
                 "vk_id": user.vk_id,
@@ -182,8 +210,9 @@ async def list_staff(server_id: int) -> list[dict]:
                 "access_level": eff_level,
                 "access_level_name": AccessLevel.title(eff_level),
                 "access_role_title": role_title(eff_level),
-                "sphere": derive_sphere(eff_level, access, user, panel_note),
-                "badges": format_badges(access, user),
+                "sphere": derive_sphere_from_spheres(spheres),
+                "spheres": spheres,
+                "badges": format_badges(access, user, spheres),
                 "has_ca_access": bool(access and access.has_ca_access),
                 "ca_source": ca_source(access),
                 "granted_by": access.granted_by if access else None,
@@ -200,6 +229,10 @@ def is_supervisor(level: int, access: UserServerAccess | None) -> bool:
     if level >= AccessLevel.PGS:
         return True
     return bool(access and access.has_ca_access)
+
+
+def _in_leadership_registry(access: UserServerAccess | None) -> bool:
+    return bool(access and (access.is_leader or access.is_judge))
 
 
 def leader_registry_fields(
@@ -242,15 +275,14 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
 
     rows = await UserServerAccess.filter(
         server_id=server_id,
-        is_leader=True,
-    ).prefetch_related("user")
+    ).filter(Q(is_leader=True) | Q(is_judge=True)).prefetch_related("user")
 
     result: list[dict] = []
     for access in rows:
         user = access.user
         vk_id = user.vk_id
         level = await get_access_level(vk_id, server_id)
-        if is_supervisor(level, access):
+        if is_supervisor(level, access) and not access.is_judge:
             continue
 
         bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
@@ -282,12 +314,12 @@ async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
         user_id=vk_id,
         server_id=server_id,
     ).prefetch_related("user")
-    if not access or not access.is_leader:
+    if not _in_leadership_registry(access):
         return None
 
     user = access.user
     level = await get_access_level(vk_id, server_id)
-    if is_supervisor(level, access):
+    if is_supervisor(level, access) and not access.is_judge:
         return None
 
     panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
@@ -306,22 +338,15 @@ async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
         "note": note,
         "faction": position,
         "is_leader_flag": True,
+        "is_judge": bool(access.is_judge),
         "badges": format_badges(access, user),
     }
 
 
 def parse_vk_id(raw: str) -> int | None:
-    text = (raw or "").strip()
-    if not text:
-        return None
-    if text.isdigit():
-        return int(text)
-    import re
+    from app.services.vk_resolve import parse_vk_id as _parse
 
-    m = re.search(r"(?:vk\.com/|id)(\d+)", text, re.I)
-    if m:
-        return int(m.group(1))
-    return None
+    return _parse(raw)
 
 
 async def resolve_judge_position_for_forum(vk_id: int, server_id: int, user: User) -> str:
@@ -410,10 +435,12 @@ async def set_ca_leader(
 
 async def remove_ca_leader(server_id: int, vk_id: int) -> bool:
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if not access or not access.is_leader:
+    if not _in_leadership_registry(access):
         return False
-    access.is_leader = False
-    await access.save()
+    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
+        is_leader=False,
+        is_judge=False,
+    )
     return True
 
 
@@ -440,13 +467,12 @@ async def _persist_member_nickname(
         if taken:
             raise ValueError("Этот ник уже занят")
 
-    access, _ = await UserServerAccess.get_or_create(
+    await UserServerAccess.get_or_create(
         user_id=vk_id,
         server_id=server_id,
         defaults={"access_level": 0},
     )
-    access.nickname = value
-    await access.save()
+    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(nickname=value)
 
     invalidate_display_names(vk_id)
 
@@ -457,9 +483,22 @@ async def clear_member_nickname(server_id: int, vk_id: int) -> None:
 
 async def clear_ca_leader_nickname(server_id: int, vk_id: int) -> None:
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if not access or not access.is_leader:
+    if not access or not _in_leadership_registry(access):
         raise ValueError("Пользователь не в реестре руководства")
     await clear_member_nickname(server_id, vk_id)
+
+
+async def update_leader_nickname(server_id: int, vk_id: int, *, nickname: str) -> None:
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access or not _in_leadership_registry(access):
+        raise ValueError("Пользователь не в реестре руководства")
+    nick = (nickname or "").strip()
+    if not nick:
+        raise ValueError("Укажите никнейм")
+    if len(nick) > 64:
+        raise ValueError("Ник слишком длинный (макс. 64)")
+    await _persist_member_nickname(vk_id, server_id, nick)
+    invalidate_display_names(vk_id)
 
 
 async def revoke_ca_leader_full(
@@ -503,7 +542,7 @@ async def update_ca_leader_meta(
     updated_by: int | None = None,
 ) -> None:
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if not access or not access.is_leader:
+    if not access or not _in_leadership_registry(access):
         raise ValueError("Пользователь не является лидером")
 
     note_row, _ = await StaffNote.get_or_create(
@@ -593,7 +632,94 @@ async def revoke_staff_access(
     access.ca_auto_peer_id = None
     access.granted_by = None
     await access.save()
+
+    note_row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    if note_row:
+        note_row.spheres = []
+        note_row.updated_by = updated_by
+        await note_row.save(update_fields=["spheres", "updated_by", "updated_at"])
+
     invalidate_display_names(vk_id)
+
+
+async def _sync_formatted_staff_nickname(
+    vk_id: int,
+    server_id: int,
+    access: UserServerAccess,
+    user: User,
+    *,
+    clean_name: str | None = None,
+    custom_tag: str | None = None,
+    custom_tag_provided: bool = False,
+    preserve_dev_tag: bool = True,
+) -> None:
+    bot_nick = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    if clean_name is not None:
+        clean = strip_nickname_tags(clean_name)
+    else:
+        clean = strip_nickname_tags(bot_nick or "")
+
+    panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    spheres = await _resolve_staff_spheres(
+        vk_id, server_id, access.access_level, access, user, panel
+    )
+
+    resolved_tag: str | None = None
+    if access.access_level >= AccessLevel.DEVELOPER:
+        if custom_tag_provided:
+            resolved_tag = normalize_custom_tag(custom_tag)
+        elif preserve_dev_tag:
+            resolved_tag = normalize_custom_tag(extract_leading_nickname_tag(bot_nick or ""))
+
+    formatted = format_staff_nickname(
+        clean,
+        access.access_level,
+        spheres,
+        custom_tag=resolved_tag,
+    )
+    await _persist_member_nickname(vk_id, server_id, formatted)
+
+
+async def assign_staff_member(
+    server_id: int,
+    vk_id: int,
+    *,
+    nickname: str,
+    access_level: int,
+    spheres: list[str],
+    granted_by: int | None = None,
+    nickname_tag: str | None = None,
+) -> dict:
+    if access_level < AccessLevel.PGS:
+        raise ValueError("Уровень доступа должен быть не ниже ПГС (1)")
+
+    user, _ = await User.get_or_create(vk_id=vk_id, defaults={"username": str(vk_id)})
+
+    access, _ = await UserServerAccess.get_or_create(
+        user_id=vk_id,
+        server_id=server_id,
+        defaults={"access_level": 0},
+    )
+    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
+        access_level=access_level,
+        granted_by=granted_by,
+    )
+
+    normalized_spheres = validate_spheres(spheres, access_level)
+    dev_tag = normalize_custom_tag(nickname_tag) if access_level >= AccessLevel.DEVELOPER else None
+    formatted_nick = format_staff_nickname(
+        nickname,
+        access_level,
+        normalized_spheres,
+        custom_tag=dev_tag,
+    )
+    await _persist_member_nickname(vk_id, server_id, formatted_nick)
+    await _persist_staff_spheres(vk_id, server_id, normalized_spheres, granted_by=granted_by)
+
+    row = await get_staff_member(server_id, vk_id)
+    if not row:
+        raise ValueError("Не удалось назначить следящего")
+    return row
 
 
 async def update_staff_member(
@@ -603,8 +729,11 @@ async def update_staff_member(
     nickname: str | None = None,
     access_level: int | None = None,
     has_ca_access: bool | None = None,
+    spheres: list[str] | None = None,
     note: str | None = None,
     granted_by: int | None = None,
+    nickname_tag: str | None = None,
+    nickname_tag_provided: bool = False,
 ) -> dict:
     from app.models.bot import User, UserServerAccess
     from app.models.panel import StaffNote
@@ -618,18 +747,35 @@ async def update_staff_member(
         server_id=server_id,
         defaults={"access_level": 0},
     )
-
-    if nickname is not None:
-        await _persist_member_nickname(vk_id, server_id, nickname)
+    old_level = access.access_level
 
     if access_level is not None:
         access.access_level = access_level
         access.granted_by = granted_by
         await access.save()
 
-    if has_ca_access is not None:
-        access.has_ca_access = has_ca_access
-        await access.save()
+    if spheres is not None:
+        await _persist_staff_spheres(vk_id, server_id, spheres, granted_by=granted_by)
+    elif has_ca_access is not None:
+        panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+        current = list(panel.spheres or [])
+        if has_ca_access:
+            if CENTRAL_APPARATUS not in current:
+                current.append(CENTRAL_APPARATUS)
+        else:
+            current = [s for s in current if s != CENTRAL_APPARATUS]
+        if not current:
+            current = migrate_legacy_sphere(
+                access.access_level,
+                access,
+                user,
+                panel.note or "",
+            )
+            if has_ca_access and CENTRAL_APPARATUS not in current:
+                current.append(CENTRAL_APPARATUS)
+            elif not has_ca_access:
+                current = [s for s in current if s != CENTRAL_APPARATUS]
+        await _persist_staff_spheres(vk_id, server_id, current, granted_by=granted_by)
 
     if note is not None:
         panel_note, _ = await StaffNote.get_or_create(
@@ -641,9 +787,64 @@ async def update_staff_member(
         panel_note.updated_by = granted_by
         await panel_note.save()
 
+    if (
+        nickname is not None
+        or access_level is not None
+        or spheres is not None
+        or has_ca_access is not None
+        or nickname_tag_provided
+    ):
+        access = await UserServerAccess.get(user_id=vk_id, server_id=server_id)
+        promoted_to_dev = (
+            access_level is not None
+            and access_level >= AccessLevel.DEVELOPER
+            and old_level < AccessLevel.DEVELOPER
+        )
+        await _sync_formatted_staff_nickname(
+            vk_id,
+            server_id,
+            access,
+            user,
+            clean_name=nickname,
+            custom_tag=nickname_tag,
+            custom_tag_provided=nickname_tag_provided,
+            preserve_dev_tag=not promoted_to_dev,
+        )
+
     row = await get_staff_member(server_id, vk_id)
     if not row:
         row = await get_ca_leader(server_id, vk_id)
     if not row:
         raise ValueError("Пользователь не найден")
     return row
+
+
+async def sync_spheres_from_bot(
+    server_id: int,
+    vk_id: int,
+    *,
+    grant_central_apparatus: bool,
+    updated_by: int | None = None,
+) -> list[str]:
+    """Bot /setca or sled_ca chat → panel spheres + has_ca_access."""
+    from app.models.bot import User
+
+    user = await User.get_or_none(vk_id=vk_id)
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+
+    level = access.access_level if access else 0
+    current = list(panel.spheres or [])
+    if not current and user:
+        current = migrate_legacy_sphere(level, access, user, panel.note or "")
+
+    if grant_central_apparatus:
+        if CENTRAL_APPARATUS not in current:
+            current.append(CENTRAL_APPARATUS)
+    else:
+        current = [s for s in current if s != CENTRAL_APPARATUS]
+
+    if not current:
+        current = [DEFENSE] if not grant_central_apparatus else [CENTRAL_APPARATUS]
+
+    return await _persist_staff_spheres(vk_id, server_id, current, granted_by=updated_by)

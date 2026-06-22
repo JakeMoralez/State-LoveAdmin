@@ -15,6 +15,7 @@ import {
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../PageHeader'
+import { formatSpheresDisplay } from '../../lib/spheres'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -32,6 +33,7 @@ export interface ProfileViewData {
   badges?: string[]
   dev_persona?: boolean
   sphere?: string
+  spheres?: string[]
 }
 
 function parseNickname(nickname: string | null, vkId: number) {
@@ -74,7 +76,6 @@ export function ProfileView({
 }) {
   const [copied, setCopied] = useState(false)
 
-  const hasAccess = profile.has_ca_access || profile.access_level >= 5
   const parsed = parseNickname(profile.nickname, profile.vk_id)
   const avatar = profile.avatar_url || DEFAULT_AVATAR
   const vkUrl = `https://vk.com/id${profile.vk_id}`
@@ -114,11 +115,10 @@ export function ProfileView({
       icon: Server,
     },
     {
-      label: 'Доступ ЦА',
-      value: hasAccess ? 'Да' : 'Нет',
-      hint: hasAccess ? 'Разрешён' : 'Ограничен',
+      label: 'Сферы',
+      value: formatSpheresDisplay(profile.spheres) || profile.sphere || '—',
+      hint: 'Назначение',
       icon: ShieldCheck,
-      accent: hasAccess,
     },
   ]
 
@@ -136,9 +136,11 @@ export function ProfileView({
       value: `${profile.access_level_name} · ${profile.access_level}`,
       icon: ShieldCheck,
     },
-    ...(profile.sphere
-      ? [{ label: 'Сфера', value: profile.sphere, icon: Server }]
-      : []),
+    {
+      label: 'Сферы',
+      value: formatSpheresDisplay(profile.spheres) || profile.sphere || '—',
+      icon: Server,
+    },
   ]
 
   return (
@@ -186,12 +188,6 @@ export function ProfileView({
                 <RoleIcon size={11} aria-hidden />
                 {roleBadge.label}
               </span>
-              {hasAccess && (
-                <span className="profile-badge profile-badge--gold">
-                  <ShieldCheck size={11} aria-hidden />
-                  Доступ ЦА
-                </span>
-              )}
               {profile.dev_persona && (
                 <span className="profile-badge">
                   <Code2 size={11} aria-hidden />
@@ -228,7 +224,7 @@ export function ProfileView({
                 <Icon size={16} />
               </div>
               <div
-                className={`profile-stat-value ${stat.mono ? 'font-mono' : ''} ${stat.accent ? 'text-[var(--accent-gold)]' : ''}`}
+                className={`profile-stat-value ${stat.mono ? 'font-mono' : ''}${'accent' in stat && stat.accent ? ' text-[var(--accent-gold)]' : ''}`}
               >
                 {stat.value}
               </div>

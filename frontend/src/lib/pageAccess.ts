@@ -1,0 +1,109 @@
+/** Матрица доступов к страницам портала — для ревью. */
+
+export interface PageAccessRow {
+  section: string
+  page: string
+  path: string
+  portal: string
+  sphere: string
+  actions: string
+}
+
+export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
+  {
+    section: 'Обзор',
+    page: 'Сводка',
+    path: '/dashboard',
+    portal: 'ПГС (1+)',
+    sphere: '—',
+    actions: 'Просмотр сводки',
+  },
+  {
+    section: 'Обзор',
+    page: 'Доступы',
+    path: '/access',
+    portal: 'Разработчик (10+)',
+    sphere: '—',
+    actions: 'Таблица правил доступа (только разработчик)',
+  },
+  {
+    section: 'Разработка',
+    page: 'Флаги руководства',
+    path: '/dev/leadership',
+    portal: 'Разработчик (10+)',
+    sphere: '—',
+    actions: 'is_leader в реестре руководства',
+  },
+  {
+    section: 'Разработка',
+    page: 'Лог ошибок',
+    path: '/dev',
+    portal: 'Разработчик (10+)',
+    sphere: '—',
+    actions: 'Клиентские и серверные ошибки панели',
+  },
+  {
+    section: 'Команда',
+    page: 'Следящие',
+    path: '/staff',
+    portal: 'ПГС (1+)',
+    sphere: '—',
+    actions: 'Просмотр реестра; редактирование чужих — по staff_permissions',
+  },
+  {
+    section: 'Команда',
+    page: 'Руководство',
+    path: '/leaders',
+    portal: 'ПГС (1+)',
+    sphere: '—',
+    actions: 'Просмотр — ПГС (1+); правка — Следящий (2+), не свой профиль',
+  },
+  {
+    section: 'Работа',
+    page: 'Задачи',
+    path: '/tasks',
+    portal: 'ПГС (1+)',
+    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    actions: 'Создание/удаление: ЗГС (3+) или lead проекта',
+  },
+  {
+    section: 'Работа',
+    page: 'Чеклист',
+    path: '/checklist',
+    portal: 'ПГС (1+)',
+    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    actions: 'Чужие ячейки и настройки: ЗГС (3+)',
+  },
+  {
+    section: 'Работа',
+    page: 'Проекты',
+    path: '/projects',
+    portal: 'ПГС (1+)',
+    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    actions: 'Создание: куратор (7+) или owner',
+  },
+  {
+    section: 'Работа',
+    page: 'Банки вопросов',
+    path: '/question-banks',
+    portal: 'ПГС (1+)',
+    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    actions: 'Добавление — min_submit_level банка; модерация — min_approve_level',
+  },
+  {
+    section: 'Команда',
+    page: 'Назначить',
+    path: '/assign',
+    portal: 'Следящий (2+)',
+    sphere: '—',
+    actions: 'Судья и конгресс — Следящий (2+); следящий — ЗГС (3+)',
+  },
+  {
+    section: 'Форум',
+    page: 'Список судей',
+    path: '/forum/judge-list',
+    portal: 'ЗГС ГОС (5+)',
+    sphere: '—',
+    actions: 'BBCode-шаблон списка судей на форуме',
+  },
+]

@@ -250,3 +250,124 @@ body {
     font-size: 1.125rem;
   }
 }
+
+.sphere-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(100%, 22rem);
+}
+
+.sphere-select-label {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.38);
+}
+
+.sphere-select-control {
+  flex: 1;
+  min-width: 0;
+}
+
+.sphere-select--multi {
+  width: min(100%, 24rem);
+}
+
+.sphere-filter-trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.sphere-filter-menu {
+  position: fixed;
+  z-index: 120;
+  padding: 0.25rem;
+}
+
+.sphere-filter-action {
+  display: block;
+  width: 100%;
+  padding: 0.45rem 0.625rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: rgb(201 162 39 / 0.9);
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sphere-filter-action:hover {
+  background: rgb(255 255 255 / 0.05);
+}
+
+.sphere-filter-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sphere-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.sphere-filter-check {
+  display: flex;
+  width: 1rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.sphere-badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.04);
+  padding: 0.15rem 0.5rem;
+  font-size: 0.6875rem;
+  color: rgb(255 255 255 / 0.45);
+}
+
+.sphere-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.15rem 0;
+}
+
+.sphere-tab {
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.04);
+  color: rgb(255 255 255 / 0.55);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.sphere-tab:hover {
+  color: rgb(255 255 255 / 0.8);
+  border-color: rgb(255 255 255 / 0.18);
+}
+
+.sphere-tab--active {
+  color: rgb(255 255 255 / 0.92);
+  border-color: rgb(201 162 39 / 0.45);
+  background: rgb(201 162 39 / 0.12);
+}

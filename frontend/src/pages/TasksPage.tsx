@@ -13,11 +13,14 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ClipboardList, type LucideIcon } from 'lucide-react'
 import { api, STATUS_LABELS, type Project, type StaffMember, type TaskDetail } from '../api'
+import { pickDefaultCreateSphere } from '../components/CreateSphereField'
 import { PageHeader } from '../components/PageHeader'
+import { SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
 import { TaskCard, TaskCardPreview, TaskListRow } from '../components/tasks/TaskCard'
 import { TaskCreateModal, type TaskCreatePayload } from '../components/tasks/TaskCreateModal'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TasksToolbar, type TaskFilters } from '../components/tasks/TasksToolbar'
+import { useAuth } from '../context/AuthContext'
 import { COMPACT_QUERY, matchesMediaQuery } from '../hooks/useMediaQuery'
 import { cn } from '../lib/utils'
 
@@ -35,6 +38,12 @@ function getInitialTaskView(): 'kanban' | 'list' {
 
 interface TasksWorkspaceProps {
   projectId?: number
+  spheres?: string[]
+  apiSpheres?: string[]
+  createSphere?: string
+  onCreateSphereChange?: (id: string) => void
+  onSpheresChange?: (next: string[]) => void
+  workSpheres?: import('../api').WorkSphere[]
   title?: string
   subtitle?: string
   section?: string
@@ -46,6 +55,12 @@ interface TasksWorkspaceProps {
 
 export function TasksWorkspace({
   projectId,
+  spheres,
+  apiSpheres,
+  createSphere,
+  onCreateSphereChange,
+  onSpheresChange,
+  workSpheres,
   title = 'Задачи',
   subtitle,
   section = 'Работа',
@@ -83,8 +98,9 @@ export function TasksWorkspace({
       p.assignee_vk_id = parseInt(filters.assigneeVkId, 10)
     }
     if (filters.priority) p.priority = filters.priority
+    if (apiSpheres?.length) p.spheres = apiSpheres
     return p
-  }, [filters, projectId])
+  }, [filters, projectId, apiSpheres])
 
   const filterTasks = useCallback((items: TaskDetail[]) => {
     if (filters.assigneeVkId === 'none') {
@@ -101,6 +117,7 @@ export function TasksWorkspace({
   }, [filters.assigneeVkId])
 
   const load = useCallback(async () => {
+    if (workSpheres && workSpheres.length > 0 && !spheres?.length) return
     setLoading(true)
     try {
       const res = await api.tasks(apiParams)
@@ -118,16 +135,18 @@ export function TasksWorkspace({
     } finally {
       setLoading(false)
     }
-  }, [apiParams, filterTasks])
+  }, [apiParams, filterTasks, workSpheres, spheres])
 
   useEffect(() => {
+    if (workSpheres && workSpheres.length > 0 && !spheres?.length) return
     load()
-  }, [load])
+  }, [load, workSpheres, spheres])
 
   useEffect(() => {
+    if (!spheres?.length && (workSpheres?.length ?? 0) > 0) return
     api.staff().then((r) => setStaff(r.members))
-    api.projects().then((r) => setProjects(r.projects))
-  }, [])
+    api.projects(apiSpheres).then((r) => setProjects(r.projects))
+  }, [apiSpheres, spheres, workSpheres])
 
   const allTasks = useMemo(() => {
     if (filters.view === 'list') return listTasks
@@ -200,10 +219,13 @@ export function TasksWorkspace({
   const activeTask = activeId ? allTasks.find((t) => t.id === activeId) : null
 
   const createTask = async (payload: TaskCreatePayload) => {
-    await api.createTask({
-      ...payload,
-      project_id: payload.project_id ?? projectId ?? null,
-    })
+    await api.createTask(
+      {
+        ...payload,
+        project_id: payload.project_id ?? projectId ?? null,
+      },
+      createSphere,
+    )
     load()
   }
 
@@ -217,6 +239,20 @@ export function TasksWorkspace({
         back={headerBack}
         shrink
       />
+
+      {workSpheres && workSpheres.length === 0 ? (
+        <p className="text-white/40 text-sm">Нет назначенных сфер — обратитесь к ЗГС.</p>
+      ) : (
+      <>
+      {workSpheres && workSpheres.length > 0 && spheres && onSpheresChange && (
+        <SphereTabs
+          pageKey="tasks"
+          spheres={workSpheres}
+          selected={spheres}
+          onSelectedChange={onSpheresChange}
+          className="shrink-0"
+        />
+      )}
 
       <TasksToolbar
         filters={filters}
@@ -282,6 +318,8 @@ export function TasksWorkspace({
         </DndContext>
         </div>
       )}
+      </>
+      )}
 
       <TaskCreateModal
         open={createOpen}
@@ -290,6 +328,10 @@ export function TasksWorkspace({
         staff={staff}
         projects={projects}
         defaultProjectId={projectId}
+        workSpheres={workSpheres}
+        createSphereIds={spheres ?? []}
+        createSphere={createSphere}
+        onCreateSphereChange={onCreateSphereChange}
       />
 
       {drawerId != null && !Number.isNaN(drawerId) && (
@@ -344,5 +386,26 @@ function KanbanColumn({
 
 export function TasksPage() {
   const { taskId } = useParams()
-  return <TasksWorkspace taskIdParam={taskId} />
+  const { user } = useAuth()
+  const workSpheres = user?.work_spheres ?? []
+  const { selected: activeSpheres, apiSpheres, setSelected } = useWorkSphereQuery('tasks', workSpheres)
+  const [createSphere, setCreateSphere] = useState(() =>
+    pickDefaultCreateSphere(activeSpheres, workSpheres[0]?.id),
+  )
+
+  useEffect(() => {
+    setCreateSphere((prev) => pickDefaultCreateSphere(activeSpheres, prev))
+  }, [activeSpheres])
+
+  return (
+    <TasksWorkspace
+      taskIdParam={taskId}
+      spheres={activeSpheres}
+      apiSpheres={apiSpheres}
+      createSphere={createSphere}
+      onCreateSphereChange={setCreateSphere}
+      onSpheresChange={setSelected}
+      workSpheres={workSpheres}
+    />
+  )
 }

@@ -9,15 +9,18 @@ export function ProfilePage() {
     <ProfileView
       profile={{
         vk_id: user.vk_id,
-        nickname: user.nickname,
+        nickname: user.bot_nickname ?? user.nickname,
         username: user.username,
         avatar_url: user.avatar_url,
         access_level: user.access_level,
         access_level_name: user.access_level_name,
+        access_role_title: user.access_role_title,
         panel_role: user.panel_role,
         has_ca_access: user.has_ca_access,
         server_id: user.server_id,
         dev_persona: user.dev_persona,
+        sphere: user.sphere,
+        spheres: user.spheres,
       }}
       showQuickLinks
     />

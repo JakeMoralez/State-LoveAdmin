@@ -25,11 +25,15 @@ async def has_ca_access(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
     return bool(access and access.has_ca_access)
 
 
-async def can_use_ca_scope(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
+async def can_use_portal(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
+    """Вход на портал: уровень ПГС (1) и выше."""
     level = await get_access_level(vk_id, server_id)
-    if level >= AccessLevel.ZGS_GOS:
-        return True
-    return await has_ca_access(vk_id, server_id)
+    return level >= AccessLevel.PGS
+
+
+async def can_use_ca_scope(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
+    """Алиас для совместимости — портал доступен с ПГС+."""
+    return await can_use_portal(vk_id, server_id)
 
 
 def panel_role(level: int) -> str:
@@ -51,21 +55,45 @@ async def get_user_profile(
     *,
     dev_level: int | None = None,
     dev_ca: bool | None = None,
+    dev_spheres: list[str] | None = None,
 ) -> dict:
+    from app.services.staff import get_staff_member, role_title
+    from app.services.staff_spheres import format_spheres_display, has_central_apparatus
+
     user = await User.get_or_none(vk_id=vk_id)
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    staff_row = await get_staff_member(vk_id, server_id)
     level = dev_level if dev_level is not None else await get_access_level(vk_id, server_id)
-    has_ca = dev_ca if dev_ca is not None else bool(access and access.has_ca_access)
+
+    if dev_spheres is not None:
+        spheres = dev_spheres
+    else:
+        spheres = staff_row.get("spheres", []) if staff_row else []
+    sphere = format_spheres_display(spheres) if spheres else (
+        staff_row.get("sphere", "") if staff_row else ""
+    )
+    has_ca = has_central_apparatus(spheres)
+
     nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    if staff_row:
+        nickname = staff_row.get("bot_nickname") or staff_row.get("nickname") or nickname
     if not nickname and user and user.username and user.username.strip():
         nickname = user.username.strip().lstrip("@")
+
+    if not sphere and spheres:
+        sphere = format_spheres_display(spheres)
+
     return {
         "vk_id": vk_id,
         "username": user.username if user else None,
         "nickname": nickname,
+        "bot_nickname": nickname,
         "access_level": level,
         "access_level_name": AccessLevel.title(level),
+        "access_role_title": role_title(level),
         "has_ca_access": has_ca,
+        "spheres": spheres,
+        "sphere": sphere,
         "panel_role": panel_role(level),
         "server_id": server_id,
         "dev_persona": dev_level is not None,

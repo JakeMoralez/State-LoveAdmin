@@ -3,6 +3,18 @@ import { reportClientError } from './lib/errorReporter'
 
 const API = '/api'
 
+function withSphere(path: string, sphere?: string) {
+  if (!sphere) return path
+  const sep = path.includes('?') ? '&' : '?'
+  return `${path}${sep}sphere=${encodeURIComponent(sphere)}`
+}
+
+function withSpheres(path: string, spheres?: string[]) {
+  if (!spheres?.length) return path
+  const sep = path.includes('?') ? '&' : '?'
+  return `${path}${sep}${spheres.map((s) => `sphere=${encodeURIComponent(s)}`).join('&')}`
+}
+
 export class ApiError extends Error {
   status: number
 
@@ -60,16 +72,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   authConfig: () => request<AuthConfig>('/auth/config'),
-  devLogin: (body?: { access_level: number; has_ca_access: boolean; vk_id?: number }) => {
-    const payload = body ?? { access_level: 3, has_ca_access: true }
-    const q = new URLSearchParams({
-      json: 'true',
-      access_level: String(payload.access_level),
-      has_ca_access: String(payload.has_ca_access),
-    })
-    if (payload.vk_id != null) q.set('vk_id', String(payload.vk_id))
-    return request<{ ok: boolean; redirect: string }>(`/auth/dev-login?${q}`)
-  },
+  devLogin: (body: { access_level: number; vk_id?: number; spheres: string[] }) =>
+    request<{ ok: boolean; redirect: string }>('/auth/dev-login', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   me: () => request<UserProfile>('/auth/me'),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   dashboard: () => request<DashboardSummary>('/dashboard/summary'),
@@ -81,6 +88,11 @@ export const api = {
     return request<StaffResponse>(`/staff${s ? `?${s}` : ''}`)
   },
   staffMember: (vkId: number) => request<StaffMemberDetail>(`/staff/${vkId}`),
+  assignStaff: (body: StaffAssignBody) =>
+    request<StaffMemberDetail>('/staff/assign', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   updateStaffMember: (vkId: number, body: StaffMemberUpdateBody) =>
     request<StaffMemberUpdateResponse>(`/staff/${vkId}`, {
       method: 'PATCH',
@@ -120,10 +132,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ discord_id }),
     }),
-  projects: () => request<{ projects: Project[] }>('/projects'),
+  projects: (spheres?: string[]) =>
+    request<{ projects: Project[]; permissions?: { can_create: boolean } }>(withSpheres('/projects', spheres)),
   project: (id: number) => request<ProjectDetail>(`/projects/${id}`),
-  createProject: (data: { title: string; description?: string }) =>
-    request<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+  createProject: (data: { title: string; description?: string }, sphere?: string) =>
+    request<Project>(withSphere('/projects', sphere), { method: 'POST', body: JSON.stringify(data) }),
   tasks: (params?: {
     view?: string
     mine?: boolean
@@ -131,6 +144,8 @@ export const api = {
     assignee_vk_id?: number
     priority?: string
     status?: string
+    sphere?: string
+    spheres?: string[]
   }) => {
     const q = new URLSearchParams()
     if (params?.view) q.set('view', params.view)
@@ -139,12 +154,17 @@ export const api = {
     if (params?.assignee_vk_id != null) q.set('assignee_vk_id', String(params.assignee_vk_id))
     if (params?.priority) q.set('priority', params.priority)
     if (params?.status) q.set('status', params.status)
+    if (params?.spheres?.length) {
+      for (const s of params.spheres) q.append('sphere', s)
+    } else if (params?.sphere) {
+      q.set('sphere', params.sphere)
+    }
     const s = q.toString()
     return request<TaskListResponse>(`/tasks${s ? `?${s}` : ''}`)
   },
   task: (id: number) => request<TaskDetail>(`/tasks/${id}`),
-  createTask: (data: Partial<Task>) =>
-    request<Task>('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+  createTask: (data: Partial<Task>, sphere?: string) =>
+    request<Task>(withSphere('/tasks', sphere), { method: 'POST', body: JSON.stringify(data) }),
   updateTask: (id: number, data: Partial<Task>) =>
     request<Task>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteTask: (id: number) => request<{ ok: boolean }>(`/tasks/${id}`, { method: 'DELETE' }),
@@ -206,12 +226,14 @@ export const api = {
       images: string[]
     }>
   },
-  checklist: (week: string) => request<ChecklistResponse>(`/checklist?week=${encodeURIComponent(week)}`),
+  checklist: (week: string, sphere?: string) =>
+    request<ChecklistResponse>(withSphere(`/checklist?week=${encodeURIComponent(week)}`, sphere)),
   updateChecklistCell: (params: {
     week: string
     day_offset: number
     task_slug: string
     member_vk_id: number
+    sphere?: string
     proof_urls?: string[]
     proof_url?: string | null
     proof_note?: string
@@ -223,6 +245,7 @@ export const api = {
       task_slug: params.task_slug,
       member_vk_id: String(params.member_vk_id),
     })
+    if (params.sphere) q.set('sphere', params.sphere)
     return request(`/checklist/cells?${q}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -233,25 +256,33 @@ export const api = {
       }),
     })
   },
-  generateChecklistTasks: (week: string) =>
-    request<{ ok: boolean; created: number }>(`/checklist/generate-tasks?week=${encodeURIComponent(week)}`, {
-      method: 'POST',
-    }),
-  checklistSettings: () => request<ChecklistSettings>('/checklist/settings'),
-  updateChecklistTasks: (data: {
-    tasks: { slug: string; title: string; is_header: boolean; days_of_week: number[] }[]
-  }) => request('/checklist/tasks', { method: 'PUT', body: JSON.stringify(data) }),
-  updateChecklistMembers: (data: { vk_ids: number[] }) =>
-    request('/checklist/members', { method: 'PUT', body: JSON.stringify(data) }),
-  checklistMembersOnlyMe: () =>
-    request<{ ok: boolean; vk_id?: number }>('/checklist/members/only-me', {
+  generateChecklistTasks: (week: string, sphere?: string) =>
+    request<{ ok: boolean; created: number }>(
+      withSphere(`/checklist/generate-tasks?week=${encodeURIComponent(week)}`, sphere),
+      { method: 'POST' },
+    ),
+  checklistSettings: (sphere?: string) => request<ChecklistSettings>(withSphere('/checklist/settings', sphere)),
+  updateChecklistTasks: (
+    data: { tasks: { slug: string; title: string; is_header: boolean; days_of_week: number[] }[] },
+    sphere?: string,
+  ) =>
+    request(withSphere('/checklist/tasks', sphere), { method: 'PUT', body: JSON.stringify(data) }),
+  updateChecklistMembers: (data: { vk_ids: number[] }, sphere?: string) =>
+    request(withSphere('/checklist/members', sphere), { method: 'PUT', body: JSON.stringify(data) }),
+  checklistMembersOnlyMe: (sphere?: string) =>
+    request<{ ok: boolean; vk_id?: number }>(withSphere('/checklist/members/only-me', sphere), {
       method: 'PUT',
       body: JSON.stringify({}),
     }),
   questionBankMeta: () => request<QuestionBankMeta>('/question-banks/meta'),
-  questionBanks: (params?: { q?: string }) => {
+  questionBanks: (params?: { q?: string; sphere?: string; spheres?: string[] }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
+    if (params?.spheres?.length) {
+      for (const s of params.spheres) q.append('sphere', s)
+    } else if (params?.sphere) {
+      q.set('sphere', params.sphere)
+    }
     const s = q.toString()
     return request<{ banks: QuestionBank[]; permissions: QuestionBankPermissions }>(
       `/question-banks${s ? `?${s}` : ''}`,
@@ -325,6 +356,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  assignOptions: () => request<AssignOptionsResponse>('/assign/options'),
+  assignRole: (body: AssignBody) =>
+    request<AssignResult>('/assign', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 }
 
 export interface AuthConfig {
@@ -340,13 +377,17 @@ export interface AuthConfig {
 export interface UserProfile {
   vk_id: number
   nickname: string | null
+  bot_nickname?: string | null
   username: string | null
   avatar_url?: string | null
   access_level: number
   access_level_name: string
+  access_role_title?: string
   has_ca_access: boolean
   panel_role: string
   server_id: number
+  sphere?: string
+  spheres?: string[]
   dev_persona?: boolean
   can_dev_panel?: boolean
   can_manage_discord_links?: boolean
@@ -354,6 +395,12 @@ export interface UserProfile {
   discord_id?: string | null
   discord_username?: string | null
   discord_display_name?: string | null
+  work_spheres?: WorkSphere[]
+}
+
+export interface WorkSphere {
+  id: string
+  label: string
 }
 
 export interface DevErrorItem {
@@ -394,6 +441,7 @@ export interface StaffMember {
   access_level_name: string
   access_role_title?: string
   sphere?: string
+  spheres?: string[]
   badges: string[]
   has_ca_access: boolean
   ca_source: string | null
@@ -409,10 +457,21 @@ export interface StaffMemberPermissions {
   edit_nickname: boolean
   edit_access_level: boolean
   edit_ca_access: boolean
+  edit_spheres: boolean
   edit_sphere: boolean
   edit_discord: boolean
   revoke_staff_access: boolean
+  assign_staff?: boolean
   max_access_level: number
+}
+
+export interface StaffAssignBody {
+  vk_id: number
+  discord_id?: string | null
+  nickname: string
+  nickname_tag?: string | null
+  access_level: number
+  spheres: string[]
 }
 
 export interface StaffMemberDetail extends StaffMember {
@@ -423,11 +482,14 @@ export interface StaffMemberDetail extends StaffMember {
 
 export interface StaffMemberUpdateBody {
   nickname?: string | null
+  nickname_tag?: string | null
   access_level?: number
   has_ca_access?: boolean
+  spheres?: string[]
   note?: string | null
   discord_id?: string | null
   revoke_staff_access?: boolean
+  resync_nickname?: boolean
 }
 
 export type StaffMemberUpdateResponse = StaffMemberDetail & {
@@ -453,6 +515,7 @@ export interface LeaderMember {
   note?: string | null
   faction?: string | null
   is_leader_flag?: boolean
+  is_judge?: boolean
   discord_id?: string | null
   discord_username?: string | null
   discord_display_name?: string | null
@@ -461,11 +524,13 @@ export interface LeaderMember {
 
 export interface LeaderMemberPermissions {
   edit_nickname: boolean
+  edit_forum_account: boolean
   edit_position: boolean
   edit_note: boolean
   edit_discord: boolean
   clear_nickname: boolean
   remove_from_registry: boolean
+  manage_registry?: boolean
 }
 
 export interface LeaderMemberDetail extends LeaderMember {
@@ -478,6 +543,7 @@ export interface LeaderMemberUpdateBody {
   position?: string | null
   note?: string | null
   discord_id?: string | null
+  forum_account?: string | null
   clear_nickname?: boolean
   remove_from_registry?: boolean
 }
@@ -519,6 +585,7 @@ export interface Project {
   description: string
   status: string
   owner_vk_id: number
+  sphere?: string
   task_count?: number
 }
 
@@ -539,6 +606,7 @@ export interface Task {
   reporter_vk_id?: number
   project_id?: number | null
   project_title?: string | null
+  sphere?: string
   assignee_name?: string | null
   reporter_name?: string | null
   due_date?: string | null
@@ -669,6 +737,7 @@ export interface QuestionBankMeta {
 
 export interface QuestionBank {
   id: number
+  sphere?: string
   title: string
   description: string
   emoji?: string
@@ -690,6 +759,7 @@ export interface QuestionBankBody {
   title: string
   description?: string
   emoji?: string
+  sphere?: string
   min_submit_level?: number
   min_approve_level?: number
   sort_order?: number
@@ -823,4 +893,35 @@ export interface JudgeForumValidateThreadResult {
   forum_name?: string | null
   category_id?: number | null
   required_forum_url: string
+}
+
+export type AssignRoleType = 'staff' | 'judge' | 'congress'
+
+export interface AssignOptionsResponse {
+  role_types: { id: AssignRoleType; label: string }[]
+  judge_positions: string[]
+  congress_roles: { id: 'speaker' | 'vice'; label: string }[]
+}
+
+export interface AssignBody {
+  role_type: AssignRoleType
+  vk_id: string
+  discord_id?: string | null
+  forum_account: string
+  nickname: string
+  access_level?: number
+  spheres?: string[]
+  nickname_tag?: string | null
+  judge_position?: string
+  congress_role?: 'speaker' | 'vice'
+}
+
+export interface AssignResult {
+  role_type: AssignRoleType
+  vk_id: number
+  nickname: string
+  forum_account: string
+  position?: string
+  access_level?: number
+  congress_role?: 'speaker' | 'vice'
 }

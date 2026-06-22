@@ -375,6 +375,7 @@ async def serialize_bank(
 ) -> dict:
     return {
         "id": bank.id,
+        "sphere": getattr(bank, "sphere", None) or "central_apparatus",
         "title": bank.title,
         "description": bank.description,
         "emoji": bank.emoji or "",

@@ -55,6 +55,7 @@ class StaffNote(Model):
     vk_id = fields.BigIntField(index=True)
     server_id = fields.IntField(index=True)
     note = fields.TextField(default="")
+    spheres = fields.JSONField(default=list)
     leader_position = fields.TextField(default="")
     leader_note = fields.TextField(default="")
     updated_by = fields.BigIntField(null=True)
@@ -89,6 +90,7 @@ class Project(Model):
     status = fields.CharField(max_length=32, default="active")
     owner_vk_id = fields.BigIntField()
     server_id = fields.IntField()
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)
 
@@ -119,6 +121,7 @@ class Task(Model):
     reporter_vk_id = fields.BigIntField()
     project_id = fields.IntField(null=True, index=True)
     server_id = fields.IntField()
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     due_date = fields.DateField(null=True)
     due_time = fields.CharField(max_length=5, null=True)
     labels = fields.JSONField(default=list)
@@ -154,6 +157,7 @@ class TaskAttachment(Model):
 class ChecklistCell(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     week_start = fields.DateField(index=True)
     day_offset = fields.IntField()
     task_slug = fields.CharField(max_length=64)
@@ -167,12 +171,13 @@ class ChecklistCell(Model):
 
     class Meta:
         table = "checklist_cells"
-        unique_together = (("server_id", "week_start", "day_offset", "task_slug", "member_vk_id"),)
+        unique_together = (("server_id", "sphere", "week_start", "day_offset", "task_slug", "member_vk_id"),)
 
 
 class ChecklistTaskDef(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     slug = fields.CharField(max_length=64)
     title = fields.CharField(max_length=256)
     is_header = fields.BooleanField(default=False)
@@ -181,12 +186,13 @@ class ChecklistTaskDef(Model):
 
     class Meta:
         table = "checklist_tasks"
-        unique_together = (("server_id", "slug"),)
+        unique_together = (("server_id", "sphere", "slug"),)
 
 
 class ChecklistWeekTask(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     week_start = fields.DateField(index=True)
     slug = fields.CharField(max_length=64)
     title = fields.CharField(max_length=256)
@@ -196,35 +202,38 @@ class ChecklistWeekTask(Model):
 
     class Meta:
         table = "checklist_week_tasks"
-        unique_together = (("server_id", "week_start", "slug"),)
+        unique_together = (("server_id", "sphere", "week_start", "slug"),)
 
 
 class ChecklistWeekMember(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     week_start = fields.DateField(index=True)
     vk_id = fields.BigIntField(index=True)
     sort_order = fields.IntField(default=0)
 
     class Meta:
         table = "checklist_week_members"
-        unique_together = (("server_id", "week_start", "vk_id"),)
+        unique_together = (("server_id", "sphere", "week_start", "vk_id"),)
 
 
 class ChecklistMember(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     vk_id = fields.BigIntField(index=True)
     sort_order = fields.IntField(default=0)
 
     class Meta:
         table = "checklist_members"
-        unique_together = (("server_id", "vk_id"),)
+        unique_together = (("server_id", "sphere", "vk_id"),)
 
 
 class QuestionBank(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
     title = fields.CharField(max_length=256)
     description = fields.TextField(default="")
     emoji = fields.CharField(max_length=16, default="")

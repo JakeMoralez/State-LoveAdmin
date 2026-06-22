@@ -104,7 +104,7 @@ export function JudgeForumListPage() {
   const [warning, setWarning] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
-  const canManage = (user?.access_level ?? 0) >= 3
+  const canManage = (user?.access_level ?? 0) >= 5
 
   const clearAlerts = () => {
     setError(null)

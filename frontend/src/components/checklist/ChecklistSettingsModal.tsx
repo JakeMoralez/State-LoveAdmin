@@ -10,6 +10,7 @@ interface ChecklistSettingsModalProps {
   onSaved: () => void
   manageOnly?: boolean
   initialTab?: 'tasks' | 'members'
+  sphere?: string
 }
 
 const DAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const
@@ -34,6 +35,7 @@ export function ChecklistSettingsModal({
   onSaved,
   manageOnly = false,
   initialTab = 'tasks',
+  sphere,
 }: ChecklistSettingsModalProps) {
   const { user } = useAuth()
   const [loading, setLoading] = useState(true)
@@ -52,7 +54,7 @@ export function ChecklistSettingsModal({
     setError(null)
     setTab(initialTab)
     api
-      .checklistSettings()
+      .checklistSettings(sphere)
       .then((s) => {
         setCanManage(Boolean(s.can_manage))
         setTasks(
@@ -69,7 +71,7 @@ export function ChecklistSettingsModal({
       })
       .catch((e: unknown) => setError(formatError(e)))
       .finally(() => setLoading(false))
-  }, [open, initialTab])
+  }, [open, initialTab, sphere])
 
   const selectedIds = candidates.filter((c) => c.in_checklist).map((c) => c.vk_id)
   const selectedCount = selectedIds.length
@@ -117,15 +119,18 @@ export function ChecklistSettingsModal({
     setSaving(true)
     setError(null)
     try {
-      await api.updateChecklistTasks({
-        tasks: tasks.map((t) => ({
-          slug: t.slug,
-          title: t.title.trim() || 'Задача',
-          is_header: t.is_header,
-          days_of_week: t.days_of_week.length ? t.days_of_week : [...ALL_DAYS],
-        })),
-      })
-      await api.updateChecklistMembers({ vk_ids: selectedIds })
+      await api.updateChecklistTasks(
+        {
+          tasks: tasks.map((t) => ({
+            slug: t.slug,
+            title: t.title.trim() || 'Задача',
+            is_header: t.is_header,
+            days_of_week: t.days_of_week.length ? t.days_of_week : [...ALL_DAYS],
+          })),
+        },
+        sphere,
+      )
+      await api.updateChecklistMembers({ vk_ids: selectedIds }, sphere)
       onSaved()
       onClose()
     } catch (e: unknown) {
@@ -149,10 +154,10 @@ export function ChecklistSettingsModal({
     setError(null)
     try {
       try {
-        await api.checklistMembersOnlyMe()
+        await api.checklistMembersOnlyMe(sphere)
       } catch (e: unknown) {
         if (e instanceof ApiError && e.status === 404) {
-          await api.updateChecklistMembers({ vk_ids: [user.vk_id] })
+          await api.updateChecklistMembers({ vk_ids: [user.vk_id] }, sphere)
         } else {
           throw e
         }
@@ -342,9 +347,6 @@ export function ChecklistSettingsModal({
                           {c.is_self && <span className="text-[var(--accent-gold)] text-xs ml-1.5">(вы)</span>}
                         </span>
                         <span className="checklist-member-meta shrink-0">
-                          {c.has_ca_access && (
-                            <span className="checklist-member-ca-badge">ЦА</span>
-                          )}
                           <span className="text-xs text-white/35">{c.access_level_name}</span>
                         </span>
                       </label>

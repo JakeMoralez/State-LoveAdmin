@@ -5,13 +5,15 @@ import { BrandLogo } from '../components/BrandLogo'
 import { DiscordIcon } from '../components/DiscordIcon'
 import { LoginMarquee } from '../components/LoginMarquee'
 import { Select } from '../components/ui/Select'
+import { SphereMultiSelect, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
+import { filterSpheresForLevel, sphereOptionsForLevel } from '../lib/spheres'
 import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLevels'
 
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
     'Этот Discord не привязан к вашему аккаунту. Укажите ID в боте: /editmydiscord или попросите ЗГС ЦА+ в реестре.',
-  no_access: 'У аккаунта нет доступа к порталу след. ЦА.',
+  no_access: 'У аккаунта нет доступа к порталу (нужен уровень ПГС+).',
   oauth: 'Не удалось войти через Discord. Попробуйте ещё раз.',
   invalid_token: 'Ссылка недействительна. Запросите новую: /panel в ЛС бота.',
   expired: 'Ссылка истекла (5 минут). Напишите боту /panel ещё раз.',
@@ -39,14 +41,13 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const [devMode, setDevMode] = useState(false)
-  const [devSkipCa, setDevSkipCa] = useState(false)
   const [discordConfigured, setDiscordConfigured] = useState(false)
   const [botLoginEnabled, setBotLoginEnabled] = useState(false)
   const [vkGroupId, setVkGroupId] = useState<number | null>(null)
   const [defaultDevVkId, setDefaultDevVkId] = useState<number | null>(null)
   const [devVkId, setDevVkId] = useState('')
   const [accessLevel, setAccessLevel] = useState('10')
-  const [hasCaAccess, setHasCaAccess] = useState(true)
+  const [devSpheres, setDevSpheres] = useState<string[]>(['central_apparatus'])
   const [levelOptions, setLevelOptions] = useState(ACCESS_LEVEL_OPTIONS)
 
   useEffect(() => {
@@ -61,7 +62,6 @@ export function LoginPage() {
       .authConfig()
       .then((cfg) => {
         setDevMode(cfg.dev_mode)
-        setDevSkipCa(cfg.dev_skip_ca)
         setDiscordConfigured(cfg.discord_configured)
         setBotLoginEnabled(cfg.bot_login_enabled)
         setVkGroupId(cfg.vk_group_id ?? null)
@@ -82,6 +82,17 @@ export function LoginPage() {
       })
   }, [])
 
+  const parsedLevel = parseInt(accessLevel, 10) || 0
+
+  useEffect(() => {
+    setDevSpheres((prev) => {
+      const filtered = filterSpheresForLevel(prev, parsedLevel)
+      if (filtered.length) return filtered
+      const first = sphereOptionsForLevel(parsedLevel)[0]?.value
+      return first ? [first] : []
+    })
+  }, [parsedLevel])
+
   const handleDevLogin = async () => {
     setBusy(true)
     setLocalError(null)
@@ -91,9 +102,13 @@ export function LoginPage() {
         setLocalError('Укажите VK ID — в .env не задан DEV_VK_ID.')
         return
       }
+      if (!devSpheres.length) {
+        setLocalError('Выберите хотя бы одну сферу.')
+        return
+      }
       await api.devLogin({
-        access_level: parseInt(accessLevel, 10),
-        has_ca_access: hasCaAccess,
+        access_level: parsedLevel,
+        spheres: devSpheres,
         ...(vkId && !Number.isNaN(vkId) ? { vk_id: vkId } : {}),
       })
       await refresh()
@@ -177,20 +192,19 @@ export function LoginPage() {
                       />
                     </div>
                   </div>
-                  <label className="login-dev-ca">
-                    <input
-                      type="checkbox"
-                      checked={hasCaAccess}
-                      onChange={(e) => setHasCaAccess(e.target.checked)}
+                  <div>
+                    <label className="login-field-label">{sphereFieldLabel(parsedLevel)}</label>
+                    <SphereMultiSelect
+                      accessLevel={parsedLevel}
+                      value={devSpheres}
+                      onChange={setDevSpheres}
+                      disabled={busy}
                     />
-                    <span>Доступ ЦА</span>
-                  </label>
+                  </div>
                   <p className="login-dev-hint">
                     {!defaultDevVkId
                       ? 'DEV_VK_ID не задан в .env — укажите VK ID в поле выше.'
-                      : devSkipCa
-                        ? 'Права из формы попадут в сессию — можно тестить чеклист, задачи и роли.'
-                        : 'DEV_SKIP_CA выключен: нужен реальный доступ у VK ID.'}
+                      : 'Уровень и сферы из формы попадут в сессию для теста.'}
                   </p>
                 </div>
               )}

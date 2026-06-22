@@ -5,6 +5,8 @@ import { api, ApiError, type LeaderMember, type LeaderMemberDetail } from '../ap
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
+import { useAuth } from '../context/AuthContext'
+import { canEditLeadershipRegistry } from '../lib/accessLevels'
 import { staffLabel } from '../lib/staff'
 
 type SortKey = 'index' | 'nickname' | 'position'
@@ -22,6 +24,9 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 }
 
 export function LeadersPage() {
+  const { user } = useAuth()
+  const actorLevel = user?.access_level ?? 0
+  const actorVkId = user?.vk_id ?? 0
   const [members, setMembers] = useState<LeaderMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
@@ -154,19 +159,21 @@ export function LeadersPage() {
                     >
                       {staffLabel(m)}
                     </Link>
-                    <button
-                      type="button"
-                      className="staff-settings-btn"
-                      title="Настройки"
-                      aria-label={`Настройки: ${staffLabel(m)}`}
-                      disabled={settingsLoadingVkId === m.vk_id}
-                      onClick={() => void openSettings(m)}
-                    >
-                      <Settings
-                        size={15}
-                        className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
-                      />
-                    </button>
+                    {canEditLeadershipRegistry(actorLevel, actorVkId, m.vk_id) && (
+                      <button
+                        type="button"
+                        className="staff-settings-btn"
+                        title="Настройки"
+                        aria-label={`Настройки: ${staffLabel(m)}`}
+                        disabled={settingsLoadingVkId === m.vk_id}
+                        onClick={() => void openSettings(m)}
+                      >
+                        <Settings
+                          size={15}
+                          className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
+                        />
+                      </button>
+                    )}
                     <span className="staff-badges">🛡</span>
                   </div>
                   <div className="staff-col-position staff-col-readonly">{m.position || '—'}</div>

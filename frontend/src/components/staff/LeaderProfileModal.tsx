@@ -1,7 +1,16 @@
-import { useEffect, useState } from 'react'
-import { ExternalLink, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type LeaderMemberDetail } from '../../api'
+import { useAuth } from '../../context/AuthContext'
+import {
+  FORUM_MEMBER_URL_EXAMPLE,
+  forumMemberUrl,
+  parseForumMemberUrl,
+} from '../../lib/forumAccount'
+import { JUDGE_POSITIONS } from '../../lib/judgePositions'
+import { canEditLeaderRegistry, effectiveLeaderPermissions } from '../../lib/leaderPermissions'
 import { staffLabel } from '../../lib/staff'
+import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
@@ -24,16 +33,31 @@ function memberNickname(member: LeaderMemberDetail): string {
 }
 
 export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderProfileModalProps) {
+  const { user } = useAuth()
   const [nickname, setNickname] = useState('')
+  const [forumAccount, setForumAccount] = useState('')
+  const [forumTouched, setForumTouched] = useState(false)
   const [position, setPosition] = useState('')
   const [note, setNote] = useState('')
   const [discordId, setDiscordId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const savedForumUrl = useMemo(
+    () => (member ? forumMemberUrl(member.username) : ''),
+    [member],
+  )
+
+  const judgePositionOptions = useMemo(
+    () => JUDGE_POSITIONS.map((p) => ({ value: p, label: p })),
+    [],
+  )
+
   useEffect(() => {
     if (!member) return
     setNickname(memberNickname(member))
+    setForumAccount(forumMemberUrl(member.username))
+    setForumTouched(false)
     setPosition(member.position ?? '')
     setNote(member.note ?? '')
     setDiscordId(member.discord_id ?? '')
@@ -43,20 +67,34 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
   if (!open || !member) return null
 
   const displayName = staffLabel(member)
-  const perms = member.permissions
+  const perms = effectiveLeaderPermissions(
+    member,
+    user?.access_level ?? 0,
+    user?.vk_id ?? 0,
+  )
+  const canEditRegistry = canEditLeaderRegistry(perms)
+  const isJudge =
+    member.is_judge === true || (member.badges ?? []).includes('⚖')
 
   const savedNickname = memberNickname(member)
 
+  const forumValidation = parseForumMemberUrl(forumAccount)
+  const forumError =
+    forumTouched && canEditRegistry && !forumValidation.ok ? forumValidation.message : null
+
   const hasChanges =
-    (perms.edit_nickname && nickname.trim() !== savedNickname.trim()) ||
-    (perms.edit_position && position.trim() !== (member.position ?? '').trim()) ||
-    (perms.edit_note && note.trim() !== (member.note ?? '').trim()) ||
+    (canEditRegistry && nickname.trim() !== savedNickname.trim()) ||
+    (canEditRegistry && forumAccount.trim() !== savedForumUrl.trim()) ||
+    (canEditRegistry && position.trim() !== (member.position ?? '').trim()) ||
+    (canEditRegistry && note.trim() !== (member.note ?? '').trim()) ||
     (perms.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
 
+  const canSave =
+    hasChanges &&
+    (!canEditRegistry || forumAccount.trim() === savedForumUrl.trim() || forumValidation.ok)
+
   const canEditAnything =
-    perms.edit_nickname ||
-    perms.edit_position ||
-    perms.edit_note ||
+    canEditRegistry ||
     perms.edit_discord ||
     perms.clear_nickname ||
     perms.remove_from_registry
@@ -67,16 +105,34 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
       return
     }
 
+    if (canEditRegistry && forumAccount.trim() !== savedForumUrl.trim()) {
+      const forumCheck = parseForumMemberUrl(forumAccount)
+      if (!forumCheck.ok) {
+        setForumTouched(true)
+        setError(forumCheck.message)
+        return
+      }
+    }
+
     setSaving(true)
     setError(null)
     try {
       const body: Record<string, unknown> = {}
-      if (perms.edit_nickname && nickname.trim() !== savedNickname.trim()) {
+      if (canEditRegistry && nickname.trim() !== savedNickname.trim()) {
         body.nickname = nickname.trim()
       }
-      if (perms.edit_position) body.position = position.trim()
-      if (perms.edit_note) body.note = note.trim()
-      if (perms.edit_discord) body.discord_id = discordId.trim() || null
+      if (canEditRegistry && forumAccount.trim() !== savedForumUrl.trim()) {
+        body.forum_account = forumAccount.trim()
+      }
+      if (canEditRegistry && position.trim() !== (member.position ?? '').trim()) {
+        body.position = position.trim()
+      }
+      if (canEditRegistry && note.trim() !== (member.note ?? '').trim()) {
+        body.note = note.trim()
+      }
+      if (perms.edit_discord && discordId.trim() !== (member.discord_id ?? '')) {
+        body.discord_id = discordId.trim() || null
+      }
 
       await api.updateLeader(member.vk_id, body)
       onSaved()
@@ -153,52 +209,99 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
                 </a>
               </dd>
             </div>
-            {member.username && (
-              <div>
-                <dt>Username</dt>
-                <dd>{member.username}</dd>
-              </div>
-            )}
           </dl>
 
-          {perms.edit_nickname && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label" htmlFor="leader-nickname">
-                Никнейм
-              </label>
-              <input
-                id="leader-nickname"
-                type="text"
-                className="control w-full"
-                value={nickname}
-                placeholder="[GOV] [9] Имя_Фамилия"
-                disabled={saving}
-                onChange={(e) => setNickname(e.target.value)}
-              />
-              <p className="staff-profile-hint">
-                Тот же ник, что в боте (/setnick и /members). Должность — отдельное поле ниже.
-              </p>
-            </div>
-          )}
+          <div className="staff-profile-field">
+            <label className="staff-profile-label" htmlFor="leader-nickname">
+              Никнейм
+            </label>
+            {canEditRegistry ? (
+              <>
+                <input
+                  id="leader-nickname"
+                  type="text"
+                  className="control w-full"
+                  value={nickname}
+                  placeholder="Имя_Фамилия"
+                  disabled={saving}
+                  onChange={(e) => setNickname(e.target.value)}
+                />
+              </>
+            ) : (
+              <p className="staff-profile-value">{savedNickname || '—'}</p>
+            )}
+          </div>
 
-          {perms.edit_position && (
+          <div className="staff-profile-field">
+            <label className="staff-profile-label" htmlFor="leader-forum">
+              Профиль на форуме
+            </label>
+            {canEditRegistry ? (
+              <>
+                <input
+                  id="leader-forum"
+                  type="url"
+                  className="control w-full"
+                  value={forumAccount}
+                  placeholder={FORUM_MEMBER_URL_EXAMPLE}
+                  disabled={saving}
+                  aria-invalid={forumError ? true : undefined}
+                  aria-describedby={forumError ? 'leader-forum-error' : undefined}
+                  onChange={(e) => setForumAccount(e.target.value)}
+                  onBlur={() => setForumTouched(true)}
+                />
+                {forumError && (
+                  <p id="leader-forum-error" className="assign-field-error" role="alert">
+                    {forumError}
+                  </p>
+                )}
+              </>
+            ) : savedForumUrl ? (
+              <p className="staff-profile-value">
+                <a href={savedForumUrl} target="_blank" rel="noreferrer" className="link-gold">
+                  {savedForumUrl}
+                  <ExternalLink size={13} className="inline ml-1 opacity-60" />
+                </a>
+              </p>
+            ) : (
+              <p className="staff-profile-value">—</p>
+            )}
+          </div>
+
+          {canEditRegistry && (
             <div className="staff-profile-field">
               <label className="staff-profile-label" htmlFor="leader-position">
                 Должность
               </label>
-              <input
-                id="leader-position"
-                type="text"
-                className="control w-full"
-                value={position}
-                placeholder="Например: Министр обороны"
-                disabled={saving}
-                onChange={(e) => setPosition(e.target.value)}
-              />
+              {isJudge ? (
+                <Select
+                  value={position}
+                  options={judgePositionOptions}
+                  disabled={saving}
+                  onChange={setPosition}
+                />
+              ) : (
+                <input
+                  id="leader-position"
+                  type="text"
+                  className="control w-full"
+                  value={position}
+                  placeholder="Например: Министр обороны"
+                  disabled={saving}
+                  onChange={(e) => setPosition(e.target.value)}
+                />
+              )}
             </div>
           )}
 
-          {perms.edit_note && (
+          {!canEditRegistry && (member.position ?? '').trim() && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label">Должность</label>
+              <p className="staff-profile-value">{member.position}</p>
+            </div>
+          )}
+
+          {canEditRegistry && (
             <div className="staff-profile-field">
               <label className="staff-profile-label" htmlFor="leader-note">
                 Заметка
@@ -215,9 +318,24 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
             </div>
           )}
 
+          {!canEditRegistry && (member.note ?? '').trim() && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label">Заметка</label>
+              <p className="staff-profile-value">{member.note}</p>
+            </div>
+          )}
+
           <div className="staff-profile-field">
             <label className="staff-profile-label" htmlFor="leader-discord">
               Discord ID
+              <button
+                type="button"
+                className="assign-label-hint"
+                aria-label="Что такое Discord ID"
+                title="Числовой ID Discord для входа на портал. В Discord: режим разработчика → ПКМ по профилю → «Скопировать ID пользователя»."
+              >
+                <HelpCircle size={14} aria-hidden />
+              </button>
             </label>
             {!perms.edit_discord ? (
               <p className="staff-profile-value">
@@ -231,19 +349,16 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
                 )}
               </p>
             ) : (
-              <>
-                <input
-                  id="leader-discord"
-                  type="text"
-                  inputMode="numeric"
-                  className="control w-full"
-                  value={discordId}
-                  placeholder="123456789012345678"
-                  disabled={saving}
-                  onChange={(e) => setDiscordId(e.target.value)}
-                />
-                <p className="staff-profile-hint">Для входа на портал через Discord</p>
-              </>
+              <input
+                id="leader-discord"
+                type="text"
+                inputMode="numeric"
+                className="control w-full"
+                value={discordId}
+                placeholder="123456789012345678"
+                disabled={saving}
+                onChange={(e) => setDiscordId(e.target.value)}
+              />
             )}
           </div>
 
@@ -287,16 +402,16 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
             {hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
           </button>
           {canEditAnything &&
-            (perms.edit_nickname || perms.edit_position || perms.edit_note || perms.edit_discord) && (
-            <button
-              type="button"
-              className="btn btn-gold"
-              onClick={() => void handleSave()}
-              disabled={saving || !hasChanges}
-            >
-              {saving ? 'Сохранение…' : 'Сохранить'}
-            </button>
-          )}
+            (canEditRegistry || perms.edit_discord) && (
+              <button
+                type="button"
+                className="btn btn-gold"
+                onClick={() => void handleSave()}
+                disabled={saving || !canSave}
+              >
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            )}
         </div>
       </div>
     </ModalViewport>

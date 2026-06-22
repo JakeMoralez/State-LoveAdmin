@@ -10,9 +10,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.config import DEFAULT_SERVER_ID
-from app.models.bot import AccessLevel
+from app.models.bot import AccessLevel, UserServerAccess
 from app.models.panel import StaffNote
-from app.services.access import get_access_level
 from app.services.auth import require_ca_user
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
@@ -22,6 +21,7 @@ from app.services.display_names import (
     resolve_vk_photos,
 )
 from app.services.staff import (
+    assign_staff_member,
     clear_ca_leader_nickname,
     get_ca_leader,
     get_leadership_peer_id,
@@ -31,17 +31,37 @@ from app.services.staff import (
     revoke_ca_leader_full,
     revoke_staff_access,
     update_ca_leader_meta,
+    update_leader_nickname,
     update_staff_member,
 )
+from app.services.staff_assign import assign_via_site_message
 from app.services.staff_permissions import (
+    assert_can_manage_leadership_registry,
+    assert_can_remove_from_leadership_registry,
     assert_can_revoke_staff,
     assert_can_set_ca,
     assert_can_set_level,
     assert_can_set_nickname,
+    can_manage_leadership_registry,
+    can_remove_from_leadership_registry,
     staff_edit_permissions,
 )
+from app.services.staff_spheres import validate_spheres
 
 router = APIRouter(prefix="/api/staff", tags=["staff"])
+
+
+def _session_access_level(user: dict) -> int:
+    """Уровень из сессии (dev-персона, MAIN_ADMIN, реальный доступ)."""
+    return int(user.get("access_level") or 0)
+
+
+async def _actor_access_level(user: dict, server_id: int) -> int:
+    if user.get("dev_persona"):
+        return _session_access_level(user)
+    from app.services.access import get_access_level
+
+    return await get_access_level(user["vk_id"], server_id)
 
 
 class StaffNoteUpdate(BaseModel):
@@ -54,11 +74,23 @@ class StaffDiscordUpdate(BaseModel):
 
 class StaffMemberUpdate(BaseModel):
     nickname: str | None = None
+    nickname_tag: str | None = None
     access_level: int | None = None
     has_ca_access: bool | None = None
+    spheres: list[str] | None = None
     note: str | None = None
     discord_id: str | None = None
     revoke_staff_access: bool | None = None
+    resync_nickname: bool | None = None
+
+
+class StaffAssignBody(BaseModel):
+    vk_id: int
+    discord_id: str | None = None
+    nickname: str
+    nickname_tag: str | None = None
+    access_level: int
+    spheres: list[str]
 
 
 class LeaderMemberUpdate(BaseModel):
@@ -66,6 +98,7 @@ class LeaderMemberUpdate(BaseModel):
     position: str | None = None
     note: str | None = None
     discord_id: str | None = None
+    forum_account: str | None = None
     clear_nickname: bool | None = None
     remove_from_registry: bool | None = None
 
@@ -73,7 +106,7 @@ class LeaderMemberUpdate(BaseModel):
 def _can_manage_discord_links(user: dict, level: int, target_vk_id: int) -> bool:
     if user["vk_id"] == target_vk_id:
         return True
-    return level >= 7 or user.get("panel_role") in ("owner", "lead")
+    return level >= AccessLevel.ZGS or user.get("panel_role") in ("owner", "lead")
 
 
 def _attach_discord_fields(rows: list[dict], links: dict[int, object]) -> None:
@@ -174,15 +207,26 @@ async def get_ca_leaders(
 
 
 def _leader_edit_permissions(user: dict, level: int, target_vk_id: int) -> dict:
-    is_self = user["vk_id"] == target_vk_id
-    can_edit_nick = level >= AccessLevel.PGS and not is_self
+    actor_vk_id = user["vk_id"]
+    can_edit_fields = can_manage_leadership_registry(
+        actor_level=level,
+        actor_vk_id=actor_vk_id,
+        target_vk_id=target_vk_id,
+    )
+    can_remove = can_remove_from_leadership_registry(
+        actor_level=level,
+        actor_vk_id=actor_vk_id,
+        target_vk_id=target_vk_id,
+    )
     return {
-        "edit_nickname": can_edit_nick,
-        "edit_position": True,
-        "edit_note": True,
+        "edit_nickname": can_edit_fields,
+        "edit_forum_account": can_edit_fields,
+        "edit_position": can_edit_fields,
+        "edit_note": can_edit_fields,
         "edit_discord": _can_manage_discord_links(user, level, target_vk_id),
-        "clear_nickname": can_edit_nick,
-        "remove_from_registry": True,
+        "clear_nickname": can_remove,
+        "remove_from_registry": can_remove,
+        "manage_registry": can_edit_fields,
     }
 
 
@@ -196,7 +240,7 @@ async def get_ca_leader_one(
     if not row:
         raise HTTPException(status_code=404, detail="Не найден в реестре руководства")
     row = await _enrich_staff_row(row, server_id)
-    actor_level = await get_access_level(user["vk_id"], server_id)
+    actor_level = await _actor_access_level(user, server_id)
     row["server_id"] = server_id
     row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
     return row
@@ -213,12 +257,18 @@ async def patch_ca_leader(
     if not row:
         raise HTTPException(status_code=404, detail="Не найден в реестре руководства")
 
-    actor_level = await get_access_level(user["vk_id"], server_id)
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    actor_level = await _actor_access_level(user, server_id)
     perms = _leader_edit_permissions(user, actor_level, vk_id)
     fields_set = body.model_fields_set
     changed = False
 
     if body.remove_from_registry:
+        assert_can_remove_from_leadership_registry(
+            actor_level=actor_level,
+            actor_vk_id=user["vk_id"],
+            target_vk_id=vk_id,
+        )
         if not perms["remove_from_registry"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав")
         try:
@@ -228,6 +278,11 @@ async def patch_ca_leader(
         return {"ok": True, "removed": True, "vk_id": vk_id}
 
     if body.clear_nickname:
+        assert_can_remove_from_leadership_registry(
+            actor_level=actor_level,
+            actor_vk_id=user["vk_id"],
+            target_vk_id=vk_id,
+        )
         if not perms["clear_nickname"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав")
         try:
@@ -236,16 +291,23 @@ async def patch_ca_leader(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         changed = True
 
+    registry_fields = {"nickname", "position", "note", "forum_account"}
+    if registry_fields & fields_set:
+        assert_can_manage_leadership_registry(
+            actor_level=actor_level,
+            actor_vk_id=user["vk_id"],
+            target_vk_id=vk_id,
+        )
+
     if "nickname" in fields_set:
         if not perms["edit_nickname"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены ника")
         assert_can_set_nickname(actor_level)
         try:
-            await update_staff_member(
+            await update_leader_nickname(
                 server_id,
                 vk_id,
                 nickname=body.nickname or "",
-                granted_by=user["vk_id"],
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -255,7 +317,23 @@ async def patch_ca_leader(
     if "position" in fields_set:
         if not perms["edit_position"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав")
-        meta_kwargs["position"] = body.position or ""
+        pos = (body.position or "").strip()
+        if access and access.is_judge:
+            from app.services.role_assign import validate_judge_position
+
+            pos = validate_judge_position(pos)
+        meta_kwargs["position"] = pos
+        changed = True
+
+    if "forum_account" in fields_set:
+        if not perms["edit_forum_account"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для форума")
+        from app.services.role_assign import _apply_forum_account
+
+        try:
+            await _apply_forum_account(vk_id, body.forum_account or "")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         changed = True
 
     if "note" in fields_set:
@@ -320,7 +398,8 @@ async def export_staff_csv(
             "badges",
             "ca_source",
             "granted_by",
-            "note",
+            "sphere",
+            "spheres",
         ]
     )
     for r in rows:
@@ -334,7 +413,7 @@ async def export_staff_csv(
                 " ".join(r["badges"]),
                 r.get("ca_source") or "",
                 r.get("granted_by") or "",
-                r.get("note") or "",
+                r.get("sphere") or "",
             ]
         )
     output.seek(0)
@@ -365,6 +444,77 @@ async def _enrich_staff_row(row: dict, server_id: int) -> dict:
     return row
 
 
+@router.post("/assign")
+async def post_staff_assign(
+    body: StaffAssignBody,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_ca_user),
+):
+    actor_level = _session_access_level(user)
+    perms = staff_edit_permissions(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        actor_panel_role=user.get("panel_role") or "member",
+        target_vk_id=body.vk_id,
+    )
+    if not perms["assign_staff"]:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для назначения")
+    if user["vk_id"] == body.vk_id:
+        raise HTTPException(status_code=403, detail="Нельзя назначить себя")
+
+    assert_can_set_level(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        new_level=body.access_level,
+    )
+    assert_can_set_nickname(actor_level)
+
+    try:
+        validate_spheres(body.spheres, body.access_level)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not (body.nickname or "").strip():
+        raise HTTPException(status_code=400, detail="Укажите никнейм")
+
+    try:
+        row = await assign_staff_member(
+            server_id,
+            body.vk_id,
+            nickname=body.nickname.strip(),
+            access_level=body.access_level,
+            spheres=body.spheres,
+            granted_by=user["vk_id"],
+            nickname_tag=body.nickname_tag,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if body.discord_id:
+        try:
+            discord_id = normalize_discord_id(body.discord_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await set_discord_link(
+            vk_id=body.vk_id,
+            discord_id=discord_id,
+            actor_vk_id=user["vk_id"],
+        )
+
+    row = await _enrich_staff_row(row, server_id)
+    from app.services.access import panel_role
+
+    row["server_id"] = server_id
+    row["panel_role"] = panel_role(row["access_level"])
+    row["permissions"] = staff_edit_permissions(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        actor_panel_role=user.get("panel_role") or "member",
+        target_vk_id=body.vk_id,
+    )
+    return row
+
+
 @router.get("/{vk_id}")
 async def get_staff_one(
     vk_id: int,
@@ -375,7 +525,7 @@ async def get_staff_one(
     if not row:
         raise HTTPException(status_code=404, detail="Не найден в реестре следящих")
     row = await _enrich_staff_row(row, server_id)
-    actor_level = await get_access_level(user["vk_id"], server_id)
+    actor_level = _session_access_level(user)
     perms = staff_edit_permissions(
         actor_vk_id=user["vk_id"],
         actor_level=actor_level,
@@ -397,7 +547,7 @@ async def patch_staff_member(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    actor_level = await get_access_level(user["vk_id"], server_id)
+    actor_level = _session_access_level(user)
     perms = staff_edit_permissions(
         actor_vk_id=user["vk_id"],
         actor_level=actor_level,
@@ -432,11 +582,22 @@ async def patch_staff_member(
         assert_can_set_nickname(actor_level)
         kwargs["nickname"] = body.nickname or ""
 
+    if "nickname_tag" in fields_set:
+        if not perms["edit_nickname"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены тега")
+        assert_can_set_nickname(actor_level)
+        kwargs["nickname_tag"] = body.nickname_tag or ""
+        kwargs["nickname_tag_provided"] = True
+
     if "access_level" in fields_set:
         if body.access_level is None:
             raise HTTPException(status_code=400, detail="Укажите access_level")
         if not perms["edit_access_level"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены уровня")
+        row_before = await get_staff_member(server_id, vk_id)
+        prev_level = int(row_before["access_level"]) if row_before else 0
+        if prev_level <= 0 and body.access_level > 0:
+            raise HTTPException(status_code=400, detail=assign_via_site_message())
         assert_can_set_level(
             actor_vk_id=user["vk_id"],
             actor_level=actor_level,
@@ -452,10 +613,51 @@ async def patch_staff_member(
         assert_can_set_ca(actor_level)
         kwargs["has_ca_access"] = body.has_ca_access
 
+    if "spheres" in fields_set:
+        if body.spheres is None:
+            raise HTTPException(status_code=400, detail="Укажите spheres")
+        if not perms["edit_spheres"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены сфер")
+        assert_can_set_ca(actor_level)
+        target_access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+        target_level = (
+            body.access_level
+            if "access_level" in fields_set and body.access_level is not None
+            else (target_access.access_level if target_access else 0)
+        )
+        try:
+            validate_spheres(body.spheres, target_level)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        kwargs["spheres"] = body.spheres
+
     if "note" in fields_set:
         if not perms["edit_sphere"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены сферы")
         kwargs["note"] = body.note or ""
+
+    if body.resync_nickname:
+        row = await get_staff_member(server_id, vk_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="Не найден в реестре следящих")
+        if not (
+            perms["edit_nickname"]
+            or perms["edit_access_level"]
+            or perms["edit_spheres"]
+        ):
+            raise HTTPException(status_code=403, detail="Недостаточно прав для синхронизации ника")
+        from app.services.staff_nickname import strip_nickname_tags
+
+        if "nickname" not in kwargs:
+            clean = strip_nickname_tags(
+                body.nickname or row.get("bot_nickname") or row.get("nickname") or "",
+            ).strip()
+            if clean and perms["edit_nickname"]:
+                kwargs["nickname"] = clean
+        if "access_level" not in kwargs and perms["edit_access_level"]:
+            kwargs["access_level"] = row["access_level"]
+        if "spheres" not in kwargs and perms["edit_spheres"]:
+            kwargs["spheres"] = list(row.get("spheres") or [])
 
     if not kwargs and "discord_id" not in fields_set:
         raise HTTPException(status_code=400, detail="Нет полей для обновления")
@@ -503,7 +705,7 @@ async def update_staff_note(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    level = await get_access_level(user["vk_id"], server_id)
+    level = _session_access_level(user)
     if level < 7 and user["panel_role"] not in ("owner", "lead"):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
     note, _ = await StaffNote.get_or_create(
@@ -522,7 +724,7 @@ async def update_staff_discord(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    level = await get_access_level(user["vk_id"], server_id)
+    level = _session_access_level(user)
     if not _can_manage_discord_links(user, level, vk_id):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
 

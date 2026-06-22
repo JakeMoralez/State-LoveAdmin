@@ -24,7 +24,7 @@ from app.config import (
     sqlite_file_path,
 )
 from app.routers.uploads import regenerate_all_gallery_pages
-from app.routers import auth, checklist, dashboard, dev, forum_judge_list, internal, profile, projects, question_banks, staff, tasks, uploads
+from app.routers import assign, auth, checklist, dashboard, dev, forum_judge_list, internal, profile, projects, question_banks, spheres, staff, tasks, uploads
 from app.services.bootstrap import ensure_defaults
 from app.services.error_log import record_server_exception
 from app.services.staff import list_staff
@@ -106,9 +106,11 @@ app.include_router(profile.router)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 app.include_router(uploads.router)
+app.include_router(spheres.router)
 app.include_router(checklist.router)
 app.include_router(question_banks.router)
 app.include_router(forum_judge_list.router)
+app.include_router(assign.router)
 app.include_router(dev.router)
 
 

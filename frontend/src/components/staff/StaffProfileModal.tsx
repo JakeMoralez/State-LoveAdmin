@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ExternalLink, X } from 'lucide-react'
+import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
 import { ACCESS_LEVEL_OPTIONS } from '../../lib/accessLevels'
+import { formatSpheresDisplay } from '../../lib/spheres'
+import {
+  DEFAULT_DEVELOPER_TAG,
+  developerTagFromNickname,
+  extractNicknameTag,
+  isDeveloperLevel,
+  isLegacyStaffTag,
+  previewStaffNickname,
+  stripStaffNicknameTags,
+  validateDeveloperTagInput,
+} from '../../lib/staffNickname'
 import { staffLabel } from '../../lib/staff'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
+import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from './SphereMultiSelect'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -12,6 +24,13 @@ function formatError(e: unknown): string {
   if (e instanceof ApiError) return e.message
   if (e instanceof Error) return e.message
   return 'Ошибка сохранения'
+}
+
+function spheresEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const sa = [...a].sort()
+  const sb = [...b].sort()
+  return sa.every((v, i) => v === sb[i])
 }
 
 export interface StaffProfileModalProps {
@@ -22,9 +41,12 @@ export interface StaffProfileModalProps {
   permissions: StaffMemberPermissions
 }
 
-function memberNickname(member: StaffMemberDetail): string {
-  return member.bot_nickname ?? ''
+function memberCleanName(member: StaffMemberDetail): string {
+  return stripStaffNicknameTags(member.bot_nickname ?? member.nickname ?? '')
 }
+
+const DISCORD_ID_HELP =
+  'Числовой ID Discord для входа на портал. В Discord: режим разработчика → ПКМ по профилю → «Скопировать ID пользователя».'
 
 export function StaffProfileModal({
   member,
@@ -34,22 +56,39 @@ export function StaffProfileModal({
   permissions,
 }: StaffProfileModalProps) {
   const [nickname, setNickname] = useState('')
+  const [nicknameTag, setNicknameTag] = useState('')
   const [accessLevel, setAccessLevel] = useState('0')
-  const [hasCaAccess, setHasCaAccess] = useState(false)
-  const [sphere, setSphere] = useState('')
+  const [spheres, setSpheres] = useState<string[]>([])
   const [discordId, setDiscordId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!member) return
-    setNickname(memberNickname(member))
+    setNickname(memberCleanName(member))
+    const level = member.access_level
+    setNicknameTag(
+      isDeveloperLevel(level)
+        ? developerTagFromNickname(member.bot_nickname ?? member.nickname ?? '')
+        : extractNicknameTag(member.bot_nickname ?? member.nickname ?? ''),
+    )
     setAccessLevel(String(member.access_level))
-    setHasCaAccess(member.has_ca_access)
-    setSphere(member.note ?? '')
+    setSpheres(member.spheres ?? [])
     setDiscordId(member.discord_id ?? '')
     setError(null)
   }, [member])
+
+  const parsedLevel = permissions.edit_access_level
+    ? parseInt(accessLevel, 10)
+    : member?.access_level ?? 0
+
+  useEffect(() => {
+    if (!permissions.edit_access_level) return
+    setSpheres((prev) => filterSpheresForLevel(prev, parsedLevel))
+    if (isDeveloperLevel(parsedLevel)) {
+      setNicknameTag((tag) => (isLegacyStaffTag(tag) ? '' : tag))
+    }
+  }, [parsedLevel, permissions.edit_access_level])
 
   const levelOptions = useMemo(
     () =>
@@ -59,45 +98,107 @@ export function StaffProfileModal({
     [permissions.max_access_level],
   )
 
+  const savedSpheres = member?.spheres ?? []
+  const canEditSpheres = permissions.edit_spheres ?? permissions.edit_ca_access
+
+  const nicknamePreview = useMemo(() => {
+    if (!member) return ''
+    const previewSpheres = canEditSpheres ? spheres : savedSpheres
+    return previewStaffNickname(
+      nickname,
+      parsedLevel,
+      previewSpheres,
+      isDeveloperLevel(parsedLevel) ? nicknameTag : null,
+    )
+  }, [
+    nickname,
+    nicknameTag,
+    parsedLevel,
+    spheres,
+    savedSpheres,
+    canEditSpheres,
+    member,
+  ])
+
   if (!open || !member) return null
 
-  const displayName = staffLabel(member)
-  const sphereAuto = !member.note?.trim()
+  const headerLabel = nicknamePreview || member.bot_nickname || member.nickname || staffLabel(member)
 
   const canEditAnything =
     permissions.edit_nickname ||
     permissions.edit_access_level ||
-    permissions.edit_ca_access ||
-    permissions.edit_sphere ||
+    canEditSpheres ||
     permissions.edit_discord ||
     permissions.revoke_staff_access
 
-  const savedNickname = memberNickname(member)
+  const savedCleanName = memberCleanName(member)
+  const savedNicknameTag = isDeveloperLevel(parsedLevel)
+    ? developerTagFromNickname(member.bot_nickname ?? member.nickname ?? '')
+    : extractNicknameTag(member.bot_nickname ?? member.nickname ?? '')
+  const showDevTag = isDeveloperLevel(parsedLevel)
+
+  const storedNick = (member.bot_nickname ?? member.nickname ?? '').trim()
+  const nickOutOfSync = Boolean(nicknamePreview && nicknamePreview.trim() !== storedNick)
 
   const hasChanges =
-    (permissions.edit_nickname && nickname.trim() !== savedNickname.trim()) ||
+    nickOutOfSync ||
+    (permissions.edit_nickname && stripStaffNicknameTags(nickname).trim() !== savedCleanName) ||
+    (permissions.edit_nickname && showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()) ||
     (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) ||
-    (permissions.edit_ca_access && hasCaAccess !== member.has_ca_access) ||
-    (permissions.edit_sphere && sphere.trim() !== (member.note ?? '').trim()) ||
+    (canEditSpheres && !spheresEqual(spheres, savedSpheres)) ||
     (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
 
+  const appendNicknameResync = (body: Record<string, unknown>) => {
+    const cleanNick = stripStaffNicknameTags(nickname).trim()
+    if (permissions.edit_nickname) {
+      body.nickname = cleanNick || savedCleanName
+    }
+    if (permissions.edit_access_level) {
+      body.access_level = parseInt(accessLevel, 10)
+    }
+    if (canEditSpheres) {
+      body.spheres = spheres
+    }
+    if (permissions.edit_nickname && showDevTag) {
+      body.nickname_tag = nicknameTag.trim()
+    }
+  }
+
+  const devTagError =
+    permissions.edit_nickname && showDevTag ? validateDeveloperTagInput(nicknameTag) : null
+
   const handleSave = async () => {
+    if (devTagError) {
+      setError(devTagError)
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       const body: Record<string, unknown> = {}
+      const cleanNick = stripStaffNicknameTags(nickname).trim()
 
-      if (permissions.edit_nickname && nickname.trim() !== savedNickname.trim()) {
-        body.nickname = nickname.trim()
+      if (permissions.edit_nickname && cleanNick !== savedCleanName) {
+        body.nickname = cleanNick
+      }
+      if (permissions.edit_nickname && showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()) {
+        body.nickname_tag = nicknameTag.trim()
       }
       if (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) {
         body.access_level = parseInt(accessLevel, 10)
       }
-      if (permissions.edit_ca_access && hasCaAccess !== member.has_ca_access) {
-        body.has_ca_access = hasCaAccess
+      if (canEditSpheres && !spheresEqual(spheres, savedSpheres)) {
+        body.spheres = spheres
       }
-      if (permissions.edit_sphere && sphere.trim() !== (member.note ?? '').trim()) {
-        body.note = sphere.trim()
+      if (nickOutOfSync) {
+        appendNicknameResync(body)
+        body.resync_nickname = true
+      } else if (
+        Object.keys(body).length > 0 &&
+        !('nickname' in body) &&
+        (permissions.edit_nickname || permissions.edit_access_level || canEditSpheres)
+      ) {
+        body.nickname = cleanNick || savedCleanName
       }
       if (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) {
         body.discord_id = discordId.trim() || null
@@ -121,7 +222,7 @@ export function StaffProfileModal({
   const handleRevokeAccess = async () => {
     if (
       !window.confirm(
-        'Снять доступ следящего? Уровень станет 0, доступ ЦА будет отключён — человек исчезнет из реестра.',
+        'Снять доступ следящего? Уровень станет 0, сферы будут очищены — человек исчезнет из реестра.',
       )
     ) {
       return
@@ -149,7 +250,7 @@ export function StaffProfileModal({
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-lg font-semibold">Настройки · {displayName}</h2>
+              <h2 className="m-0 truncate text-lg font-semibold">Настройки · {headerLabel}</h2>
               <p className="m-0 mt-0.5 text-xs text-white/40">
                 {member.access_role_title || member.access_level_name}
                 {member.badges.length > 0 ? ` · ${member.badges.join(' ')}` : ''}
@@ -185,85 +286,17 @@ export function StaffProfileModal({
             )}
           </dl>
 
-          {permissions.edit_nickname && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label" htmlFor="staff-nickname">
-                Никнейм
-              </label>
-              <input
-                id="staff-nickname"
-                type="text"
-                className="control w-full"
-                value={nickname}
-                placeholder="[ЗГС ЦА] Имя Фамилия"
-                disabled={saving}
-                onChange={(e) => setNickname(e.target.value)}
-              />
-              <p className="staff-profile-hint">Имя в реестре с тегом должности</p>
-            </div>
-          )}
-
-          {permissions.edit_access_level && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label">Уровень доступа</label>
-              <Select
-                value={accessLevel}
-                onChange={setAccessLevel}
-                options={levelOptions}
-                disabled={saving}
-              />
-              <p className="staff-profile-hint">
-                Не выше вашего уровня ({permissions.max_access_level})
-              </p>
-            </div>
-          )}
-
-          {permissions.edit_ca_access && (
-            <div className="staff-profile-field">
-              <label className="ui-checkbox-label staff-profile-check">
-                <input
-                  type="checkbox"
-                  className="ui-checkbox"
-                  checked={hasCaAccess}
-                  disabled={saving}
-                  onChange={(e) => setHasCaAccess(e.target.checked)}
-                />
-                <span className="ui-checkbox-box" />
-                <span>Доступ ЦА</span>
-              </label>
-              <p className="staff-profile-hint">Разделы и функции центральной администрации</p>
-            </div>
-          )}
-
-          <div className="staff-profile-field">
-            <label className="staff-profile-label" htmlFor="staff-sphere">
-              Сфера
-            </label>
-            {permissions.edit_sphere ? (
-              <>
-                <input
-                  id="staff-sphere"
-                  type="text"
-                  className="control w-full"
-                  value={sphere}
-                  placeholder="Например: Государственные организации"
-                  disabled={saving}
-                  onChange={(e) => setSphere(e.target.value)}
-                />
-                <p className="staff-profile-hint">
-                  {sphereAuto
-                    ? `По должности: ${member.sphere || '—'}. Свой вариант перезапишет это значение.`
-                    : 'Пустое поле — сфера снова подставится по должности.'}
-                </p>
-              </>
-            ) : (
-              <p className="staff-profile-value">{member.sphere || '—'}</p>
-            )}
-          </div>
-
           <div className="staff-profile-field">
             <label className="staff-profile-label" htmlFor="staff-discord">
               Discord ID
+              <button
+                type="button"
+                className="assign-label-hint"
+                aria-label="Что такое Discord ID"
+                title={DISCORD_ID_HELP}
+              >
+                <HelpCircle size={14} aria-hidden />
+              </button>
             </label>
             {!permissions.edit_discord ? (
               <p className="staff-profile-value">
@@ -277,21 +310,92 @@ export function StaffProfileModal({
                 )}
               </p>
             ) : (
-              <>
-                <input
-                  id="staff-discord"
-                  type="text"
-                  inputMode="numeric"
-                  className="control w-full"
-                  value={discordId}
-                  placeholder="123456789012345678"
-                  disabled={saving}
-                  onChange={(e) => setDiscordId(e.target.value)}
-                />
-                <p className="staff-profile-hint">Для входа на портал через Discord</p>
-              </>
+              <input
+                id="staff-discord"
+                type="text"
+                inputMode="numeric"
+                className="control w-full"
+                value={discordId}
+                placeholder="123456789012345678"
+                disabled={saving}
+                onChange={(e) => setDiscordId(e.target.value)}
+              />
             )}
           </div>
+
+          {permissions.edit_nickname && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="staff-nickname">
+                Имя
+              </label>
+              <input
+                id="staff-nickname"
+                type="text"
+                className="control w-full"
+                value={nickname}
+                placeholder="Имя Фамилия"
+                disabled={saving}
+                onChange={(e) => setNickname(e.target.value)}
+              />
+            </div>
+          )}
+
+          {permissions.edit_access_level && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label">Уровень доступа</label>
+              <Select
+                value={accessLevel}
+                onChange={setAccessLevel}
+                options={levelOptions}
+                disabled={saving}
+              />
+            </div>
+          )}
+
+          {permissions.edit_nickname && showDevTag && (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="staff-nick-tag">
+                Тег в нике
+              </label>
+              <input
+                id="staff-nick-tag"
+                type="text"
+                className="control w-full"
+                value={nicknameTag}
+                placeholder={DEFAULT_DEVELOPER_TAG}
+                disabled={saving}
+                onChange={(e) => setNicknameTag(e.target.value)}
+              />
+              {devTagError ? (
+                <p className="staff-profile-error mt-1 mb-0">{devTagError}</p>
+              ) : null}
+            </div>
+          )}
+
+          <div className="staff-profile-field">
+            <span className="staff-profile-label">{sphereFieldLabel(parsedLevel)}</span>
+            {canEditSpheres ? (
+              <SphereMultiSelect
+                value={spheres}
+                onChange={setSpheres}
+                disabled={saving}
+                accessLevel={parsedLevel}
+                showHint={false}
+              />
+            ) : (
+              <p className="staff-profile-value">{formatSpheresDisplay(member.spheres) || member.sphere || '—'}</p>
+            )}
+          </div>
+
+          {(permissions.edit_nickname ||
+            permissions.edit_access_level ||
+            canEditSpheres) &&
+            nicknamePreview && (
+            <p className="staff-profile-hint m-0">
+              Ник в реестре:{' '}
+              <span className="text-white/70 font-medium">{nicknamePreview}</span>
+            </p>
+          )}
 
           {permissions.revoke_staff_access && (
             <div className="staff-profile-danger">
@@ -323,7 +427,7 @@ export function StaffProfileModal({
               type="button"
               className="btn btn-gold"
               onClick={() => void handleSave()}
-              disabled={saving || !hasChanges}
+              disabled={saving || !hasChanges || Boolean(devTagError)}
             >
               {saving ? 'Сохранение…' : 'Сохранить'}
             </button>

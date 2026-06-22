@@ -10,6 +10,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_SERVER_ID
+from app.models.bot import AccessLevel
 from app.models.panel import (
     ChecklistCell,
     ChecklistMember,
@@ -21,6 +22,7 @@ from app.models.panel import (
 from app.routers.uploads import gallery_image_urls, is_gallery_url
 from app.services.auth import require_ca_user
 from app.services.display_names import resolve_display_names
+from app.services.sphere_work import DEFAULT_WORK_SPHERE, resolve_work_sphere, visible_work_spheres
 from app.services.staff import list_staff
 
 router = APIRouter(prefix="/api/checklist", tags=["checklist"])
@@ -40,12 +42,19 @@ CHECKLIST_EDIT_OTHERS_MIN_LEVEL = 3  # ЗГС+
 CHECKLIST_MANAGE_MIN_LEVEL = 3
 
 
-def _has_ca_access(member: dict) -> bool:
+def _portal_staff(member: dict) -> bool:
     if not member:
         return False
-    if member.get("has_ca_access"):
-        return True
-    return int(member.get("access_level") or 0) >= 5  # ЗГС ГОС+ как в can_use_ca_scope
+    return int(member.get("access_level") or 0) >= AccessLevel.PGS
+
+
+_has_ca_access = _portal_staff
+
+
+def _member_eligible_for_sphere(member: dict | None, sphere: str) -> bool:
+    if not member or not _portal_staff(member):
+        return False
+    return sphere in visible_work_spheres({"spheres": member.get("spheres") or []})
 
 
 def _can_manage_checklist(user: dict) -> bool:
@@ -158,11 +167,11 @@ def _is_past_week(week_start: date) -> bool:
     return _normalize_date(week_start) < _current_week_start()
 
 
-async def _mutable_week_starts(server_id: int) -> set[date]:
+async def _mutable_week_starts(server_id: int, sphere: str) -> set[date]:
     """Недели, которые можно обновлять из шаблона: текущая и будущие."""
     current = _current_week_start()
     out = {current}
-    rows = await ChecklistWeekTask.filter(server_id=server_id, week_start__gte=current).only(
+    rows = await ChecklistWeekTask.filter(server_id=server_id, sphere=sphere, week_start__gte=current).only(
         "week_start"
     )
     for row in rows:
@@ -203,24 +212,28 @@ def _days_from_str(raw: str | None) -> list[int]:
     return sorted(set(out)) or ALL_DAYS.copy()
 
 
-async def _prune_ineligible_members(server_id: int, staff: list[dict]) -> None:
-    """Убрать из состава тех, у кого больше нет доступа ЦА."""
+async def _prune_ineligible_members(server_id: int, staff: list[dict], sphere: str) -> None:
+    """Убрать из состава тех, кто не следит за этой сферой."""
     staff_by_id = {m["vk_id"]: m for m in staff}
-    rows = list(await ChecklistMember.filter(server_id=server_id).order_by("sort_order", "id"))
-    for row in rows:
-        m = staff_by_id.get(row.vk_id)
-        if not m or not _has_ca_access(m):
-            await row.delete()
+    rows = list(await ChecklistMember.filter(server_id=server_id, sphere=sphere).order_by("sort_order", "id"))
+    remove_ids = [
+        row.id
+        for row in rows
+        if not _member_eligible_for_sphere(staff_by_id.get(row.vk_id), sphere)
+    ]
+    if remove_ids:
+        await ChecklistMember.filter(id__in=remove_ids).delete()
 
 
-async def _ensure_task_defs(server_id: int) -> list[ChecklistTaskDef]:
-    existing = await ChecklistTaskDef.filter(server_id=server_id).order_by("sort_order", "id")
+async def _ensure_task_defs(server_id: int, sphere: str) -> list[ChecklistTaskDef]:
+    existing = await ChecklistTaskDef.filter(server_id=server_id, sphere=sphere).order_by("sort_order", "id")
     if existing:
         return list(existing)
     created: list[ChecklistTaskDef] = []
     for i, t in enumerate(DEFAULT_CHECKLIST_TASKS):
         row = await ChecklistTaskDef.create(
             server_id=server_id,
+            sphere=sphere,
             slug=t["slug"],
             title=t["title"],
             is_header=bool(t.get("header", False)),
@@ -231,15 +244,16 @@ async def _ensure_task_defs(server_id: int) -> list[ChecklistTaskDef]:
     return created
 
 
-async def _ensure_week_snapshot(server_id: int, week_start: date, staff: list[dict]) -> None:
+async def _ensure_week_snapshot(server_id: int, week_start: date, staff: list[dict], sphere: str) -> None:
     week_start = _normalize_date(week_start)
-    if await ChecklistWeekTask.filter(server_id=server_id, week_start=week_start).exists():
+    if await ChecklistWeekTask.filter(server_id=server_id, sphere=sphere, week_start=week_start).exists():
         return
-    task_defs = await _ensure_task_defs(server_id)
-    member_rows = await ChecklistMember.filter(server_id=server_id).order_by("sort_order", "id")
+    task_defs = await _ensure_task_defs(server_id, sphere)
+    member_rows = await ChecklistMember.filter(server_id=server_id, sphere=sphere).order_by("sort_order", "id")
     for t in task_defs:
         await ChecklistWeekTask.create(
             server_id=server_id,
+            sphere=sphere,
             week_start=week_start,
             slug=t.slug,
             title=t.title,
@@ -250,34 +264,36 @@ async def _ensure_week_snapshot(server_id: int, week_start: date, staff: list[di
     for row in member_rows:
         await ChecklistWeekMember.create(
             server_id=server_id,
+            sphere=sphere,
             week_start=week_start,
             vk_id=row.vk_id,
             sort_order=row.sort_order,
         )
 
 
-async def _template_member_rows(server_id: int) -> list[ChecklistMember]:
-    return list(await ChecklistMember.filter(server_id=server_id).order_by("sort_order", "id"))
+async def _template_member_rows(server_id: int, sphere: str) -> list[ChecklistMember]:
+    return list(await ChecklistMember.filter(server_id=server_id, sphere=sphere).order_by("sort_order", "id"))
 
 
-async def _week_member_rows(server_id: int, week_start: date) -> list[ChecklistWeekMember]:
+async def _week_member_rows(server_id: int, week_start: date, sphere: str) -> list[ChecklistWeekMember]:
     return list(
-        await ChecklistWeekMember.filter(server_id=server_id, week_start=week_start).order_by(
+        await ChecklistWeekMember.filter(server_id=server_id, sphere=sphere, week_start=week_start).order_by(
             "sort_order", "id"
         )
     )
 
 
 
-async def _replace_week_tasks_from_template(server_id: int, week_start: date) -> None:
+async def _replace_week_tasks_from_template(server_id: int, week_start: date, sphere: str) -> None:
     week_start = _normalize_date(week_start)
     if _is_past_week(week_start):
         return
-    task_defs = await _ensure_task_defs(server_id)
-    await ChecklistWeekTask.filter(server_id=server_id, week_start=week_start).delete()
+    task_defs = await _ensure_task_defs(server_id, sphere)
+    await ChecklistWeekTask.filter(server_id=server_id, sphere=sphere, week_start=week_start).delete()
     for t in task_defs:
         await ChecklistWeekTask.create(
             server_id=server_id,
+            sphere=sphere,
             week_start=week_start,
             slug=t.slug,
             title=t.title,
@@ -287,48 +303,49 @@ async def _replace_week_tasks_from_template(server_id: int, week_start: date) ->
         )
 
 
-async def _sync_tasks_to_current_and_future_weeks(server_id: int) -> None:
-    for week_start in await _mutable_week_starts(server_id):
-        await _replace_week_tasks_from_template(server_id, week_start)
+async def _sync_tasks_to_current_and_future_weeks(server_id: int, sphere: str) -> None:
+    for week_start in await _mutable_week_starts(server_id, sphere):
+        await _replace_week_tasks_from_template(server_id, week_start, sphere)
 
 
-async def _replace_week_members_from_template(server_id: int, week_start: date) -> None:
+async def _replace_week_members_from_template(server_id: int, week_start: date, sphere: str) -> None:
     week_start = _normalize_date(week_start)
     if _is_past_week(week_start):
         return
-    template_rows = await _template_member_rows(server_id)
-    await ChecklistWeekMember.filter(server_id=server_id, week_start=week_start).delete()
+    template_rows = await _template_member_rows(server_id, sphere)
+    await ChecklistWeekMember.filter(server_id=server_id, sphere=sphere, week_start=week_start).delete()
     for row in template_rows:
         await ChecklistWeekMember.create(
             server_id=server_id,
+            sphere=sphere,
             week_start=week_start,
             vk_id=row.vk_id,
             sort_order=row.sort_order,
         )
 
 
-async def _bootstrap_week_members_if_empty(server_id: int, week_start: date) -> None:
+async def _bootstrap_week_members_if_empty(server_id: int, week_start: date, sphere: str) -> None:
     """Только для текущей/будущей недели: заполнить пустой снимок из шаблона."""
     week_start = _normalize_date(week_start)
     if _is_past_week(week_start):
         return
-    if await ChecklistWeekMember.filter(server_id=server_id, week_start=week_start).exists():
+    if await ChecklistWeekMember.filter(server_id=server_id, sphere=sphere, week_start=week_start).exists():
         return
-    if not await _template_member_rows(server_id):
+    if not await _template_member_rows(server_id, sphere):
         return
-    await _replace_week_members_from_template(server_id, week_start)
+    await _replace_week_members_from_template(server_id, week_start, sphere)
 
 
-async def _sync_members_to_current_and_future_weeks(server_id: int, staff: list[dict]) -> None:
-    for week_start in await _mutable_week_starts(server_id):
-        await _ensure_week_snapshot(server_id, week_start, staff)
-        await _replace_week_members_from_template(server_id, week_start)
+async def _sync_members_to_current_and_future_weeks(server_id: int, staff: list[dict], sphere: str) -> None:
+    for week_start in await _mutable_week_starts(server_id, sphere):
+        await _ensure_week_snapshot(server_id, week_start, staff, sphere)
+        await _replace_week_members_from_template(server_id, week_start, sphere)
 
 
-async def _week_task_defs(server_id: int, week_start: date, staff: list[dict]) -> list[ChecklistWeekTask]:
-    await _ensure_week_snapshot(server_id, week_start, staff)
+async def _week_task_defs(server_id: int, week_start: date, staff: list[dict], sphere: str) -> list[ChecklistWeekTask]:
+    await _ensure_week_snapshot(server_id, week_start, staff, sphere)
     return list(
-        await ChecklistWeekTask.filter(server_id=server_id, week_start=week_start).order_by(
+        await ChecklistWeekTask.filter(server_id=server_id, sphere=sphere, week_start=week_start).order_by(
             "sort_order", "id"
         )
     )
@@ -338,6 +355,7 @@ async def _build_checklist_member_payload(
     rows: list[ChecklistMember] | list[ChecklistWeekMember],
     staff: list[dict],
     server_id: int,
+    sphere: str,
     *,
     frozen: bool = False,
 ) -> list[dict]:
@@ -347,7 +365,11 @@ async def _build_checklist_member_payload(
     if frozen:
         vk_ids = {r.vk_id for r in rows}
     else:
-        vk_ids = {r.vk_id for r in rows if _has_ca_access(staff_by_id.get(r.vk_id, {}))}
+        vk_ids = {
+            r.vk_id
+            for r in rows
+            if _member_eligible_for_sphere(staff_by_id.get(r.vk_id), sphere)
+        }
     if not vk_ids:
         return []
     names = await resolve_display_names(vk_ids, server_id)
@@ -375,37 +397,37 @@ async def _build_checklist_member_payload(
     return out
 
 
-async def _week_checklist_members(
-    server_id: int, week_start: date, staff: list[dict]
-) -> list[dict]:
+async def _week_checklist_members(server_id: int, week_start: date, staff: list[dict], sphere: str) -> list[dict]:
     week_start = _normalize_date(week_start)
-    await _ensure_week_snapshot(server_id, week_start, staff)
+    await _ensure_week_snapshot(server_id, week_start, staff, sphere)
     if not _is_past_week(week_start):
-        await _bootstrap_week_members_if_empty(server_id, week_start)
-    rows = await _week_member_rows(server_id, week_start)
+        await _bootstrap_week_members_if_empty(server_id, week_start, sphere)
+    rows = await _week_member_rows(server_id, week_start, sphere)
     return await _build_checklist_member_payload(
-        rows, staff, server_id, frozen=_is_past_week(week_start)
+        rows, staff, server_id, sphere, frozen=_is_past_week(week_start)
     )
 
 
-async def _checklist_members(server_id: int, staff: list[dict]) -> list[dict]:
-    rows = await _template_member_rows(server_id)
-    return await _build_checklist_member_payload(rows, staff, server_id)
+async def _checklist_members(server_id: int, staff: list[dict], sphere: str) -> list[dict]:
+    rows = await _template_member_rows(server_id, sphere)
+    return await _build_checklist_member_payload(rows, staff, server_id, sphere)
 
 
 @router.get("/settings")
 async def get_checklist_settings(
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     staff = await list_staff(server_id)
-    await _prune_ineligible_members(server_id, staff)
-    tasks = await _ensure_task_defs(server_id)
-    members = await _checklist_members(server_id, staff)
+    await _prune_ineligible_members(server_id, staff, sphere)
+    tasks = await _ensure_task_defs(server_id, sphere)
+    members = await _checklist_members(server_id, staff, sphere)
     member_ids = {m["vk_id"] for m in members}
     candidates: list[dict] = []
     for m in staff:
-        if not _has_ca_access(m):
+        if not _member_eligible_for_sphere(m, sphere):
             continue
         candidates.append(
             {
@@ -443,8 +465,10 @@ async def get_checklist_settings(
 async def update_checklist_tasks(
     body: TasksUpdate,
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     if not _can_manage_checklist(user):
         raise HTTPException(status_code=403, detail="Задачи чеклиста настраивает только ЗГС ЦА+")
 
@@ -455,19 +479,20 @@ async def update_checklist_tasks(
     if len(slugs) != len(set(slugs)):
         raise HTTPException(status_code=400, detail="Дублирующиеся slug задач")
 
-    await ChecklistTaskDef.filter(server_id=server_id).delete()
+    await ChecklistTaskDef.filter(server_id=server_id, sphere=sphere).delete()
     for i, t in enumerate(body.tasks):
         slug = t.slug.strip() or _slugify(t.title)
         days = _normalize_days(t.days_of_week)
         await ChecklistTaskDef.create(
             server_id=server_id,
+            sphere=sphere,
             slug=slug,
             title=t.title.strip(),
             is_header=t.is_header,
             sort_order=i,
             days_of_week=_days_to_str(days),
         )
-    await _sync_tasks_to_current_and_future_weeks(server_id)
+    await _sync_tasks_to_current_and_future_weeks(server_id, sphere)
     return {"ok": True}
 
 
@@ -475,17 +500,20 @@ async def update_checklist_tasks(
 @router.post("/members/only-me")
 async def checklist_members_only_me(
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     """Личная колонка — любой уровень с доступом ЦА."""
-    await ChecklistMember.filter(server_id=server_id).delete()
+    await ChecklistMember.filter(server_id=server_id, sphere=sphere).delete()
     await ChecklistMember.create(
         server_id=server_id,
+        sphere=sphere,
         vk_id=user["vk_id"],
         sort_order=0,
     )
     staff = await list_staff(server_id)
-    await _sync_members_to_current_and_future_weeks(server_id, staff)
+    await _sync_members_to_current_and_future_weeks(server_id, staff, sphere)
     return {"ok": True, "vk_id": user["vk_id"]}
 
 
@@ -493,8 +521,10 @@ async def checklist_members_only_me(
 async def update_checklist_members(
     body: MembersUpdate,
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     staff = await list_staff(server_id)
     staff_by_id = {m["vk_id"]: m for m in staff}
     manage = _can_manage_checklist(user)
@@ -508,10 +538,10 @@ async def update_checklist_members(
 
     vk_ids = body.vk_ids
     if manage:
-        vk_ids = [vid for vid in body.vk_ids if _has_ca_access(staff_by_id.get(vid, {}))]
+        vk_ids = [vid for vid in body.vk_ids if _member_eligible_for_sphere(staff_by_id.get(vid), sphere)]
 
     if not vk_ids:
-        raise HTTPException(status_code=400, detail="Выберите хотя бы одного следящего с доступом ЦА")
+        raise HTTPException(status_code=400, detail="Выберите хотя бы одного следящего для этой сферы")
 
     for vk_id in vk_ids:
         m = staff_by_id.get(vk_id)
@@ -520,19 +550,19 @@ async def update_checklist_members(
         if self_only:
             if vk_id != user["vk_id"]:
                 raise HTTPException(status_code=400, detail="Можно включить только свою колонку")
-            if not user.get("has_ca_access"):
-                raise HTTPException(status_code=400, detail="Нужен доступ ЦА")
+            if not _portal_staff(user):
+                raise HTTPException(status_code=400, detail="Нужен уровень ПГС+")
             continue
-        if not _has_ca_access(m):
+        if not _member_eligible_for_sphere(m, sphere):
             raise HTTPException(
                 status_code=400,
-                detail=f"{m['nickname']}: нужен доступ ЦА",
+                detail=f"{m['nickname']}: нет доступа к этой сфере",
             )
 
-    await ChecklistMember.filter(server_id=server_id).delete()
+    await ChecklistMember.filter(server_id=server_id, sphere=sphere).delete()
     for i, vk_id in enumerate(vk_ids):
-        await ChecklistMember.create(server_id=server_id, vk_id=vk_id, sort_order=i)
-    await _sync_members_to_current_and_future_weeks(server_id, staff)
+        await ChecklistMember.create(server_id=server_id, sphere=sphere, vk_id=vk_id, sort_order=i)
+    await _sync_members_to_current_and_future_weeks(server_id, staff, sphere)
     return {"ok": True, "count": len(vk_ids)}
 
 
@@ -540,18 +570,20 @@ async def update_checklist_members(
 async def get_checklist(
     week: str = Query(..., description="YYYY-MM-DD любой день недели"),
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     week_start = _monday(date.fromisoformat(week))
     locked = _is_past_week(week_start)
     staff = await list_staff(server_id)
     if not locked:
-        await _prune_ineligible_members(server_id, staff)
-    task_defs = await _week_task_defs(server_id, week_start, staff)
-    members = await _week_checklist_members(server_id, week_start, staff)
+        await _prune_ineligible_members(server_id, staff, sphere)
+    task_defs = await _week_task_defs(server_id, week_start, staff, sphere)
+    members = await _week_checklist_members(server_id, week_start, staff, sphere)
     can_edit_all = int(user.get("access_level") or 0) >= CHECKLIST_EDIT_OTHERS_MIN_LEVEL
 
-    cells = await ChecklistCell.filter(server_id=server_id, week_start=week_start)
+    cells = await ChecklistCell.filter(server_id=server_id, sphere=sphere, week_start=week_start)
     cell_map = {(c.day_offset, c.task_slug, c.member_vk_id): c for c in cells}
 
     grid: list[dict] = []
@@ -618,14 +650,16 @@ async def upsert_cell(
     task_slug: str = Query(...),
     member_vk_id: int = Query(...),
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     week_start = _monday(date.fromisoformat(week))
     if _is_past_week(week_start):
         raise HTTPException(status_code=403, detail="Прошлая неделя зафиксирована — редактирование недоступно")
 
     staff = await list_staff(server_id)
-    task_defs = await _week_task_defs(server_id, week_start, staff)
+    task_defs = await _week_task_defs(server_id, week_start, staff, sphere)
     valid_slugs = {t.slug for t in task_defs}
     if task_slug not in valid_slugs:
         raise HTTPException(status_code=400, detail="Неизвестная задача")
@@ -633,7 +667,7 @@ async def upsert_cell(
     if day_offset not in _days_from_str(task_row.days_of_week):
         raise HTTPException(status_code=400, detail="Задача не назначена на этот день")
 
-    members = await _week_checklist_members(server_id, week_start, staff)
+    members = await _week_checklist_members(server_id, week_start, staff, sphere)
     if member_vk_id not in {m["vk_id"] for m in members}:
         raise HTTPException(status_code=400, detail="Пользователь не в чеклисте")
 
@@ -642,6 +676,7 @@ async def upsert_cell(
 
     cell, _ = await ChecklistCell.get_or_create(
         server_id=server_id,
+        sphere=sphere,
         week_start=week_start,
         day_offset=day_offset,
         task_slug=task_slug,
@@ -666,14 +701,16 @@ async def upsert_cell(
 async def generate_week_tasks(
     week: str = Query(...),
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     if not _can_manage_checklist(user):
         raise HTTPException(status_code=403, detail="Создание задач из чеклиста — только для ЗГС ЦА+")
 
     week_start = _monday(date.fromisoformat(week))
-    cells = await ChecklistCell.filter(server_id=server_id, week_start=week_start)
-    task_defs = await _ensure_task_defs(server_id)
+    cells = await ChecklistCell.filter(server_id=server_id, sphere=sphere, week_start=week_start)
+    task_defs = await _ensure_task_defs(server_id, sphere)
     task_titles = {t.slug: t.title for t in task_defs}
     created = 0
 
@@ -703,6 +740,7 @@ async def generate_week_tasks(
             assignee_vk_id=cell.member_vk_id,
             reporter_vk_id=user["vk_id"],
             server_id=server_id,
+            sphere=sphere,
             due_date=day,
             labels=["чеклист", cell.task_slug],
         )

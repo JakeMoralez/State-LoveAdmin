@@ -63,7 +63,7 @@ export function DevLeadershipPage() {
     }
   }
 
-  if (!authLoading && user && !user.can_manage_leaders) {
+  if (!authLoading && user && !user.can_dev_panel) {
     return <Navigate to="/dashboard" replace />
   }
 

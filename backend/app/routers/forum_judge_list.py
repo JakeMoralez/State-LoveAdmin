@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/forum", tags=["forum"])
 def require_zgs_user(user: dict = Depends(require_ca_user)) -> dict:
     level = int(user.get("access_level") or 0)
     if level < ZGS_MIN_LEVEL:
-        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС (3) или выше")
+        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС ГОС (5) или выше")
     return user
 
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { PRIORITY_LABELS, STATUS_LABELS, type Project, type StaffMember } from '../../api'
+import { PRIORITY_LABELS, STATUS_LABELS, type Project, type StaffMember, type WorkSphere } from '../../api'
 import type { TaskLabel } from '../../lib/labels'
 import { cn, statusBadgeClass } from '../../lib/utils'
+import { CreateSphereField } from '../CreateSphereField'
 import { DatePicker } from '../ui/DatePicker'
 import { LabelInput } from '../ui/LabelInput'
 import { MultiAssigneePicker } from '../ui/MultiAssigneePicker'
@@ -29,6 +30,10 @@ interface TaskCreateModalProps {
   projects: Project[]
   defaultProjectId?: number | null
   defaultStatus?: string
+  workSpheres?: WorkSphere[]
+  createSphereIds?: string[]
+  createSphere?: string
+  onCreateSphereChange?: (id: string) => void
 }
 
 export function TaskCreateModal({
@@ -39,6 +44,10 @@ export function TaskCreateModal({
   projects,
   defaultProjectId,
   defaultStatus = 'todo',
+  workSpheres = [],
+  createSphereIds = [],
+  createSphere = '',
+  onCreateSphereChange,
 }: TaskCreateModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -56,7 +65,7 @@ export function TaskCreateModal({
     setStatus(defaultStatus)
     setProjectId(defaultProjectId ? String(defaultProjectId) : '')
     setError('')
-  }, [open, defaultProjectId, defaultStatus])
+  }, [open, defaultProjectId, defaultStatus, createSphere])
 
   if (!open) return null
 
@@ -106,6 +115,14 @@ export function TaskCreateModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4 ll-scroll space-y-4">
+          {workSpheres.length > 0 && createSphere && onCreateSphereChange && (
+            <CreateSphereField
+              spheres={workSpheres}
+              allowedIds={createSphereIds}
+              value={createSphere}
+              onChange={onCreateSphereChange}
+            />
+          )}
           <div>
             <label className="text-caption mb-1.5 block">Название *</label>
             <input

@@ -4,6 +4,8 @@ import { ApiError, api } from '../api'
 import { ChecklistSettingsModal } from '../components/checklist/ChecklistSettingsModal'
 import { ChecklistCellEditor } from '../components/checklist/ChecklistCellEditor'
 import { PageHeader } from '../components/PageHeader'
+import { SphereTabs, useActiveSphere } from '../components/SphereTabs'
+import { useAuth } from '../context/AuthContext'
 import { COMPACT_QUERY, MOBILE_NAV_QUERY, matchesMediaQuery, useMediaQuery } from '../hooks/useMediaQuery'
 
 function mondayOf(d: Date): string {
@@ -39,6 +41,9 @@ type ChecklistRow = ChecklistData['rows'][number]
 type ViewMode = 'all' | 'single'
 
 export function ChecklistPage() {
+  const { user } = useAuth()
+  const spheres = user?.work_spheres ?? []
+  const activeSphere = useActiveSphere('checklist', spheres)
   const [week, setWeek] = useState(() => mondayOf(new Date()))
   const [data, setData] = useState<ChecklistData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -66,7 +71,7 @@ export function ChecklistPage() {
     setLoading(true)
     setError(null)
     api
-      .checklist(week)
+      .checklist(week, activeSphere ?? undefined)
       .then((res) => {
         setData(res)
       })
@@ -83,11 +88,12 @@ export function ChecklistPage() {
         }
       })
       .finally(() => setLoading(false))
-  }, [week])
+  }, [week, activeSphere])
 
   useEffect(() => {
+    if (!activeSphere) return
     load()
-  }, [load])
+  }, [load, activeSphere])
 
   useEffect(() => {
     if (!data?.members.length) return
@@ -129,6 +135,7 @@ export function ChecklistPage() {
       day_offset,
       task_slug,
       member_vk_id,
+      sphere: activeSphere ?? undefined,
       ...patch,
     })
     load()
@@ -138,10 +145,10 @@ export function ChecklistPage() {
     setEnablingSelf(true)
     try {
       try {
-        await api.checklistMembersOnlyMe()
+        await api.checklistMembersOnlyMe(activeSphere ?? undefined)
       } catch (e: unknown) {
         if (e instanceof ApiError && e.status === 404 && data?.current_vk_id) {
-          await api.updateChecklistMembers({ vk_ids: [data.current_vk_id] })
+          await api.updateChecklistMembers({ vk_ids: [data.current_vk_id] }, activeSphere ?? undefined)
         } else {
           throw e
         }
@@ -159,6 +166,8 @@ export function ChecklistPage() {
     setSettingsOpen(true)
   }
 
+  const hasChecklistBoard = Boolean(!loading && !error && data && data.members.length > 0)
+
   return (
     <div className="content-fixed page-stack page-stack--checklist">
       <PageHeader
@@ -174,6 +183,13 @@ export function ChecklistPage() {
         }
       />
 
+      {spheres.length > 0 && <SphereTabs pageKey="checklist" spheres={spheres} mode="single" className="shrink-0" />}
+
+      {spheres.length === 0 ? (
+        <p className="text-white/40 text-sm">Нет назначенных сфер — обратитесь к ЗГС.</p>
+      ) : (
+      <>
+      {hasChecklistBoard && (
       <div className="checklist-control-panel shrink-0">
         <div className="checklist-control-row checklist-control-row--primary">
           {!isNarrow && (
@@ -308,6 +324,7 @@ export function ChecklistPage() {
           </div>
         )}
       </div>
+      )}
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
@@ -410,6 +427,8 @@ export function ChecklistPage() {
           </div>
         </div>
       )}
+      </>
+      )}
 
       <ChecklistSettingsModal
         open={settingsOpen}
@@ -417,6 +436,7 @@ export function ChecklistPage() {
         onSaved={load}
         manageOnly
         initialTab={settingsTab}
+        sphere={activeSphere ?? undefined}
       />
     </div>
   )

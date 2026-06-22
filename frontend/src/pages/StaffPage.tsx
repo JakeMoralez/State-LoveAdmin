@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Settings, Users } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Settings, UserPlus, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type StaffMember, type StaffMemberDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
+import { useAuth } from '../context/AuthContext'
 import { staffLabel } from '../lib/staff'
 
 type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
@@ -22,6 +23,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 }
 
 export function StaffPage() {
+  const { user, refresh } = useAuth()
   const [members, setMembers] = useState<StaffMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
@@ -31,6 +33,8 @@ export function StaffPage() {
   const [settingsMember, setSettingsMember] = useState<StaffMemberDetail | null>(null)
   const [settingsLoadingVkId, setSettingsLoadingVkId] = useState<number | null>(null)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+
+  const canAssign = (user?.access_level ?? 0) >= 3
 
   const loadStaff = useCallback(() => {
     setLoading(true)
@@ -110,6 +114,14 @@ export function StaffPage() {
         icon={Users}
         subtitle={`${total} человек в реестре · ник — профиль, ⚙ — настройки`}
         shrink
+        actions={
+          canAssign ? (
+            <Link to="/assign?type=staff" className="btn btn-gold btn-sm no-underline">
+              <UserPlus className="h-4 w-4" />
+              Назначить
+            </Link>
+          ) : undefined
+        }
       />
 
       <PageSearch
@@ -198,12 +210,16 @@ export function StaffPage() {
         onSaved={(result) => {
           if (result?.removed) setSettingsMember(null)
           loadStaff()
+          if (settingsMember?.vk_id === user?.vk_id) {
+            void refresh()
+          }
         }}
         permissions={
           settingsMember?.permissions ?? {
             edit_nickname: false,
             edit_access_level: false,
             edit_ca_access: false,
+            edit_spheres: false,
             edit_sphere: false,
             edit_discord: false,
             revoke_staff_access: false,

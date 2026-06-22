@@ -17,7 +17,7 @@ from app.config import (
     SESSION_TTL_HOURS,
 )
 from app.models.bot import AccessLevel
-from app.services.access import can_use_ca_scope, get_user_profile
+from app.services.access import can_use_portal, get_user_profile
 
 
 def create_token(
@@ -25,12 +25,15 @@ def create_token(
     *,
     dev_level: int | None = None,
     dev_ca: bool | None = None,
+    dev_spheres: list[str] | None = None,
 ) -> str:
     exp = datetime.now(UTC) + timedelta(hours=SESSION_TTL_HOURS)
     payload: dict = {"sub": str(vk_id), "exp": exp, "jti": str(uuid.uuid4())}
     if DEV_MODE and dev_level is not None:
         payload["dev_level"] = int(dev_level)
         payload["dev_ca"] = bool(dev_ca)
+        if dev_spheres is not None:
+            payload["dev_spheres"] = list(dev_spheres)
     return jwt.encode(payload, SESSION_SECRET, algorithm="HS256")
 
 
@@ -51,8 +54,9 @@ async def set_session_cookie(
     *,
     dev_level: int | None = None,
     dev_ca: bool | None = None,
+    dev_spheres: list[str] | None = None,
 ) -> None:
-    token = create_token(vk_id, dev_level=dev_level, dev_ca=dev_ca)
+    token = create_token(vk_id, dev_level=dev_level, dev_ca=dev_ca, dev_spheres=dev_spheres)
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
@@ -81,10 +85,7 @@ async def get_current_vk_id(request: Request) -> int:
 def _dev_persona_allowed(payload: dict) -> bool:
     if not DEV_MODE or "dev_level" not in payload:
         return False
-    if DEV_SKIP_CA:
-        return True
-    level = int(payload["dev_level"])
-    return level >= AccessLevel.ZGS_GOS or bool(payload.get("dev_ca"))
+    return int(payload["dev_level"]) >= AccessLevel.PGS
 
 
 async def require_ca_user(request: Request) -> dict:
@@ -93,17 +94,20 @@ async def require_ca_user(request: Request) -> dict:
 
     if "dev_level" in payload and DEV_MODE:
         if not _dev_persona_allowed(payload):
-            raise HTTPException(status_code=403, detail="Dev-персона без доступа ЦА")
+            raise HTTPException(status_code=403, detail="Dev-персона: нужен уровень ПГС+")
+        raw_spheres = payload.get("dev_spheres")
+        dev_spheres = [str(s) for s in raw_spheres] if isinstance(raw_spheres, list) else None
         return await get_user_profile(
             vk_id,
             dev_level=int(payload["dev_level"]),
             dev_ca=bool(payload.get("dev_ca")),
+            dev_spheres=dev_spheres,
         )
 
     dev_bypass = DEV_MODE and DEV_SKIP_CA and vk_id == DEV_VK_ID
-    if not dev_bypass and not await can_use_ca_scope(vk_id):
+    if not dev_bypass and not await can_use_portal(vk_id):
         raise HTTPException(
             status_code=403,
-            detail="Нужен доступ ЦА: /setca или беседа след. ЦА",
+            detail="Нужен уровень ПГС (1) или выше для входа на портал",
         )
     return await get_user_profile(vk_id)

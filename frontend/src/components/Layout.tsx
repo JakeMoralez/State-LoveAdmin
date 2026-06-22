@@ -6,18 +6,21 @@ import {
   ClipboardCheck,
   FolderKanban,
   Gavel,
+  KeyRound,
   LayoutDashboard,
   Library,
   LogOut,
   Menu,
   Shield,
   Users,
+  UserPlus,
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { staffLabel } from '../lib/staff'
 import { MOBILE_NAV_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
 import { getMobilePageTitle } from '../lib/mobilePageTitle'
 import { MobileTopBarTitleProvider, useMobileTopBarTitleOverride } from '../context/MobileTopBarTitleContext'
@@ -30,6 +33,7 @@ interface NavItem {
   icon: LucideIcon
   end?: boolean
   badge?: number
+  minAccessLevel?: number
 }
 
 interface NavCategory {
@@ -40,13 +44,16 @@ interface NavCategory {
 const navCategories: NavCategory[] = [
   {
     title: 'Обзор',
-    items: [{ to: '/dashboard', label: 'Сводка', icon: LayoutDashboard }],
+    items: [
+      { to: '/dashboard', label: 'Сводка', icon: LayoutDashboard },
+    ],
   },
   {
     title: 'Команда',
     items: [
       { to: '/staff', label: 'Следящие', icon: Users },
       { to: '/leaders', label: 'Руководство', icon: Shield },
+      { to: '/assign', label: 'Назначить', icon: UserPlus, minAccessLevel: 2 },
     ],
   },
   {
@@ -246,7 +253,9 @@ function LayoutShell() {
                   <div className="sidebar-nav-category">{category.title}</div>
                   <div className="sidebar-nav-divider" aria-hidden />
                   <div className="sidebar-nav-items">
-                    {category.items.map((item) => (
+                    {category.items
+                      .filter((item) => (user?.access_level ?? 0) >= (item.minAccessLevel ?? 0))
+                      .map((item) => (
                       <SidebarNavLink
                         key={item.to}
                         item={
@@ -261,7 +270,7 @@ function LayoutShell() {
                   </div>
                 </div>
               ))}
-              {(user?.access_level ?? 0) >= 3 && (
+              {(user?.access_level ?? 0) >= 5 && (
                 <div className="sidebar-nav-group sidebar-nav-group--spaced sidebar-nav-group--rail-break">
                   <div className="sidebar-nav-category">Форум</div>
                   <div className="sidebar-nav-divider" aria-hidden />
@@ -274,25 +283,26 @@ function LayoutShell() {
                   </div>
                 </div>
               )}
-              {(user?.can_dev_panel || user?.can_manage_leaders) && (
+              {user?.can_dev_panel && (
                 <div className="sidebar-nav-group sidebar-nav-group--spaced sidebar-nav-group--rail-break">
                   <div className="sidebar-nav-category">Разработка</div>
                   <div className="sidebar-nav-divider" aria-hidden />
                   <div className="sidebar-nav-items">
-                    {user?.can_manage_leaders && (
-                      <SidebarNavLink
-                        collapsed={sidebarCollapsed}
-                        onNavigate={closeMobile}
-                        item={{ to: '/dev/leadership', label: 'Флаги руководства', icon: Shield }}
-                      />
-                    )}
-                    {user?.can_dev_panel && (
-                      <SidebarNavLink
-                        collapsed={sidebarCollapsed}
-                        onNavigate={closeMobile}
-                        item={{ to: '/dev', label: 'Лог ошибок', icon: Bug, end: true }}
-                      />
-                    )}
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/access', label: 'Доступы', icon: KeyRound }}
+                    />
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/dev/leadership', label: 'Флаги руководства', icon: Shield }}
+                    />
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/dev', label: 'Лог ошибок', icon: Bug, end: true }}
+                    />
                   </div>
                 </div>
               )}
@@ -339,9 +349,11 @@ function LayoutShell() {
             <NavLink
               to="/profile"
               className="app-top-bar-profile"
-              title={user.nickname || String(user.vk_id)}
+              title={staffLabel({ nickname: user.nickname ?? '', bot_nickname: user.bot_nickname, vk_id: user.vk_id })}
             >
-              <span className="app-top-bar-profile-name">{user.nickname || String(user.vk_id)}</span>
+              <span className="app-top-bar-profile-name">
+                {staffLabel({ nickname: user.nickname ?? '', bot_nickname: user.bot_nickname, vk_id: user.vk_id })}
+              </span>
               <img
                 src={user.avatar_url || DEFAULT_AVATAR}
                 alt=""

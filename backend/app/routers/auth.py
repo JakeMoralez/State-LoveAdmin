@@ -23,7 +23,9 @@ from app.config import (
 from app.models.bot import AccessLevel
 from app.models.panel import DiscordLink
 from app.services.leadership_access import can_manage_leaders
-from app.services.access import can_use_ca_scope
+from app.services.sphere_work import work_spheres_payload
+from app.services.access import can_use_portal
+from app.services.staff_spheres import has_central_apparatus, validate_spheres
 from app.services.bot_login import BotLoginError, bot_login_enabled, verify_and_consume_bot_login_token
 from app.services.display_names import resolve_vk_photos
 from app.services.dev_access import can_view_dev_panel
@@ -46,8 +48,22 @@ _oauth_states: dict[str, bool] = {}
 
 class DevLoginBody(BaseModel):
     access_level: int = Field(ge=0, le=AccessLevel.DEVELOPER, default=AccessLevel.DEVELOPER)
-    has_ca_access: bool = True
     vk_id: int | None = None
+    spheres: list[str] = Field(default_factory=list)
+
+
+def _normalize_dev_spheres(
+    spheres: list[str] | None,
+    *,
+    access_level: int,
+) -> list[str]:
+    raw = list(spheres or [])
+    if not raw:
+        raise HTTPException(status_code=400, detail="Выберите хотя бы одну сферу")
+    try:
+        return validate_spheres(raw, access_level=access_level)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _access_level_options() -> list[dict]:
@@ -67,8 +83,8 @@ def _login_redirect(error: str | None = None) -> RedirectResponse:
 async def _dev_login_response(
     *,
     access_level: int,
-    has_ca_access: bool,
     vk_id: int | None,
+    spheres: list[str] | None,
     json_response: bool,
 ):
     if not DEV_MODE:
@@ -81,11 +97,14 @@ async def _dev_login_response(
             detail="Укажите VK ID в форме или задайте DEV_VK_ID в .env",
         )
 
-    if not DEV_SKIP_CA:
-        if access_level < AccessLevel.ZGS_GOS and not has_ca_access:
-            raise HTTPException(status_code=403, detail="Нужен доступ ЦА или уровень ЗГС ГОС+")
-        if DEV_VK_ID and uid == DEV_VK_ID and not await can_use_ca_scope(uid):
-            raise HTTPException(status_code=403, detail="DEV_VK_ID без доступа ЦА")
+    if access_level < AccessLevel.PGS:
+        raise HTTPException(status_code=400, detail="Для теста нужен уровень ПГС (1) или выше")
+
+    if not DEV_SKIP_CA and DEV_VK_ID and uid == DEV_VK_ID:
+        if not await can_use_portal(uid):
+            raise HTTPException(status_code=403, detail="DEV_VK_ID без уровня ПГС+")
+
+    dev_spheres = _normalize_dev_spheres(spheres, access_level=access_level)
 
     if json_response:
         response: Response = JSONResponse({"ok": True, "redirect": "/dashboard"})
@@ -96,7 +115,8 @@ async def _dev_login_response(
         response,
         uid,
         dev_level=access_level,
-        dev_ca=has_ca_access,
+        dev_ca=has_central_apparatus(dev_spheres),
+        dev_spheres=dev_spheres,
     )
     return response
 
@@ -137,15 +157,14 @@ async def auth_config():
 async def dev_login_get(
     json: bool = False,
     access_level: int | None = None,
-    has_ca_access: bool | None = None,
     vk_id: int | None = None,
+    spheres: list[str] | None = None,
 ):
     level = access_level if access_level is not None else AccessLevel.DEVELOPER
-    ca = has_ca_access if has_ca_access is not None else True
     return await _dev_login_response(
         access_level=level,
-        has_ca_access=ca,
         vk_id=vk_id,
+        spheres=spheres,
         json_response=json,
     )
 
@@ -154,8 +173,8 @@ async def dev_login_get(
 async def dev_login_post(body: DevLoginBody):
     return await _dev_login_response(
         access_level=body.access_level,
-        has_ca_access=body.has_ca_access,
         vk_id=body.vk_id,
+        spheres=body.spheres,
         json_response=True,
     )
 
@@ -181,7 +200,7 @@ async def discord_callback(code: str | None = None, state: str | None = None):
     vk_id = int(link.vk_id)
     await upsert_discord_profile(link, user_data)
 
-    if not await can_use_ca_scope(vk_id):
+    if not await can_use_portal(vk_id):
         return _login_redirect("no_access")
 
     response = RedirectResponse(f"{PANEL_BASE_URL}/dashboard")
@@ -198,7 +217,7 @@ async def bot_login_callback(token: str | None = None):
     except BotLoginError as exc:
         return _login_redirect(exc.code)
 
-    if not await can_use_ca_scope(vk_id):
+    if not await can_use_portal(vk_id):
         return _login_redirect("no_access")
 
     response = RedirectResponse(f"{PANEL_BASE_URL}/dashboard")
@@ -241,10 +260,10 @@ async def vk_callback(code: str | None = None, state: str | None = None):
             },
         )
 
-    if not await can_use_ca_scope(vk_id):
+    if not await can_use_portal(vk_id):
         raise HTTPException(
             status_code=403,
-            detail="Нужен доступ ЦА: /setca или беседа след. ЦА",
+            detail="Нужен уровень ПГС (1) или выше для входа на портал",
         )
 
     response = RedirectResponse(f"{PANEL_BASE_URL}/dashboard")
@@ -277,4 +296,5 @@ async def me(request: Request):
     user["discord_id"] = link.discord_id if link else None
     user["discord_username"] = link.discord_username if link else None
     user["discord_display_name"] = link.discord_display_name if link else None
+    user["work_spheres"] = work_spheres_payload(user)
     return user

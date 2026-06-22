@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type StaffMemberDetail } from '../api'
+import { useAuth } from '../context/AuthContext'
 import { ProfileView } from '../components/profile/ProfileView'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
+import { staffLabel } from '../lib/staff'
 
 export function StaffMemberPage() {
   const { vkId } = useParams()
   const navigate = useNavigate()
+  const { user, refresh } = useAuth()
   const parsedId = vkId ? parseInt(vkId, 10) : NaN
   const [member, setMember] = useState<StaffMemberDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -54,6 +57,7 @@ export function StaffMemberPage() {
   const canOpenSettings =
     perms.edit_nickname ||
     perms.edit_access_level ||
+    perms.edit_spheres ||
     perms.edit_ca_access ||
     perms.edit_sphere ||
     perms.edit_discord ||
@@ -71,7 +75,7 @@ export function StaffMemberPage() {
         }
         profile={{
           vk_id: member.vk_id,
-          nickname: member.nickname,
+          nickname: staffLabel(member),
           username: member.username,
           avatar_url: member.avatar_url,
           access_level: member.access_level,
@@ -82,6 +86,7 @@ export function StaffMemberPage() {
           server_id: member.server_id ?? 30,
           badges: member.badges,
           sphere: member.sphere,
+          spheres: member.spheres,
         }}
         backTo={{ label: 'Следящие', href: '/staff' }}
       />
@@ -96,6 +101,9 @@ export function StaffMemberPage() {
             return
           }
           load()
+          if (member.vk_id === user?.vk_id) {
+            void refresh()
+          }
         }}
         permissions={member.permissions}
       />

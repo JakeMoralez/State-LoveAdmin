@@ -12,6 +12,7 @@ from app.config import DEFAULT_SERVER_ID
 from app.models.panel import Project, Task, TaskAttachment, TaskComment
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
+from app.services.sphere_work import DEFAULT_WORK_SPHERE, resolve_work_sphere, resolve_work_spheres
 from app.services.display_names import resolve_display_name, resolve_display_names, resolve_vk_photos
 from app.services.vk_notify import notify_task_assigned, notify_task_status
 
@@ -153,6 +154,7 @@ class TaskCreate(BaseModel):
     project_id: int | None = None
     due_date: str | date | None = None
     labels: list = []
+    sphere: str | None = None
 
     @field_validator("due_date", mode="before")
     @classmethod
@@ -228,6 +230,7 @@ def _serialize_task(t: Task) -> dict:
         "reporter_vk_id": t.reporter_vk_id,
         "project_id": t.project_id,
         "server_id": t.server_id,
+        "sphere": getattr(t, "sphere", None) or DEFAULT_WORK_SPHERE,
         "due_date": _serialize_due(t),
         "labels": _normalize_labels(t.labels),
         "created_at": t.created_at.isoformat(),
@@ -244,9 +247,11 @@ async def list_tasks(
     status: str | None = None,
     priority: str | None = None,
     mine: bool = False,
+    sphere: list[str] | None = Query(default=None),
     user: dict = Depends(require_ca_user),
 ):
-    qs = Task.filter(server_id=server_id)
+    spheres = resolve_work_spheres(user, sphere)
+    qs = Task.filter(server_id=server_id, sphere__in=spheres)
     if project_id is not None:
         qs = qs.filter(project_id=project_id)
     if status:
@@ -298,8 +303,10 @@ async def list_tasks(
 async def create_task(
     body: TaskCreate,
     server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
+    sphere = resolve_work_sphere(user, sphere)
     if body.status not in STATUSES:
         raise HTTPException(status_code=400, detail="Неверный статус")
     due_d, due_t = _parse_due(body.due_date)
@@ -315,6 +322,7 @@ async def create_task(
         reporter_vk_id=user["vk_id"],
         project_id=body.project_id,
         server_id=server_id,
+        sphere=sphere,
         due_date=due_d,
         due_time=due_t,
         labels=_normalize_labels(body.labels),

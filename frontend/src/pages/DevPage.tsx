@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { AlertTriangle, Bug, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react'
 import { ApiError, api, type DevErrorItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
+import { useAuth } from '../context/AuthContext'
 
 function formatWhen(iso: string | null) {
   if (!iso) return '—'
@@ -22,6 +24,7 @@ function levelClass(level: string) {
 }
 
 export function DevPage() {
+  const { user, loading: authLoading } = useAuth()
   const [items, setItems] = useState<DevErrorItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -65,6 +68,10 @@ export function DevPage() {
     if (!window.confirm('Очистить весь лог ошибок?')) return
     await api.clearDevErrors()
     await load()
+  }
+
+  if (!authLoading && user && !user.can_dev_panel) {
+    return <Navigate to="/dashboard" replace />
   }
 
   return (

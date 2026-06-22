@@ -11,7 +11,6 @@ from app.services.auth import get_session_payload, require_ca_user
 from app.services.dev_access import can_view_dev_panel
 from app.services.display_names import resolve_display_names, resolve_vk_photos
 from app.services.error_log import record_error
-from app.services.leadership_access import can_manage_leaders
 from app.services.staff import (
     list_leadership_candidates,
     remove_ca_leader,
@@ -47,9 +46,7 @@ async def require_dev_user(request: Request) -> dict:
 
 
 async def require_leadership_manager(request: Request) -> dict:
-    user = await require_ca_user(request)
-    if not can_manage_leaders(user):
-        raise HTTPException(status_code=403, detail="Недостаточно прав (нужен ЗГС ГОС+)")
+    user = await require_dev_user(request)
     return user
 
 
