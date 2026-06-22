@@ -9,6 +9,7 @@ from tortoise.expressions import Q
 from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
+from app.services.bot_users import ensure_bot_user
 from app.services.display_names import invalidate_display_names, resolve_bot_nickname
 from app.services.staff_nickname import (
     extract_leading_nickname_tag,
@@ -424,7 +425,7 @@ async def set_ca_leader(
     position: str | None = None,
     updated_by: int | None = None,
 ) -> dict:
-    user, _ = await User.get_or_create(vk_id=vk_id)
+    user, _ = await ensure_bot_user(vk_id)
     position_clean = (position if position is not None else faction).strip()
 
     access, _ = await UserServerAccess.get_or_create(
@@ -728,7 +729,7 @@ async def assign_staff_member(
     if access_level < AccessLevel.PGS:
         raise ValueError("Уровень доступа должен быть не ниже ПГС (1)")
 
-    user, _ = await User.get_or_create(vk_id=vk_id, defaults={"username": str(vk_id)})
+    user, _ = await ensure_bot_user(vk_id, username=str(vk_id))
 
     access, _ = await UserServerAccess.get_or_create(
         user_id=vk_id,

@@ -8,6 +8,7 @@ from typing import Literal
 
 from app.models.bot import User, UserServerAccess
 from app.models.panel import StaffNote
+from app.services.bot_users import ensure_bot_user
 from app.services.display_names import invalidate_display_names
 from app.services.discord_links import set_discord_link
 from app.services.staff import _persist_member_nickname, assign_staff_member
@@ -63,7 +64,7 @@ async def _apply_forum_account(vk_id: int, forum_account: str) -> str:
     forum = normalize_forum_account(forum_account)
     if not forum:
         raise ValueError("Укажите аккаунт на форуме")
-    await User.get_or_create(vk_id=vk_id, defaults={"username": str(vk_id)})
+    await ensure_bot_user(vk_id, username=str(vk_id))
     await User.filter(vk_id=vk_id).update(username=forum)
     return forum
 

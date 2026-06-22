@@ -40,7 +40,7 @@ class User(Model):
     vk_id = fields.BigIntField(pk=True)
     username = fields.CharField(max_length=128, null=True)
     note = fields.TextField(null=True)
-    added_at = fields.DatetimeField(null=True)
+    added_at = fields.DatetimeField()  # NOT NULL в bot.db
     last_used = fields.DatetimeField(null=True)
     is_admin = fields.BooleanField(default=False)
 
