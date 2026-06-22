@@ -94,7 +94,17 @@ async def _resolve_staff_spheres(
         stored = migrate_legacy_sphere(level, access, user, panel.note)
     else:
         stored = migrate_legacy_sphere(level, access, user, "")
-    return merge_spheres_for_display(stored, access)
+
+    result = merge_spheres_for_display(stored, access)
+    if panel is not None and not panel.spheres and result:
+        try:
+            panel.spheres = validate_spheres(result, access_level=level)
+            await panel.save(update_fields=["spheres", "updated_at"])
+            if access:
+                await sync_ca_access_from_spheres(access, panel.spheres)
+        except ValueError:
+            pass
+    return result
 
 
 async def _persist_staff_spheres(
@@ -122,6 +132,28 @@ async def _persist_staff_spheres(
     )
     await sync_ca_access_from_spheres(access, normalized)
     return normalized
+
+
+async def migrate_staff_spheres_to_panel(server_id: int) -> int:
+    """Один раз заполнить staff_notes.spheres для следящих без сфер."""
+    migrated = 0
+    for row in await list_staff(server_id):
+        vk_id = row["vk_id"]
+        panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+        if panel.spheres:
+            continue
+        user = await User.get(vk_id=vk_id)
+        access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+        level = await get_access_level(vk_id, server_id)
+        old_note = panel.note or row.get("note") or ""
+        spheres = migrate_legacy_sphere(level, access, user, old_note)
+        panel.spheres = validate_spheres(spheres)
+        await panel.save(update_fields=["spheres"])
+        if access:
+            await sync_ca_access_from_spheres(access, panel.spheres)
+        migrated += 1
+        logger.info("migrate_staff_spheres: vk_id=%s -> %s", vk_id, panel.spheres)
+    return migrated
 
 
 def ca_source(access: UserServerAccess | None) -> str | None:

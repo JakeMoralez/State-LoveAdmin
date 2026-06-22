@@ -136,6 +136,20 @@ async def ensure_defaults() -> None:
             )
 
     await _migrate_checklist_sphere_uniques(conn)
+    await _migrate_staff_spheres_v1(conn)
+
+
+async def _migrate_staff_spheres_v1(conn) -> None:
+    """Заполнить staff_notes.spheres из has_ca_access и legacy-заметок."""
+    key = "staff_spheres_v1"
+    if await _migration_done(conn, key):
+        return
+
+    from app.config import DEFAULT_SERVER_ID
+    from app.services.staff import migrate_staff_spheres_to_panel
+
+    await migrate_staff_spheres_to_panel(DEFAULT_SERVER_ID)
+    await _mark_migration(conn, key)
 
 
 async def _migration_done(conn, key: str) -> bool:

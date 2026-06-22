@@ -157,6 +157,6 @@ def migrate_legacy_sphere(
         elif level >= AccessLevel.CURATOR:
             spheres.append(SERVER)
         else:
-            spheres.append(DEFENSE)
+            spheres.append(CENTRAL_APPARATUS)
 
     return spheres

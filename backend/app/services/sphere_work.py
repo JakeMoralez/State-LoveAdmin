@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from app.config import MAIN_ADMIN_ID
 from app.models.bot import AccessLevel
 from app.services.staff_spheres import (
+    CENTRAL_APPARATUS,
     GOV_STRUCTURES,
     ILLEGAL_STRUCTURES,
     MINISTRY_SPHERE_KEYS,
@@ -69,6 +70,13 @@ def visible_work_spheres(user: dict) -> list[str]:
         return _operational_work_sphere_list()
 
     mine = user_sphere_set(user)
+    if user.get("has_ca_access"):
+        mine.add(CENTRAL_APPARATUS)
+
+    level = int(user.get("access_level") or 0)
+    if not mine and level >= AccessLevel.PGS:
+        mine.add(CENTRAL_APPARATUS)
+
     if not mine:
         return []
 
