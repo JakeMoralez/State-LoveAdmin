@@ -490,7 +490,7 @@ async def _persist_member_nickname(
             raise ValueError("Этот ник уже занят")
 
     await ensure_server_access(vk_id, server_id)
-
+    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(nickname=value)
     invalidate_display_names(vk_id)
 
 
