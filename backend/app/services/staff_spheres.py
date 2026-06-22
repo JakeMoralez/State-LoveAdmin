@@ -108,11 +108,9 @@ def has_central_apparatus(spheres: list[str]) -> bool:
 
 
 def merge_spheres_for_display(stored: list[str] | None, access: UserServerAccess | None) -> list[str]:
-    """Ensure central_apparatus appears when has_ca_access is set (bot /setca, sled_ca chat)."""
-    result = list(stored or [])
-    if access and access.has_ca_access and CENTRAL_APPARATUS not in result:
-        result.insert(0, CENTRAL_APPARATUS)
-    return result
+    """Сферы для UI — только из panel.db; has_ca_access бота не расширяет список."""
+    del access
+    return list(stored or [])
 
 
 async def sync_ca_access_from_spheres(access: UserServerAccess, spheres: list[str]) -> None:
@@ -156,7 +154,9 @@ def migrate_legacy_sphere(
             spheres.append(GOV_STRUCTURES)
         elif level >= AccessLevel.CURATOR:
             spheres.append(SERVER)
-        else:
+        elif access and access.is_judge:
+            spheres.append(JUSTICE)
+        elif access and access.has_ca_access:
             spheres.append(CENTRAL_APPARATUS)
 
     return spheres

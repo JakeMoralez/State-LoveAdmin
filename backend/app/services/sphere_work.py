@@ -116,21 +116,11 @@ def user_sphere_set(user: dict) -> set[str]:
 
 
 def visible_work_spheres(user: dict) -> list[str]:
-    """Вкладки: свои сферы; Гос/Нелег/Сервер — все операционные; разработчик — все сферы."""
+    """Вкладки: только назначенные сферы; Гос/Нелег/Сервер — все операционные; разработчик — все."""
     if _has_full_work_sphere_access(user):
         return _operational_work_sphere_list()
 
     mine = user_sphere_set(user)
-    if user.get("has_ca_access"):
-        mine.add(CENTRAL_APPARATUS)
-
-    level = int(user.get("access_level") or 0)
-    # ЗГС/ГС ЦА — задачи сводки и реестра в central_apparatus
-    if AccessLevel.ZGS <= level <= AccessLevel.GS:
-        mine.add(CENTRAL_APPARATUS)
-    if not mine and level >= AccessLevel.PGS:
-        mine.add(CENTRAL_APPARATUS)
-
     if not mine:
         return []
 
