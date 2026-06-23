@@ -101,6 +101,7 @@ async def assign_judge(
     position: str,
     discord_id: str | None = None,
     granted_by: int | None = None,
+    granted_at: datetime | None = None,
 ) -> dict:
     position_clean = validate_judge_position(position)
     nick = (nickname or "").strip()
@@ -113,11 +114,12 @@ async def assign_judge(
     await _set_user_judge_note(vk_id, position_clean)
 
     await ensure_server_access(vk_id, server_id, granted_by=granted_by)
+    appointed = granted_at or datetime.now(UTC)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
         is_judge=True,
         is_leader=True,
         granted_by=granted_by,
-        granted_at=datetime.now(UTC),
+        granted_at=appointed,
     )
 
     await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
@@ -149,6 +151,7 @@ async def assign_congress(
     congress_role: str,
     discord_id: str | None = None,
     granted_by: int | None = None,
+    granted_at: datetime | None = None,
 ) -> dict:
     role = validate_congress_role(congress_role)
     nick = (nickname or "").strip()
@@ -171,8 +174,9 @@ async def assign_congress(
         field = "is_congress_vice"
 
     await ensure_server_access(vk_id, server_id, granted_by=granted_by)
+    appointed = granted_at or datetime.now(UTC)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
-        **{field: True, "granted_by": granted_by, "granted_at": datetime.now(UTC)},
+        **{field: True, "granted_by": granted_by, "granted_at": appointed},
     )
 
     await _persist_member_nickname(vk_id, server_id, nick)
@@ -200,6 +204,7 @@ async def assign_staff_with_profile(
     nickname_tag: str | None = None,
     discord_id: str | None = None,
     granted_by: int | None = None,
+    granted_at: datetime | None = None,
 ) -> dict:
     await _apply_forum_account(vk_id, forum_account)
     row = await assign_staff_member(
@@ -210,6 +215,7 @@ async def assign_staff_with_profile(
         spheres=spheres,
         granted_by=granted_by,
         nickname_tag=nickname_tag,
+        granted_at=granted_at,
     )
     await _link_discord(vk_id, discord_id, granted_by)
     return {

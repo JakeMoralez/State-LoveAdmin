@@ -501,6 +501,7 @@ export interface StaffMemberUpdateBody {
   discord_id?: string | null
   revoke_staff_access?: boolean
   resync_nickname?: boolean
+  granted_at?: string | null
 }
 
 export type StaffMemberUpdateResponse = StaffMemberDetail & {
@@ -932,6 +933,7 @@ export interface AssignBody {
   nickname_tag?: string | null
   judge_position?: string
   congress_role?: 'speaker' | 'vice'
+  granted_at?: string | null
 }
 
 export interface AssignResult {

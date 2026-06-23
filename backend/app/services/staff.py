@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time, timedelta, timezone
 
 from tortoise.expressions import Q
 
@@ -29,6 +29,19 @@ from app.services.staff_spheres import (
 )
 
 logger = logging.getLogger(__name__)
+
+MSK = timezone(timedelta(hours=3))
+
+
+def parse_appointment_date(raw: str | None) -> datetime:
+    cleaned = (raw or "").strip()
+    if not cleaned:
+        raise ValueError("Укажите дату назначения")
+    try:
+        parsed = date.fromisoformat(cleaned[:10])
+    except ValueError as exc:
+        raise ValueError("Некорректная дата назначения (YYYY-MM-DD)") from exc
+    return datetime.combine(parsed, time.min, tzinfo=MSK)
 
 LEADER_ROLE = "leader"
 
@@ -708,6 +721,7 @@ async def assign_staff_member(
     spheres: list[str],
     granted_by: int | None = None,
     nickname_tag: str | None = None,
+    granted_at: datetime | None = None,
 ) -> dict:
     if access_level < AccessLevel.PGS:
         raise ValueError("Уровень доступа должен быть не ниже ПГС (1)")
@@ -715,10 +729,11 @@ async def assign_staff_member(
     user, _ = await ensure_bot_user(vk_id, username=str(vk_id))
 
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
+    appointed = granted_at or datetime.now(UTC)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
         access_level=access_level,
         granted_by=granted_by,
-        granted_at=datetime.now(UTC),
+        granted_at=appointed,
     )
 
     normalized_spheres = validate_spheres(spheres, access_level)
@@ -750,6 +765,8 @@ async def update_staff_member(
     granted_by: int | None = None,
     nickname_tag: str | None = None,
     nickname_tag_provided: bool = False,
+    granted_at: datetime | None = None,
+    granted_at_provided: bool = False,
 ) -> dict:
     from app.models.bot import User, UserServerAccess
     from app.models.panel import StaffNote
@@ -760,6 +777,11 @@ async def update_staff_member(
 
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     old_level = access.access_level
+
+    if granted_at_provided:
+        access.granted_at = granted_at or datetime.now(UTC)
+        access.granted_by = granted_by
+        await access.save()
 
     if access_level is not None:
         access.access_level = access_level

@@ -14,6 +14,11 @@ import {
   validateDeveloperTagInput,
 } from '../../lib/staffNickname'
 import { staffLabel } from '../../lib/staff'
+import {
+  formatGrantedAtDisplay,
+  isoToDateInput,
+  todayDateInputValue,
+} from '../../lib/grantedAt'
 import { useAuth } from '../../context/AuthContext'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
@@ -62,6 +67,7 @@ export function StaffProfileModal({
   const [accessLevel, setAccessLevel] = useState('0')
   const [spheres, setSpheres] = useState<string[]>([])
   const [discordId, setDiscordId] = useState('')
+  const [appointedAt, setAppointedAt] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -77,10 +83,12 @@ export function StaffProfileModal({
     setAccessLevel(String(member.access_level))
     setSpheres(member.spheres ?? [])
     setDiscordId(member.discord_id ?? '')
+    setAppointedAt(isoToDateInput(member.granted_at) || todayDateInputValue())
     setError(null)
   }, [member])
 
   const savedSpheres = member?.spheres ?? []
+  const savedAppointedAt = member ? isoToDateInput(member.granted_at) : ''
   const targetBelowActor =
     !member ||
     member.vk_id === user?.vk_id ||
@@ -161,7 +169,8 @@ export function StaffProfileModal({
         (showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()))) ||
     (canEditAccessLevel && parseInt(accessLevel, 10) !== member.access_level) ||
     (canEditSpheres && !spheresEqual(spheres, savedSpheres)) ||
-    (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
+    (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) ||
+    (canEditAccessLevel && appointedAt !== savedAppointedAt && appointedAt !== '')
 
   const appendNicknameResync = (body: Record<string, unknown>) => {
     const cleanNick = stripStaffNicknameTags(nickname).trim()
@@ -217,6 +226,9 @@ export function StaffProfileModal({
       }
       if (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) {
         body.discord_id = discordId.trim() || null
+      }
+      if (canEditAccessLevel && appointedAt && appointedAt !== savedAppointedAt) {
+        body.granted_at = appointedAt
       }
 
       if (Object.keys(body).length === 0) {
@@ -378,6 +390,27 @@ export function StaffProfileModal({
               <p className="staff-profile-value">
                 {member.access_role_title || member.access_level_name}
               </p>
+            </div>
+          )}
+
+          {canEditAccessLevel ? (
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="staff-appointed-at">
+                Дата назначения
+              </label>
+              <input
+                id="staff-appointed-at"
+                type="date"
+                className="control w-full"
+                value={appointedAt}
+                disabled={saving}
+                onChange={(e) => setAppointedAt(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">Дата назначения</span>
+              <p className="staff-profile-value">{formatGrantedAtDisplay(member.granted_at)}</p>
             </div>
           )}
 

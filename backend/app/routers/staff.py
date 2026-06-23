@@ -22,6 +22,7 @@ from app.services.display_names import (
 )
 from app.services.staff import (
     assign_staff_member,
+    parse_appointment_date,
     clear_ca_leader_nickname,
     get_ca_leader,
     get_leadership_peer_id,
@@ -106,6 +107,7 @@ class StaffMemberUpdate(BaseModel):
     spheres: list[str] | None = None
     note: str | None = None
     discord_id: str | None = None
+    granted_at: str | None = None
     revoke_staff_access: bool | None = None
     resync_nickname: bool | None = None
 
@@ -117,6 +119,7 @@ class StaffAssignBody(BaseModel):
     nickname_tag: str | None = None
     access_level: int
     spheres: list[str]
+    granted_at: str | None = None
 
 
 class LeaderMemberUpdate(BaseModel):
@@ -528,6 +531,7 @@ async def post_staff_assign(
         raise HTTPException(status_code=400, detail="Укажите никнейм")
 
     try:
+        appointed = parse_appointment_date(body.granted_at) if body.granted_at else None
         row = await assign_staff_member(
             server_id,
             body.vk_id,
@@ -536,6 +540,7 @@ async def post_staff_assign(
             spheres=normalized_spheres,
             granted_by=user["vk_id"],
             nickname_tag=body.nickname_tag,
+            granted_at=appointed,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -726,6 +731,17 @@ async def patch_staff_member(
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены сферы")
         kwargs["note"] = body.note or ""
 
+    if "granted_at" in fields_set:
+        if not perms["edit_access_level"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для смены даты назначения")
+        from app.services.staff import parse_appointment_date
+
+        try:
+            kwargs["granted_at"] = parse_appointment_date(body.granted_at)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        kwargs["granted_at_provided"] = True
+
     if body.resync_nickname:
         row = await get_staff_member(server_id, vk_id)
         if not row:
@@ -772,6 +788,8 @@ async def patch_staff_member(
             audit_detail["has_ca_access"] = kwargs["has_ca_access"]
         if "note" in kwargs:
             audit_detail["note"] = True
+        if kwargs.get("granted_at_provided"):
+            audit_detail["granted_at"] = True
 
         try:
             await update_staff_member(

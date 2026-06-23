@@ -19,7 +19,7 @@ from app.services.role_assign import (
     assign_judge,
     assign_staff_with_profile,
 )
-from app.services.vk_resolve import resolve_vk_id_input
+from app.services.staff import parse_appointment_date
 from app.services.staff_permissions import (
     assert_can_set_level,
     assert_can_set_nickname,
@@ -62,6 +62,7 @@ class AssignBody(BaseModel):
     nickname_tag: str | None = None
     judge_position: str | None = None
     congress_role: Literal["speaker", "vice"] | None = None
+    granted_at: str | None = None
 
 
 @router.get("/options")
@@ -96,6 +97,7 @@ async def post_assign(
 
     actor_level = int(user.get("access_level") or 0)
     dev_persona = bool(user.get("dev_persona"))
+    appointed = parse_appointment_date(body.granted_at) if body.granted_at else None
 
     try:
         if body.role_type == "staff":
@@ -151,6 +153,7 @@ async def post_assign(
                 nickname_tag=body.nickname_tag,
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
+                granted_at=appointed,
             )
         elif body.role_type == "judge":
             if actor_level < ASSIGN_ROLE_MIN_LEVEL:
@@ -168,6 +171,7 @@ async def post_assign(
                 position=body.judge_position.strip(),
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
+                granted_at=appointed,
             )
         else:
             if actor_level < ASSIGN_ROLE_MIN_LEVEL:
@@ -185,6 +189,7 @@ async def post_assign(
                 congress_role=body.congress_role,
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
+                granted_at=appointed,
             )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -14,6 +14,7 @@ import {
 } from '../lib/staffNickname'
 import { Select } from '../components/ui/Select'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
+import { todayDateInputValue } from '../lib/grantedAt'
 
 const ROLE_TYPE_OPTIONS = [
   { value: 'staff', label: 'Следящий' },
@@ -54,6 +55,7 @@ export function AssignPage() {
   const [nicknameTag, setNicknameTag] = useState('')
   const [judgePosition, setJudgePosition] = useState<string>(JUDGE_POSITIONS[1])
   const [congressRole, setCongressRole] = useState<'speaker' | 'vice'>('speaker')
+  const [appointedAt, setAppointedAt] = useState(todayDateInputValue())
   const [judgePositions, setJudgePositions] = useState<string[]>([...JUDGE_POSITIONS])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -128,6 +130,7 @@ export function AssignPage() {
     setAccessLevel('1')
     setSpheres([])
     setNicknameTag('')
+    setAppointedAt(todayDateInputValue())
     setJudgePosition(JUDGE_POSITIONS[1])
     setCongressRole('speaker')
     setForumTouched(false)
@@ -184,6 +187,7 @@ export function AssignPage() {
             : undefined,
         judge_position: roleType === 'judge' ? judgePosition : undefined,
         congress_role: roleType === 'congress' ? congressRole : undefined,
+        granted_at: appointedAt || todayDateInputValue(),
       })
 
       const labels: Record<AssignRoleType, string> = {
@@ -279,6 +283,20 @@ export function AssignPage() {
                 {forumError}
               </p>
             )}
+          </div>
+
+          <div className="assign-field">
+            <label className="assign-label" htmlFor="assign-appointed-at">
+              Дата назначения
+            </label>
+            <input
+              id="assign-appointed-at"
+              type="date"
+              className="control w-full"
+              value={appointedAt}
+              disabled={saving}
+              onChange={(e) => setAppointedAt(e.target.value)}
+            />
           </div>
 
           <div className="assign-field">

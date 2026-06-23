@@ -12,7 +12,7 @@ import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLeve
 
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
-    'Этот Discord не привязан к вашему аккаунту. Укажите ID в боте: /editmydiscord или попросите ЗГС ЦА+ в реестре.',
+    'Этот Discord не привязан к аккаунту. Укажите ID в боте: /editmydiscord или попросите руководство назначить вас на сайте.',
   no_access: 'У аккаунта нет доступа к порталу (нужен уровень ПГС+).',
   oauth: 'Не удалось войти через Discord. Попробуйте ещё раз.',
   invalid_token: 'Ссылка недействительна. Запросите новую: /panel в ЛС бота.',
@@ -253,7 +253,7 @@ export function LoginPage() {
               )}
 
               <p className="login-footer">
-                Нет доступа — обратитесь к ЗГС ЦА+
+                Нет доступа — обратитесь к руководству вашей структуры
               </p>
             </div>
           </section>

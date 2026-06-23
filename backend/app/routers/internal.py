@@ -40,6 +40,8 @@ async def get_discord_link(
     return {
         "vk_id": vk_id,
         "discord_id": link.discord_id if link else None,
+        "discord_username": link.discord_username if link else None,
+        "discord_display_name": link.discord_display_name if link else None,
     }
 
 
