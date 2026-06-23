@@ -80,17 +80,27 @@ export function StaffProfileModal({
     setError(null)
   }, [member])
 
-  const parsedLevel = permissions.edit_access_level
+  const savedSpheres = member?.spheres ?? []
+  const targetBelowActor =
+    !member ||
+    member.vk_id === user?.vk_id ||
+    member.access_level < (user?.access_level ?? 0)
+  const canEditAccessLevel = Boolean(member && permissions.edit_access_level && targetBelowActor)
+  const canEditSpheres = Boolean(
+    member && (permissions.edit_spheres ?? permissions.edit_ca_access) && targetBelowActor,
+  )
+
+  const parsedLevel = canEditAccessLevel
     ? parseInt(accessLevel, 10)
     : member?.access_level ?? 0
 
   useEffect(() => {
-    if (!permissions.edit_access_level) return
+    if (!canEditAccessLevel) return
     setSpheres((prev) => filterSpheresForLevel(prev, parsedLevel))
     if (isDeveloperLevel(parsedLevel)) {
       setNicknameTag((tag) => (isLegacyStaffTag(tag) ? '' : tag))
     }
-  }, [parsedLevel, permissions.edit_access_level])
+  }, [parsedLevel, canEditAccessLevel])
 
   const levelOptions = useMemo(
     () =>
@@ -99,9 +109,6 @@ export function StaffProfileModal({
       ),
     [permissions.max_access_level],
   )
-
-  const savedSpheres = member?.spheres ?? []
-  const canEditSpheres = permissions.edit_spheres ?? permissions.edit_ca_access
 
   const nicknamePreview = useMemo(() => {
     if (!member) return ''
@@ -133,7 +140,7 @@ export function StaffProfileModal({
 
   const canEditAnything =
     permissions.edit_nickname ||
-    permissions.edit_access_level ||
+    canEditAccessLevel ||
     canEditSpheres ||
     permissions.edit_discord ||
     canRevokeAccess
@@ -152,7 +159,7 @@ export function StaffProfileModal({
       (nickOutOfSync ||
         stripStaffNicknameTags(nickname).trim() !== savedCleanName ||
         (showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()))) ||
-    (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) ||
+    (canEditAccessLevel && parseInt(accessLevel, 10) !== member.access_level) ||
     (canEditSpheres && !spheresEqual(spheres, savedSpheres)) ||
     (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
 
@@ -161,7 +168,7 @@ export function StaffProfileModal({
     if (permissions.edit_nickname) {
       body.nickname = cleanNick || savedCleanName
     }
-    if (permissions.edit_access_level) {
+    if (canEditAccessLevel) {
       body.access_level = parseInt(accessLevel, 10)
     }
     if (canEditSpheres) {
@@ -192,7 +199,7 @@ export function StaffProfileModal({
       if (permissions.edit_nickname && showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()) {
         body.nickname_tag = nicknameTag.trim()
       }
-      if (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) {
+      if (canEditAccessLevel && parseInt(accessLevel, 10) !== member.access_level) {
         body.access_level = parseInt(accessLevel, 10)
       }
       if (canEditSpheres && !spheresEqual(spheres, savedSpheres)) {
@@ -204,7 +211,7 @@ export function StaffProfileModal({
       } else if (
         Object.keys(body).length > 0 &&
         !('nickname' in body) &&
-        (permissions.edit_nickname || permissions.edit_access_level || canEditSpheres)
+        (permissions.edit_nickname || canEditAccessLevel || canEditSpheres)
       ) {
         body.nickname = cleanNick || savedCleanName
       }
@@ -355,7 +362,7 @@ export function StaffProfileModal({
             </div>
           ) : null}
 
-          {permissions.edit_access_level && (
+          {canEditAccessLevel ? (
             <div className="staff-profile-field">
               <label className="staff-profile-label">Уровень доступа</label>
               <Select
@@ -364,6 +371,13 @@ export function StaffProfileModal({
                 options={levelOptions}
                 disabled={saving}
               />
+            </div>
+          ) : (
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">Уровень доступа</span>
+              <p className="staff-profile-value">
+                {member.access_role_title || member.access_level_name}
+              </p>
             </div>
           )}
 
@@ -407,7 +421,7 @@ export function StaffProfileModal({
           </div>
 
           {(permissions.edit_nickname ||
-            permissions.edit_access_level ||
+            canEditAccessLevel ||
             canEditSpheres) &&
             nicknamePreview && (
             <p className="staff-profile-hint m-0">

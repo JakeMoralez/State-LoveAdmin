@@ -97,6 +97,36 @@ def max_grantable_level(
     return cap
 
 
+def _may_edit_other_staff(
+    *,
+    is_self: bool,
+    allow_self_edit: bool,
+    actor_level: int,
+    target_level: int,
+) -> bool:
+    if is_self:
+        return allow_self_edit
+    return int(target_level) < int(actor_level)
+
+
+def assert_can_edit_staff_target(
+    *,
+    actor_vk_id: int,
+    actor_level: int,
+    target_vk_id: int,
+    target_level: int,
+) -> None:
+    from fastapi import HTTPException
+
+    if int(actor_vk_id) == int(target_vk_id):
+        return
+    if int(target_level) >= int(actor_level):
+        raise HTTPException(
+            status_code=403,
+            detail="Нельзя изменять доступ пользователя с вашим уровнем или выше",
+        )
+
+
 def can_revoke_staff_target(
     *,
     actor_vk_id: int,
@@ -135,6 +165,12 @@ def staff_edit_permissions(
     is_self = actor_vk_id == target_vk_id
     is_developer = _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona)
     allow_self_edit = is_developer and is_self
+    can_edit_target = _may_edit_other_staff(
+        is_self=is_self,
+        allow_self_edit=allow_self_edit,
+        actor_level=actor_level,
+        target_level=target_level,
+    )
     effective = AccessLevel.DEVELOPER if is_developer else actor_level
     target_above_actor = int(target_level) > effective
     unrestricted_spheres = is_developer or actor_panel_role in ("owner", "lead")
@@ -145,24 +181,12 @@ def staff_edit_permissions(
 
     edit_nickname = (
         actor_level >= AccessLevel.PGS
-        and (not is_self or allow_self_edit)
+        and can_edit_target
         and not target_above_actor
     )
-    edit_level = (
-        actor_level >= AccessLevel.ZGS
-        and (not is_self or allow_self_edit)
-        and not target_above_actor
-    )
-    edit_ca = (
-        actor_level >= AccessLevel.ZGS
-        and (not is_self or allow_self_edit)
-        and not target_above_actor
-    )
-    edit_spheres = (
-        actor_level >= AccessLevel.ZGS
-        and (not is_self or allow_self_edit)
-        and not target_above_actor
-    )
+    edit_level = actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor
+    edit_ca = actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor
+    edit_spheres = actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor
     edit_sphere_legacy = actor_level >= AccessLevel.CURATOR or actor_panel_role in ("owner", "lead")
     edit_discord = (
         is_self
@@ -217,6 +241,16 @@ def assert_can_set_level(
         raise HTTPException(
             status_code=400,
             detail="Для снятия доступа используйте действие «Снять доступ»",
+        )
+    if (
+        target_vk_id is not None
+        and int(target_vk_id) != int(actor_vk_id)
+    ):
+        assert_can_edit_staff_target(
+            actor_vk_id=actor_vk_id,
+            actor_level=actor_level,
+            target_vk_id=target_vk_id,
+            target_level=target_level,
         )
     max_lvl = max_grantable_level(
         actor_vk_id,
@@ -339,11 +373,12 @@ def assert_can_revoke_staff(
         raise HTTPException(status_code=403, detail="Нельзя снять доступ с себя")
     if MAIN_ADMIN_ID and target_vk_id == MAIN_ADMIN_ID and not dev_persona:
         raise HTTPException(status_code=403, detail="Нельзя снять доступ главного администратора")
-    if int(target_level) >= int(actor_level):
-        raise HTTPException(
-            status_code=403,
-            detail="Нельзя снять доступ у пользователя с вашим уровнем или выше",
-        )
+    assert_can_edit_staff_target(
+        actor_vk_id=actor_vk_id,
+        actor_level=actor_level,
+        target_vk_id=target_vk_id,
+        target_level=target_level,
+    )
     if not can_revoke_staff_target(
         actor_vk_id=actor_vk_id,
         actor_level=actor_level,
