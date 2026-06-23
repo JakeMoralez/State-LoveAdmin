@@ -82,12 +82,19 @@ def _is_developer(vk_id: int, level: int, *, dev_persona: bool = False) -> bool:
 
 
 def max_grantable_level(
-    actor_vk_id: int, actor_level: int, *, dev_persona: bool = False
+    actor_vk_id: int,
+    actor_level: int,
+    *,
+    dev_persona: bool = False,
+    for_other: bool = True,
 ) -> int:
-    """Как /setlevel: разработчик до 10, остальные не выше своего (макс. 9 для dev-аккаунта)."""
+    """Макс. уровень для выдачи другому: строго ниже своего (ЗГС → до 2, ГС → до 3)."""
     if _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona):
         return AccessLevel.DEVELOPER
-    return min(actor_level, AccessLevel.GA)
+    cap = min(actor_level, AccessLevel.GA)
+    if for_other and cap > 0:
+        return cap - 1
+    return cap
 
 
 def staff_edit_permissions(
@@ -178,7 +185,12 @@ def assert_can_set_level(
             status_code=400,
             detail="Для снятия доступа используйте действие «Снять доступ»",
         )
-    max_lvl = max_grantable_level(actor_vk_id, actor_level, dev_persona=dev_persona)
+    max_lvl = max_grantable_level(
+        actor_vk_id,
+        actor_level,
+        dev_persona=dev_persona,
+        for_other=target_vk_id is None or int(target_vk_id) != int(actor_vk_id),
+    )
     if new_level < 0 or new_level > max_lvl:
         raise HTTPException(status_code=400, detail=f"Доступны уровни 1–{max_lvl}")
     effective = (
@@ -188,6 +200,16 @@ def assert_can_set_level(
     )
     if new_level > effective:
         raise HTTPException(status_code=403, detail="Нельзя выдать уровень выше своего")
+    is_other = target_vk_id is None or int(target_vk_id) != int(actor_vk_id)
+    if (
+        is_other
+        and not _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona)
+        and new_level >= effective
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Нельзя выдать уровень равный или выше своего",
+        )
     if target_vk_id is not None and int(target_vk_id) == int(actor_vk_id):
         if (
             new_level < actor_level
