@@ -161,7 +161,7 @@ export function LoginPage() {
                 <BrandLogo size="xl" plain className="login-emblem" />
                 <div>
                   <p className="login-brand">State Love</p>
-                  <h1 className="login-auth-title">Портал ЦА</h1>
+                  <h1 className="login-auth-title">Портал следящих государственных структур</h1>
                 </div>
                 {devMode && <span className="login-auth-badge login-auth-badge--dev">Dev</span>}
               </header>

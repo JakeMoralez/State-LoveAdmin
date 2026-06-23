@@ -60,6 +60,9 @@ export function AssignPage() {
   const [success, setSuccess] = useState<string | null>(null)
 
   const maxAccessLevel = userLevel
+  const actorSphereIds = user?.spheres ?? []
+  const unrestrictedSphereAssign =
+    userLevel >= 10 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
 
   const roleTypeOptions = useMemo(() => {
     if (userLevel >= 3) return [...ROLE_TYPE_OPTIONS]
@@ -333,6 +336,7 @@ export function AssignPage() {
                   disabled={saving}
                   accessLevel={parsedLevel}
                   showHint={false}
+                  grantableSpheres={unrestrictedSphereAssign ? undefined : actorSphereIds}
                 />
               </div>
 

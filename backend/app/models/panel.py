@@ -239,6 +239,7 @@ class QuestionBank(Model):
     emoji = fields.CharField(max_length=16, default="")
     min_submit_level = fields.IntField(default=1)
     min_approve_level = fields.IntField(default=3)
+    contributor_visibility = fields.CharField(max_length=32, default="own_workflow")
     created_by_vk_id = fields.BigIntField(index=True)
     sort_order = fields.IntField(default=0)
     is_active = fields.BooleanField(default=True)

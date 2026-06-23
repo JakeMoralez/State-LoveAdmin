@@ -12,6 +12,9 @@ from app.services.audit import log_audit
 from app.services.auth import require_ca_user
 from app.services.sphere_work import resolve_work_sphere, resolve_work_spheres, work_item_sphere_filter
 from app.services.question_banks import (
+    CONTRIBUTOR_VISIBILITY_LABELS,
+    CONTRIBUTOR_VISIBILITY_MODES,
+    CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW,
     DIFFICULTY_LABELS,
     STATUS_LABELS,
     ZGS_MIN_LEVEL,
@@ -19,6 +22,7 @@ from app.services.question_banks import (
     assert_can_manage,
     assert_can_submit,
     bank_counts,
+    bank_counts_for_user,
     bank_permissions,
     can_delete_item,
     can_edit_item,
@@ -43,6 +47,7 @@ class BankBody(BaseModel):
     sphere: str | None = None
     min_submit_level: int = Field(default=1, ge=1, le=AccessLevel.DEVELOPER)
     min_approve_level: int = Field(default=ZGS_MIN_LEVEL, ge=1, le=AccessLevel.DEVELOPER)
+    contributor_visibility: str = Field(default=CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW)
     sort_order: int = 0
     is_active: bool = True
 
@@ -76,6 +81,13 @@ class ReviewBody(BaseModel):
     difficulty: int | None = Field(default=None, ge=1, le=5)
 
 
+def _normalize_contributor_visibility(value: str) -> str:
+    mode = (value or "").strip()
+    if mode in CONTRIBUTOR_VISIBILITY_MODES:
+        return mode
+    return CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW
+
+
 async def _get_bank(bank_id: int, server_id: int = DEFAULT_SERVER_ID) -> QuestionBank:
     bank = await QuestionBank.get_or_none(id=bank_id, server_id=server_id)
     if not bank:
@@ -107,6 +119,11 @@ async def question_bank_meta(user: dict = Depends(require_ca_user)):
         "permissions": perms,
         "status_labels": STATUS_LABELS,
         "difficulty_labels": {str(k): v for k, v in DIFFICULTY_LABELS.items()},
+        "contributor_visibility_labels": CONTRIBUTOR_VISIBILITY_LABELS,
+        "contributor_visibility_modes": [
+            {"value": mode, "label": CONTRIBUTOR_VISIBILITY_LABELS[mode]}
+            for mode in CONTRIBUTOR_VISIBILITY_MODES
+        ],
         "tag_suggestions": tags,
         "access_levels": [
             {"value": level, "label": AccessLevel.title(level)}
@@ -157,7 +174,7 @@ async def list_banks(
     banks = await qs.order_by("sort_order", "title")
     result = []
     for bank in banks:
-        confirmed, pending = await bank_counts(bank.id)
+        confirmed, pending = await bank_counts_for_user(user, bank)
         result.append(
             await serialize_bank(
                 bank,
@@ -181,6 +198,7 @@ async def create_bank(body: BankBody, user: dict = Depends(require_ca_user)):
         emoji=body.emoji.strip(),
         min_submit_level=body.min_submit_level,
         min_approve_level=body.min_approve_level,
+        contributor_visibility=_normalize_contributor_visibility(body.contributor_visibility),
         created_by_vk_id=user["vk_id"],
         sort_order=body.sort_order,
         is_active=body.is_active,
@@ -202,7 +220,7 @@ async def get_bank(
         raise HTTPException(status_code=404, detail="Банк не найден")
 
     qs = QuestionBankItem.filter(bank_id=bank.id)
-    filt = item_filter_for_user(user)
+    filt = item_filter_for_user(user, bank)
     if filt is not None:
         qs = qs.filter(filt)
     if status:
@@ -217,7 +235,7 @@ async def get_bank(
     from app.services.display_names import resolve_display_names
 
     names = await resolve_display_names(vk_ids)
-    confirmed, pending = await bank_counts(bank.id)
+    confirmed, pending = await bank_counts_for_user(user, bank)
     data = await serialize_bank(
         bank,
         question_count=confirmed,
@@ -225,6 +243,16 @@ async def get_bank(
         permissions=perms,
     )
     data["questions"] = [await serialize_item(i, names=names) for i in items]
+    if not perms["can_review"]:
+        total_confirmed, total_pending = await bank_counts(bank.id)
+        data["bank_totals"] = {
+            "confirmed": total_confirmed,
+            "pending_review": total_pending,
+        }
+        data["visibility_restricted"] = True
+    else:
+        data["bank_totals"] = None
+        data["visibility_restricted"] = False
     return data
 
 
@@ -237,6 +265,7 @@ async def update_bank(bank_id: int, body: BankBody, user: dict = Depends(require
     bank.emoji = body.emoji.strip()
     bank.min_submit_level = body.min_submit_level
     bank.min_approve_level = body.min_approve_level
+    bank.contributor_visibility = _normalize_contributor_visibility(body.contributor_visibility)
     bank.sort_order = body.sort_order
     bank.is_active = body.is_active
     await bank.save()
@@ -281,7 +310,7 @@ async def update_question(
 ):
     bank = await _get_bank(bank_id)
     item = await _get_item(bank_id, item_id)
-    if not can_view_item(user, item):
+    if not can_view_item(user, item, bank):
         raise HTTPException(status_code=404, detail="Вопрос не найден")
     if not can_edit_item(user, item, bank):
         raise HTTPException(status_code=403, detail="Нельзя редактировать этот вопрос")
@@ -356,7 +385,7 @@ async def question_history(
 ):
     bank = await _get_bank(bank_id)
     item = await _get_item(bank_id, item_id)
-    if not can_view_item(user, item):
+    if not can_view_item(user, item, bank):
         raise HTTPException(status_code=404, detail="Вопрос не найден")
     events = await item_history(item.id, bank.server_id)
     return {"events": events}

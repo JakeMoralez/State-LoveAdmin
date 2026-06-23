@@ -14,6 +14,22 @@ from app.services.display_names import resolve_display_name, resolve_display_nam
 
 ZGS_MIN_LEVEL = 3
 
+CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED = "all_confirmed"
+CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW = "own_workflow"
+CONTRIBUTOR_VISIBILITY_OWN_ALL = "own_all"
+
+CONTRIBUTOR_VISIBILITY_MODES = (
+    CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED,
+    CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW,
+    CONTRIBUTOR_VISIBILITY_OWN_ALL,
+)
+
+CONTRIBUTOR_VISIBILITY_LABELS: dict[str, str] = {
+    CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED: "Полный банк: все подтверждённые + свои",
+    CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW: "Только свои до одобрения (после — скрыты)",
+    CONTRIBUTOR_VISIBILITY_OWN_ALL: "Только свои вопросы (включая одобренные)",
+}
+
 STATUSES = ("draft", "pending", "confirmed", "rejected", "needs_revision")
 
 STATUS_LABELS: dict[str, str] = {
@@ -74,6 +90,15 @@ def _level(user: dict) -> int:
     return int(user.get("access_level") or 0)
 
 
+def _contributor_visibility(bank: QuestionBank | None) -> str:
+    if not bank:
+        return CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW
+    mode = (getattr(bank, "contributor_visibility", None) or "").strip()
+    if mode in CONTRIBUTOR_VISIBILITY_MODES:
+        return mode
+    return CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW
+
+
 def bank_permissions(user: dict, bank: QuestionBank | None = None) -> dict[str, bool]:
     level = _level(user)
     min_submit = bank.min_submit_level if bank else 1
@@ -105,13 +130,20 @@ def assert_can_review(user: dict, bank: QuestionBank) -> None:
         raise HTTPException(status_code=403, detail="Недостаточно прав для проверки вопросов")
 
 
-def can_view_item(user: dict, item: QuestionBankItem) -> bool:
-    perms = bank_permissions(user)
-    if perms["can_review"]:
+def can_view_item(user: dict, item: QuestionBankItem, bank: QuestionBank | None = None) -> bool:
+    if bank and bank_permissions(user, bank)["can_review"]:
         return True
-    if item.status == "confirmed":
-        return True
-    return item.created_by_vk_id == user["vk_id"]
+    vk_id = user["vk_id"]
+    mode = _contributor_visibility(bank)
+    if mode == CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED:
+        if item.status == "confirmed":
+            return True
+        return item.created_by_vk_id == vk_id
+    if item.created_by_vk_id != vk_id:
+        return False
+    if mode == CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW and item.status == "confirmed":
+        return False
+    return True
 
 
 def can_edit_item(user: dict, item: QuestionBankItem, bank: QuestionBank) -> bool:
@@ -133,14 +165,18 @@ def can_delete_item(user: dict, item: QuestionBankItem, bank: QuestionBank) -> b
     return item.status in ("draft", "needs_revision", "rejected", "pending")
 
 
-def item_filter_for_user(user: dict):
-    perms = bank_permissions(user)
-    if perms["can_review"]:
+def item_filter_for_user(user: dict, bank: QuestionBank | None = None):
+    if bank and bank_permissions(user, bank)["can_review"]:
         return None
     from tortoise.expressions import Q
 
     vk_id = user["vk_id"]
-    return Q(status="confirmed") | Q(created_by_vk_id=vk_id)
+    mode = _contributor_visibility(bank)
+    if mode == CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED:
+        return Q(status="confirmed") | Q(created_by_vk_id=vk_id)
+    if mode == CONTRIBUTOR_VISIBILITY_OWN_ALL:
+        return Q(created_by_vk_id=vk_id)
+    return Q(created_by_vk_id=vk_id) & ~Q(status="confirmed")
 
 
 def _clamp_difficulty(value: int) -> int:
@@ -381,6 +417,10 @@ async def serialize_bank(
         "emoji": bank.emoji or "",
         "min_submit_level": bank.min_submit_level,
         "min_approve_level": bank.min_approve_level,
+        "contributor_visibility": _contributor_visibility(bank),
+        "contributor_visibility_label": CONTRIBUTOR_VISIBILITY_LABELS.get(
+            _contributor_visibility(bank), _contributor_visibility(bank)
+        ),
         "min_submit_level_label": AccessLevel.title(bank.min_submit_level),
         "min_approve_level_label": AccessLevel.title(bank.min_approve_level),
         "question_count": question_count,
@@ -398,6 +438,35 @@ async def bank_counts(bank_id: int) -> tuple[int, int]:
     confirmed = await QuestionBankItem.filter(bank_id=bank_id, status="confirmed").count()
     pending = await QuestionBankItem.filter(bank_id=bank_id, status="pending").count()
     return confirmed, pending
+
+
+async def bank_counts_for_user(user: dict, bank: QuestionBank) -> tuple[int, int]:
+    """Счётчики на карточке банка с учётом режима видимости для не-проверяющих."""
+    if bank_permissions(user, bank)["can_review"]:
+        return await bank_counts(bank.id)
+    vk_id = user["vk_id"]
+    mode = _contributor_visibility(bank)
+    if mode == CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED:
+        return await bank_counts(bank.id)
+    if mode == CONTRIBUTOR_VISIBILITY_OWN_ALL:
+        confirmed = await QuestionBankItem.filter(
+            bank_id=bank.id, created_by_vk_id=vk_id, status="confirmed"
+        ).count()
+        open_count = await QuestionBankItem.filter(
+            bank_id=bank.id,
+            created_by_vk_id=vk_id,
+            status__in=["draft", "pending", "needs_revision", "rejected"],
+        ).count()
+        return confirmed, open_count
+    pending = await QuestionBankItem.filter(
+        bank_id=bank.id, created_by_vk_id=vk_id, status="pending"
+    ).count()
+    mine_open = await QuestionBankItem.filter(
+        bank_id=bank.id,
+        created_by_vk_id=vk_id,
+        status__in=["draft", "needs_revision", "rejected"],
+    ).count()
+    return 0, pending + mine_open
 
 
 async def collect_tag_suggestions(server_id: int = DEFAULT_SERVER_ID) -> list[str]:

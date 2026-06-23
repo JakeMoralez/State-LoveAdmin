@@ -1,8 +1,8 @@
 const MARQUEE_ROWS = [
   { label: 'STATE LOVE', reverse: false },
-  { label: 'ПОРТАЛ · ЦА', reverse: true },
+  { label: 'СЛЕДЯЩИЕ ГОС', reverse: true },
   { label: 'STATE LOVE', reverse: false },
-  { label: 'ПОРТАЛ · ЦА', reverse: true },
+  { label: 'СЛЕДЯЩИЕ ГОС', reverse: true },
   { label: 'STATE LOVE', reverse: false },
 ] as const
 

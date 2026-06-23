@@ -4456,6 +4456,8 @@ body {
   /* Breakpoints: phone ≤639, compact ≤767, nav ≤1023 — see styles/mobile.css & MOBILE.md */
 
   .app-shell {
+    height: 100dvh;
+    height: 100vh;
     min-height: 100dvh;
     min-height: 100vh;
   }

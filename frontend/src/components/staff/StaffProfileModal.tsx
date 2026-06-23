@@ -141,9 +141,10 @@ export function StaffProfileModal({
   const nickOutOfSync = Boolean(nicknamePreview && nicknamePreview.trim() !== storedNick)
 
   const hasChanges =
-    nickOutOfSync ||
-    (permissions.edit_nickname && stripStaffNicknameTags(nickname).trim() !== savedCleanName) ||
-    (permissions.edit_nickname && showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()) ||
+    (permissions.edit_nickname &&
+      (nickOutOfSync ||
+        stripStaffNicknameTags(nickname).trim() !== savedCleanName ||
+        (showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()))) ||
     (permissions.edit_access_level && parseInt(accessLevel, 10) !== member.access_level) ||
     (canEditSpheres && !spheresEqual(spheres, savedSpheres)) ||
     (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
@@ -190,7 +191,7 @@ export function StaffProfileModal({
       if (canEditSpheres && !spheresEqual(spheres, savedSpheres)) {
         body.spheres = spheres
       }
-      if (nickOutOfSync) {
+      if (permissions.edit_nickname && nickOutOfSync) {
         appendNicknameResync(body)
         body.resync_nickname = true
       } else if (
@@ -250,7 +251,9 @@ export function StaffProfileModal({
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-lg font-semibold">Настройки · {headerLabel}</h2>
+              <h2 className="m-0 truncate text-lg font-semibold">
+                {canEditAnything ? 'Настройки' : 'Просмотр'} · {headerLabel}
+              </h2>
               <p className="m-0 mt-0.5 text-xs text-white/40">
                 {member.access_role_title || member.access_level_name}
                 {member.badges.length > 0 ? ` · ${member.badges.join(' ')}` : ''}
@@ -323,7 +326,7 @@ export function StaffProfileModal({
             )}
           </div>
 
-          {permissions.edit_nickname && (
+          {permissions.edit_nickname ? (
             <div className="staff-profile-field">
               <label className="staff-profile-label" htmlFor="staff-nickname">
                 Имя
@@ -338,7 +341,12 @@ export function StaffProfileModal({
                 onChange={(e) => setNickname(e.target.value)}
               />
             </div>
-          )}
+          ) : savedCleanName ? (
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">Имя</span>
+              <p className="staff-profile-value">{savedCleanName}</p>
+            </div>
+          ) : null}
 
           {permissions.edit_access_level && (
             <div className="staff-profile-field">
@@ -381,6 +389,10 @@ export function StaffProfileModal({
                 disabled={saving}
                 accessLevel={parsedLevel}
                 showHint={false}
+                lockedSpheres={permissions.locked_spheres}
+                grantableSpheres={
+                  permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
+                }
               />
             ) : (
               <p className="staff-profile-value">{formatSpheresDisplay(member.spheres) || member.sphere || '—'}</p>

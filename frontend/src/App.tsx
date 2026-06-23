@@ -5,6 +5,7 @@ import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
 import { JudgeForumListPage } from './pages/JudgeForumListPage'
 import { AccessGuidePage } from './pages/AccessGuidePage'
+import { ActivityLogPage } from './pages/ActivityLogPage'
 import { AssignPage } from './pages/AssignPage'
 import { QuestionBankDetailPage } from './pages/QuestionBankDetailPage'
 import { QuestionBankReviewPage } from './pages/QuestionBankReviewPage'
@@ -41,6 +42,7 @@ function AppRoutes() {
           <Route path="/question-banks/review" element={<QuestionBankReviewPage />} />
           <Route path="/question-banks/:id" element={<QuestionBankDetailPage />} />
           <Route path="/assign" element={<AssignPage />} />
+          <Route path="/activity" element={<ActivityLogPage />} />
           <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
           <Route path="/forum/judge-assign" element={<Navigate to="/assign?type=judge" replace />} />
           <Route path="/projects" element={<ProjectsPage />} />

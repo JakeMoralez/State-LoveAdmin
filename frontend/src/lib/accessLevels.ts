@@ -71,6 +71,15 @@ export function canRemoveFromLeadershipRegistry(
   return actorLevel >= LEADER_REGISTRY_MANAGE_MIN_LEVEL || actorLevel >= 10
 }
 
+export function canOpenLeaderSettings(
+  actorLevel: number,
+  actorVkId: number,
+  targetVkId: number,
+): boolean {
+  if (actorVkId === targetVkId) return true
+  return canEditLeadershipRegistry(actorLevel, actorVkId, targetVkId)
+}
+
 /** @deprecated use canEditLeadershipRegistry */
 export function canManageLeadershipRegistry(
   actorLevel: number,

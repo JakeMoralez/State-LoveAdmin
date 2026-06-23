@@ -362,6 +362,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  activityLog: (params?: { q?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    if (params?.limit != null) q.set('limit', String(params.limit))
+    if (params?.offset != null) q.set('offset', String(params.offset))
+    const s = q.toString()
+    return request<ActivityLogResponse>(`/activity${s ? `?${s}` : ''}`)
+  },
 }
 
 export interface AuthConfig {
@@ -463,6 +471,9 @@ export interface StaffMemberPermissions {
   revoke_staff_access: boolean
   assign_staff?: boolean
   max_access_level: number
+  grantable_spheres?: string[]
+  locked_spheres?: string[]
+  unrestricted_sphere_edit?: boolean
 }
 
 export interface StaffAssignBody {
@@ -731,6 +742,8 @@ export interface QuestionBankMeta {
   permissions: QuestionBankPermissions
   status_labels: Record<string, string>
   difficulty_labels: Record<string, string>
+  contributor_visibility_labels?: Record<string, string>
+  contributor_visibility_modes?: { value: string; label: string }[]
   tag_suggestions: string[]
   access_levels: { value: number; label: string }[]
 }
@@ -743,6 +756,8 @@ export interface QuestionBank {
   emoji?: string
   min_submit_level: number
   min_approve_level: number
+  contributor_visibility?: string
+  contributor_visibility_label?: string
   min_submit_level_label?: string
   min_approve_level_label?: string
   question_count: number
@@ -762,6 +777,7 @@ export interface QuestionBankBody {
   sphere?: string
   min_submit_level?: number
   min_approve_level?: number
+  contributor_visibility?: string
   sort_order?: number
   is_active?: boolean
 }
@@ -815,6 +831,8 @@ export interface QuestionBankReviewBody extends Partial<QuestionBankItemBody> {
 
 export interface QuestionBankDetail extends QuestionBank {
   questions: QuestionBankItem[]
+  bank_totals?: { confirmed: number; pending_review: number } | null
+  visibility_restricted?: boolean
 }
 
 export interface QuestionBankItemEvent {
@@ -924,4 +942,26 @@ export interface AssignResult {
   position?: string
   access_level?: number
   congress_role?: 'speaker' | 'vice'
+}
+
+export interface ActivityLogItem {
+  id: number
+  action: string
+  action_label: string
+  entity_type: string
+  entity_id: string
+  actor_vk_id: number
+  actor_name: string
+  target_vk_id?: number | null
+  target_name?: string | null
+  message: string
+  detail: Record<string, unknown>
+  created_at: string
+}
+
+export interface ActivityLogResponse {
+  total: number
+  items: ActivityLogItem[]
+  limit: number
+  offset: number
 }

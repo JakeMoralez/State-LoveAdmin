@@ -184,7 +184,9 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-lg font-semibold">Настройки · {displayName}</h2>
+              <h2 className="m-0 truncate text-lg font-semibold">
+                {canEditAnything ? 'Настройки' : 'Просмотр'} · {displayName}
+              </h2>
               <p className="m-0 mt-0.5 text-xs text-white/40">Руководство</p>
             </div>
           </div>

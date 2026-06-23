@@ -34,19 +34,22 @@ from app.services.staff import (
     update_leader_nickname,
     update_staff_member,
 )
+from app.services.activity_log import staff_assign_detail
+from app.services.audit import log_audit
 from app.services.staff_assign import assign_via_site_message
 from app.services.staff_permissions import (
+    assert_can_edit_staff_nickname,
     assert_can_manage_leadership_registry,
     assert_can_remove_from_leadership_registry,
     assert_can_revoke_staff,
     assert_can_set_ca,
     assert_can_set_level,
     assert_can_set_nickname,
+    assert_can_set_spheres,
     can_manage_leadership_registry,
     can_remove_from_leadership_registry,
     staff_edit_permissions,
 )
-from app.services.staff_spheres import validate_spheres
 
 router = APIRouter(prefix="/api/staff", tags=["staff"])
 
@@ -54,6 +57,29 @@ router = APIRouter(prefix="/api/staff", tags=["staff"])
 def _session_access_level(user: dict) -> int:
     """Уровень из сессии (dev-персона, MAIN_ADMIN, реальный доступ)."""
     return int(user.get("access_level") or 0)
+
+
+def _actor_spheres(user: dict) -> list[str]:
+    return list(user.get("spheres") or [])
+
+
+def _build_staff_perms(
+    user: dict,
+    actor_level: int,
+    target_vk_id: int,
+    target_level: int,
+    target_spheres: list[str] | None = None,
+) -> dict:
+    return staff_edit_permissions(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        actor_panel_role=user.get("panel_role") or "member",
+        target_vk_id=target_vk_id,
+        target_level=target_level,
+        actor_spheres=_actor_spheres(user),
+        target_spheres=target_spheres or [],
+        dev_persona=bool(user.get("dev_persona")),
+    )
 
 
 async def _actor_access_level(user: dict, server_id: int) -> int:
@@ -275,6 +301,13 @@ async def patch_ca_leader(
             await revoke_ca_leader_full(server_id, vk_id, updated_by=user["vk_id"])
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await log_audit(
+            user["vk_id"],
+            "leader_remove",
+            "leader",
+            vk_id,
+            {"target_vk_id": vk_id, "target_nickname": row.get("nickname")},
+        )
         return {"ok": True, "removed": True, "vk_id": vk_id}
 
     if body.clear_nickname:
@@ -289,6 +322,13 @@ async def patch_ca_leader(
             await clear_ca_leader_nickname(server_id, vk_id)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await log_audit(
+            user["vk_id"],
+            "leader_clear_nickname",
+            "leader",
+            vk_id,
+            {"target_vk_id": vk_id, "target_nickname": row.get("nickname")},
+        )
         changed = True
 
     registry_fields = {"nickname", "position", "note", "forum_account"}
@@ -367,6 +407,11 @@ async def patch_ca_leader(
 
     if not changed:
         raise HTTPException(status_code=400, detail="Нет полей для обновления")
+
+    leader_audit: dict = {"target_vk_id": vk_id, "target_nickname": row.get("nickname")}
+    if meta_kwargs.get("position"):
+        leader_audit["position"] = meta_kwargs["position"]
+    await log_audit(user["vk_id"], "leader_update", "leader", vk_id, leader_audit)
 
     row = await get_ca_leader(server_id, vk_id)
     if not row:
@@ -451,12 +496,8 @@ async def post_staff_assign(
     user: dict = Depends(require_ca_user),
 ):
     actor_level = _session_access_level(user)
-    perms = staff_edit_permissions(
-        actor_vk_id=user["vk_id"],
-        actor_level=actor_level,
-        actor_panel_role=user.get("panel_role") or "member",
-        target_vk_id=body.vk_id,
-    )
+    dev_persona = bool(user.get("dev_persona"))
+    perms = _build_staff_perms(user, actor_level, body.vk_id, 0, [])
     if not perms["assign_staff"]:
         raise HTTPException(status_code=403, detail="Недостаточно прав для назначения")
     if user["vk_id"] == body.vk_id:
@@ -466,13 +507,22 @@ async def post_staff_assign(
         actor_vk_id=user["vk_id"],
         actor_level=actor_level,
         new_level=body.access_level,
+        target_vk_id=body.vk_id,
+        target_level=0,
+        dev_persona=dev_persona,
     )
     assert_can_set_nickname(actor_level)
 
-    try:
-        validate_spheres(body.spheres, body.access_level)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    normalized_spheres = assert_can_set_spheres(
+        actor_vk_id=user["vk_id"],
+        actor_level=actor_level,
+        actor_panel_role=user.get("panel_role") or "member",
+        actor_spheres=_actor_spheres(user),
+        target_current=[],
+        requested=body.spheres,
+        target_level=body.access_level,
+        dev_persona=dev_persona,
+    )
 
     if not (body.nickname or "").strip():
         raise HTTPException(status_code=400, detail="Укажите никнейм")
@@ -483,7 +533,7 @@ async def post_staff_assign(
             body.vk_id,
             nickname=body.nickname.strip(),
             access_level=body.access_level,
-            spheres=body.spheres,
+            spheres=normalized_spheres,
             granted_by=user["vk_id"],
             nickname_tag=body.nickname_tag,
         )
@@ -504,13 +554,23 @@ async def post_staff_assign(
     row = await _enrich_staff_row(row, server_id)
     from app.services.access import panel_role
 
+    await log_audit(
+        user["vk_id"],
+        "staff_assign",
+        "staff",
+        body.vk_id,
+        staff_assign_detail(
+            target_vk_id=body.vk_id,
+            nickname=row.get("nickname") or body.nickname.strip(),
+            access_level=int(row["access_level"]),
+            spheres=list(row.get("spheres") or []),
+        ),
+    )
+
     row["server_id"] = server_id
     row["panel_role"] = panel_role(row["access_level"])
-    row["permissions"] = staff_edit_permissions(
-        actor_vk_id=user["vk_id"],
-        actor_level=actor_level,
-        actor_panel_role=user.get("panel_role") or "member",
-        target_vk_id=body.vk_id,
+    row["permissions"] = _build_staff_perms(
+        user, actor_level, body.vk_id, int(row["access_level"]), list(row.get("spheres") or [])
     )
     return row
 
@@ -526,11 +586,9 @@ async def get_staff_one(
         raise HTTPException(status_code=404, detail="Не найден в реестре следящих")
     row = await _enrich_staff_row(row, server_id)
     actor_level = _session_access_level(user)
-    perms = staff_edit_permissions(
-        actor_vk_id=user["vk_id"],
-        actor_level=actor_level,
-        actor_panel_role=user.get("panel_role") or "member",
-        target_vk_id=vk_id,
+    target_level = int(row["access_level"])
+    perms = _build_staff_perms(
+        user, actor_level, vk_id, target_level, list(row.get("spheres") or [])
     )
     from app.services.access import panel_role
 
@@ -548,11 +606,17 @@ async def patch_staff_member(
     user: dict = Depends(require_ca_user),
 ):
     actor_level = _session_access_level(user)
-    perms = staff_edit_permissions(
-        actor_vk_id=user["vk_id"],
-        actor_level=actor_level,
-        actor_panel_role=user.get("panel_role") or "member",
-        target_vk_id=vk_id,
+    dev_persona = bool(user.get("dev_persona"))
+    row_before = await get_staff_member(server_id, vk_id)
+    if not row_before:
+        raise HTTPException(status_code=404, detail="Не найден в реестре следящих")
+    target_level = int(row_before["access_level"])
+    perms = _build_staff_perms(
+        user,
+        actor_level,
+        vk_id,
+        target_level,
+        list(row_before.get("spheres") or []),
     )
 
     fields_set = body.model_fields_set
@@ -569,23 +633,43 @@ async def patch_staff_member(
             actor_level=actor_level,
             target_vk_id=vk_id,
             target_level=int(row["access_level"]),
+            dev_persona=dev_persona,
         )
         try:
             await revoke_staff_access(server_id, vk_id, updated_by=user["vk_id"])
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await log_audit(
+            user["vk_id"],
+            "staff_revoke",
+            "staff",
+            vk_id,
+            {"target_vk_id": vk_id, "target_nickname": row.get("nickname")},
+        )
         return {"ok": True, "removed": True, "vk_id": vk_id}
 
     if "nickname" in fields_set:
         if not perms["edit_nickname"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены ника")
-        assert_can_set_nickname(actor_level)
+        assert_can_edit_staff_nickname(
+            actor_vk_id=user["vk_id"],
+            actor_level=actor_level,
+            target_vk_id=vk_id,
+            target_level=target_level,
+            dev_persona=dev_persona,
+        )
         kwargs["nickname"] = body.nickname or ""
 
     if "nickname_tag" in fields_set:
         if not perms["edit_nickname"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены тега")
-        assert_can_set_nickname(actor_level)
+        assert_can_edit_staff_nickname(
+            actor_vk_id=user["vk_id"],
+            actor_level=actor_level,
+            target_vk_id=vk_id,
+            target_level=target_level,
+            dev_persona=dev_persona,
+        )
         kwargs["nickname_tag"] = body.nickname_tag or ""
         kwargs["nickname_tag_provided"] = True
 
@@ -602,6 +686,9 @@ async def patch_staff_member(
             actor_vk_id=user["vk_id"],
             actor_level=actor_level,
             new_level=body.access_level,
+            target_vk_id=vk_id,
+            target_level=prev_level,
+            dev_persona=dev_persona,
         )
         kwargs["access_level"] = body.access_level
 
@@ -618,18 +705,21 @@ async def patch_staff_member(
             raise HTTPException(status_code=400, detail="Укажите spheres")
         if not perms["edit_spheres"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены сфер")
-        assert_can_set_ca(actor_level)
-        target_access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-        target_level = (
+        sphere_target_level = (
             body.access_level
             if "access_level" in fields_set and body.access_level is not None
-            else (target_access.access_level if target_access else 0)
+            else target_level
         )
-        try:
-            validate_spheres(body.spheres, target_level)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-        kwargs["spheres"] = body.spheres
+        kwargs["spheres"] = assert_can_set_spheres(
+            actor_vk_id=user["vk_id"],
+            actor_level=actor_level,
+            actor_panel_role=user.get("panel_role") or "member",
+            actor_spheres=_actor_spheres(user),
+            target_current=list(row_before.get("spheres") or []),
+            requested=body.spheres,
+            target_level=sphere_target_level,
+            dev_persona=dev_persona,
+        )
 
     if "note" in fields_set:
         if not perms["edit_sphere"]:
@@ -663,6 +753,26 @@ async def patch_staff_member(
         raise HTTPException(status_code=400, detail="Нет полей для обновления")
 
     if kwargs:
+        audit_detail: dict = {
+            "target_vk_id": vk_id,
+            "target_nickname": row_before.get("nickname"),
+        }
+        if "access_level" in kwargs:
+            audit_detail["access_level"] = {
+                "from": target_level,
+                "from_name": AccessLevel.title(target_level),
+                "to": kwargs["access_level"],
+                "to_name": AccessLevel.title(int(kwargs["access_level"])),
+            }
+        if "nickname" in kwargs or "nickname_tag" in kwargs:
+            audit_detail["nickname"] = True
+        if "spheres" in kwargs:
+            audit_detail["spheres"] = list(kwargs["spheres"])
+        if "has_ca_access" in kwargs:
+            audit_detail["has_ca_access"] = kwargs["has_ca_access"]
+        if "note" in kwargs:
+            audit_detail["note"] = True
+
         try:
             await update_staff_member(
                 server_id,
@@ -672,6 +782,8 @@ async def patch_staff_member(
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        await log_audit(user["vk_id"], "staff_update", "staff", vk_id, audit_detail)
 
     if "discord_id" in fields_set:
         if not perms["edit_discord"]:
@@ -694,7 +806,9 @@ async def patch_staff_member(
 
     row["server_id"] = server_id
     row["panel_role"] = panel_role(row["access_level"])
-    row["permissions"] = perms
+    row["permissions"] = _build_staff_perms(
+        user, actor_level, vk_id, int(row["access_level"]), list(row.get("spheres") or [])
+    )
     return row
 
 

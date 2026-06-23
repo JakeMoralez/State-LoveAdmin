@@ -59,6 +59,10 @@ async def ensure_defaults() -> None:
             ("min_submit_level", "ALTER TABLE question_banks ADD COLUMN min_submit_level INTEGER NOT NULL DEFAULT 1"),
             ("min_approve_level", "ALTER TABLE question_banks ADD COLUMN min_approve_level INTEGER NOT NULL DEFAULT 3"),
             ("emoji", "ALTER TABLE question_banks ADD COLUMN emoji VARCHAR(16) NOT NULL DEFAULT ''"),
+            (
+                "contributor_visibility",
+                "ALTER TABLE question_banks ADD COLUMN contributor_visibility VARCHAR(32) NOT NULL DEFAULT 'own_workflow'",
+            ),
         ):
             if not await _column_exists("question_banks", col):
                 await conn.execute_query(ddl)

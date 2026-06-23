@@ -88,13 +88,40 @@ export function QuestionBankDetailPage() {
     return [{ value: '', label: 'Все статусы' }, ...recordToOptions(labels as Record<string, string>)]
   }, [meta])
 
+  const listEmptyMessage = useMemo(() => {
+    if (filteredQuestions.length > 0) return undefined
+    if (q.trim()) return 'По запросу ничего не найдено'
+    if (statusFilter) return 'Нет вопросов с выбранным статусом'
+    const totals = bank?.bank_totals
+    const restricted =
+      bank?.visibility_restricted ??
+      (!permissions?.can_review && bank?.contributor_visibility !== 'all_confirmed')
+    if (
+      restricted &&
+      totals &&
+      (totals.confirmed > 0 || totals.pending_review > 0)
+    ) {
+      return 'В банке есть вопросы, но у вас нет доступа к их просмотру.'
+    }
+    return 'Вопросов пока нет'
+  }, [filteredQuestions.length, q, statusFilter, bank, permissions?.can_review])
+
   const bankSubtitle = useMemo(() => {
     if (!bank) return undefined
-    const stats = `${bank.question_count} подтверждённых${(bank.pending_count ?? 0) > 0 ? ` · ${bank.pending_count} на проверке` : ''}`
+    const canReview = bank.permissions?.can_review ?? meta?.permissions?.can_review
+    let stats: string
+    if (canReview || bank.contributor_visibility === 'all_confirmed') {
+      stats = `${bank.question_count} подтверждённых${(bank.pending_count ?? 0) > 0 ? ` · ${bank.pending_count} на проверке` : ''}`
+    } else if (bank.contributor_visibility === 'own_all') {
+      stats = `${bank.question_count} моих одобрено${(bank.pending_count ?? 0) > 0 ? ` · ${bank.pending_count} в работе` : ''}`
+    } else {
+      stats =
+        (bank.pending_count ?? 0) > 0 ? `${bank.pending_count} моих в работе` : 'Нет ваших вопросов'
+    }
     const desc = bank.description?.trim()
     if (desc && desc !== bank.title.trim()) return `${desc} · ${stats}`
     return stats
-  }, [bank])
+  }, [bank, meta?.permissions?.can_review])
 
   useMobileTopBarTitle(bank?.title)
 
@@ -216,6 +243,7 @@ export function QuestionBankDetailPage() {
             items={filteredQuestions}
             permissions={permissions}
             currentVkId={user?.vk_id}
+            emptyMessage={listEmptyMessage}
             onEdit={openEdit}
             onDelete={(item) => void handleDeleteItem(item)}
             onReview={openReview}
@@ -272,7 +300,9 @@ export function QuestionBankDetailPage() {
                   emoji: bank.emoji,
                   min_submit_level: bank.min_submit_level,
                   min_approve_level: bank.min_approve_level,
+                  contributor_visibility: bank.contributor_visibility ?? 'own_workflow',
                 }}
+                visibilityOptions={meta?.contributor_visibility_modes}
                 onCancel={() => setEditBankOpen(false)}
                 onSubmit={async (values) => {
                   await api.updateQuestionBank(bank.id, values)

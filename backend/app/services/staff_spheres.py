@@ -97,6 +97,41 @@ def validate_spheres(spheres: list[str], access_level: int | None = None) -> lis
     return result
 
 
+def constrain_spheres_for_actor(
+    actor_spheres: list[str],
+    target_current: list[str],
+    requested: list[str],
+    access_level: int,
+) -> list[str]:
+    """ЗГС/ГС может менять только свои сферы; чужие сферы цели остаются без изменений."""
+    actor_set = set(actor_spheres or [])
+    current = set(target_current or [])
+    requested_set = set(requested or [])
+
+    locked = current - actor_set
+    if not locked.issubset(requested_set):
+        missing = locked - requested_set
+        raise ValueError(
+            f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(missing))}"
+        )
+
+    added = requested_set - current
+    illegal_add = added - actor_set
+    if illegal_add:
+        raise ValueError(
+            f"Можно выдавать только свои сферы: {format_spheres_display(sorted(illegal_add))}"
+        )
+
+    removed = current - requested_set
+    illegal_remove = removed - actor_set
+    if illegal_remove:
+        raise ValueError(
+            f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(illegal_remove))}"
+        )
+
+    return validate_spheres(list(requested_set), access_level)
+
+
 def format_spheres_display(spheres: list[str]) -> str:
     if not spheres:
         return "—"

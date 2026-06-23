@@ -6,7 +6,7 @@ import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 import { useAuth } from '../context/AuthContext'
-import { canEditLeadershipRegistry } from '../lib/accessLevels'
+import { canOpenLeaderSettings } from '../lib/accessLevels'
 import { staffLabel } from '../lib/staff'
 
 type SortKey = 'index' | 'nickname' | 'position'
@@ -159,7 +159,7 @@ export function LeadersPage() {
                     >
                       {staffLabel(m)}
                     </Link>
-                    {canEditLeadershipRegistry(actorLevel, actorVkId, m.vk_id) && (
+                    {canOpenLeaderSettings(actorLevel, actorVkId, m.vk_id) && (
                       <button
                         type="button"
                         className="staff-settings-btn"

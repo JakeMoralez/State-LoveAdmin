@@ -126,9 +126,24 @@ export function QuestionBanksPage() {
                     {showSphereBadge && bank.sphere && <SphereBadge sphereId={bank.sphere} className="mt-1.5" />}
                     {bank.description && <p className="qb-bank-card-desc">{bank.description}</p>}
                     <div className="qb-bank-card-meta">
-                      <span>{bank.question_count} подтверждённых</span>
-                      {(bank.pending_count ?? 0) > 0 && (
-                        <span className="qb-pending-badge">{bank.pending_count} на проверке</span>
+                      {(permissions.can_review || bank.contributor_visibility === 'all_confirmed') ? (
+                        <>
+                          <span>{bank.question_count} подтверждённых</span>
+                          {(bank.pending_count ?? 0) > 0 && (
+                            <span className="qb-pending-badge">{bank.pending_count} на проверке</span>
+                          )}
+                        </>
+                      ) : bank.contributor_visibility === 'own_all' ? (
+                        <>
+                          <span>{bank.question_count} моих одобрено</span>
+                          {(bank.pending_count ?? 0) > 0 && (
+                            <span className="qb-pending-badge">{bank.pending_count} в работе</span>
+                          )}
+                        </>
+                      ) : (bank.pending_count ?? 0) > 0 ? (
+                        <span>{bank.pending_count} моих в работе</span>
+                      ) : (
+                        <span className="text-white/40">Нет ваших вопросов</span>
                       )}
                     </div>
                     <div className="qb-bank-card-foot">

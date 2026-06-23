@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   FolderKanban,
   Gavel,
+  History,
   KeyRound,
   LayoutDashboard,
   Library,
@@ -54,6 +55,7 @@ const navCategories: NavCategory[] = [
       { to: '/staff', label: 'Следящие', icon: Users },
       { to: '/leaders', label: 'Руководство', icon: Shield },
       { to: '/assign', label: 'Назначить', icon: UserPlus, minAccessLevel: 2 },
+      { to: '/activity', label: 'Журнал', icon: History, minAccessLevel: 2 },
     ],
   },
   {
@@ -225,7 +227,7 @@ function LayoutShell() {
                 <BrandLogo size="sm" plain />
                 <div className="sidebar-brand-text">
                   <span className="sidebar-brand-title">State Love</span>
-                  <span className="sidebar-brand-tagline">Следящие ЦА</span>
+                  <span className="sidebar-brand-tagline">Следящие ГОС</span>
                 </div>
               </div>
               {mobileOpen && (

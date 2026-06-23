@@ -219,6 +219,8 @@ async def list_staff(server_id: int) -> list[dict]:
         if access is None:
             logger.warning("list_staff: vk_id=%s has no user_server_access row for server_id=%s", user.vk_id, server_id)
         eff_level = max(level, await get_access_level(user.vk_id, server_id))
+        if eff_level < AccessLevel.PGS:
+            continue
         bot_nickname = await resolve_bot_nickname(
             user.vk_id, server_id, access=access, user=user
         )

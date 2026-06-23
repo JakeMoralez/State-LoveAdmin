@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 from app.config import DEFAULT_SERVER_ID
 from app.services.auth import require_ca_user
 from app.services.discord_oauth import normalize_discord_id
+from app.services.activity_log import staff_assign_detail
+from app.services.audit import log_audit
 from app.services.role_assign import (
     CONGRESS_ROLES,
     JUDGE_POSITIONS,
@@ -21,10 +23,10 @@ from app.services.vk_resolve import resolve_vk_id_input
 from app.services.staff_permissions import (
     assert_can_set_level,
     assert_can_set_nickname,
+    assert_can_set_spheres,
     LEADER_REGISTRY_EDIT_MIN_LEVEL,
     staff_edit_permissions,
 )
-from app.services.staff_spheres import validate_spheres
 
 router = APIRouter(prefix="/api/assign", tags=["assign"])
 
@@ -93,6 +95,7 @@ async def post_assign(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     actor_level = int(user.get("access_level") or 0)
+    dev_persona = bool(user.get("dev_persona"))
 
     try:
         if body.role_type == "staff":
@@ -106,6 +109,10 @@ async def post_assign(
                 actor_level=actor_level,
                 actor_panel_role=user.get("panel_role") or "member",
                 target_vk_id=vk_id,
+                target_level=0,
+                actor_spheres=list(user.get("spheres") or []),
+                target_spheres=[],
+                dev_persona=dev_persona,
             )
             if not perms["assign_staff"]:
                 raise HTTPException(status_code=403, detail="Недостаточно прав для назначения следящего")
@@ -119,16 +126,28 @@ async def post_assign(
                 actor_vk_id=user["vk_id"],
                 actor_level=actor_level,
                 new_level=body.access_level,
+                target_vk_id=vk_id,
+                target_level=0,
+                dev_persona=dev_persona,
             )
             assert_can_set_nickname(actor_level)
-            validate_spheres(body.spheres, body.access_level)
+            normalized_spheres = assert_can_set_spheres(
+                actor_vk_id=user["vk_id"],
+                actor_level=actor_level,
+                actor_panel_role=user.get("panel_role") or "member",
+                actor_spheres=list(user.get("spheres") or []),
+                target_current=[],
+                requested=body.spheres,
+                target_level=body.access_level,
+                dev_persona=dev_persona,
+            )
             result = await assign_staff_with_profile(
                 server_id,
                 vk_id,
                 forum_account=body.forum_account.strip(),
                 nickname=body.nickname.strip(),
                 access_level=body.access_level,
-                spheres=body.spheres,
+                spheres=normalized_spheres,
                 nickname_tag=body.nickname_tag,
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
@@ -169,5 +188,43 @@ async def post_assign(
             )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if body.role_type == "staff":
+        await log_audit(
+            user["vk_id"],
+            "staff_assign",
+            "staff",
+            vk_id,
+            staff_assign_detail(
+                target_vk_id=vk_id,
+                nickname=body.nickname.strip(),
+                access_level=body.access_level or 0,
+                spheres=list(body.spheres or []),
+            ),
+        )
+    elif body.role_type == "judge":
+        await log_audit(
+            user["vk_id"],
+            "judge_assign",
+            "staff",
+            vk_id,
+            {
+                "target_vk_id": vk_id,
+                "nickname": body.nickname.strip(),
+                "position": (body.judge_position or "").strip(),
+            },
+        )
+    else:
+        await log_audit(
+            user["vk_id"],
+            "congress_assign",
+            "staff",
+            vk_id,
+            {
+                "target_vk_id": vk_id,
+                "nickname": body.nickname.strip(),
+                "position": CONGRESS_ROLES.get(body.congress_role or "", body.congress_role or ""),
+            },
+        )
 
     return result

@@ -1,0 +1,65 @@
+.page-stack--activity {
+  max-width: 52rem;
+}
+
+.activity-log-search {
+  max-width: 28rem;
+}
+
+.activity-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.activity-log-item {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+}
+
+.activity-log-time {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.activity-log-message {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.activity-log-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.activity-log-link:hover {
+  text-decoration: underline;
+}
+
+.activity-log-muted {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.activity-log-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.activity-log-pager-meta {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}

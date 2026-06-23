@@ -24,6 +24,7 @@ export interface BankFormValues {
   emoji: string
   min_submit_level: number
   min_approve_level: number
+  contributor_visibility: string
 }
 
 export function BankForm({
@@ -31,17 +32,20 @@ export function BankForm({
   onSubmit,
   onCancel,
   submitLabel = 'Сохранить',
+  visibilityOptions,
 }: {
   initial?: Partial<BankFormValues>
   onSubmit: (values: BankFormValues) => Promise<void>
   onCancel: () => void
   submitLabel?: string
+  visibilityOptions?: { value: string; label: string }[]
 }) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [emoji, setEmoji] = useState(initial?.emoji?.trim() || DEFAULT_BANK_ICON)
   const [minSubmit, setMinSubmit] = useState(String(initial?.min_submit_level ?? 1))
   const [minApprove, setMinApprove] = useState(String(initial?.min_approve_level ?? 3))
+  const [visibility, setVisibility] = useState(initial?.contributor_visibility ?? 'own_workflow')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -51,7 +55,14 @@ export function BankForm({
     setEmoji(initial?.emoji?.trim() || DEFAULT_BANK_ICON)
     setMinSubmit(String(initial?.min_submit_level ?? 1))
     setMinApprove(String(initial?.min_approve_level ?? 3))
+    setVisibility(initial?.contributor_visibility ?? 'own_workflow')
   }, [initial])
+
+  const visibilitySelectOptions = visibilityOptions ?? [
+    { value: 'own_workflow', label: 'Только свои до одобрения (после — скрыты)' },
+    { value: 'all_confirmed', label: 'Полный банк: все подтверждённые + свои' },
+    { value: 'own_all', label: 'Только свои вопросы (включая одобренные)' },
+  ]
 
   const submit = async () => {
     if (!title.trim()) return
@@ -64,6 +75,7 @@ export function BankForm({
         emoji: emoji.trim() || DEFAULT_BANK_ICON,
         min_submit_level: parseInt(minSubmit, 10),
         min_approve_level: parseInt(minApprove, 10),
+        contributor_visibility: visibility,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка сохранения')
@@ -95,6 +107,12 @@ export function BankForm({
           <Select value={minApprove} onChange={setMinApprove} options={ACCESS_LEVEL_OPTIONS} />
         </FormField>
       </div>
+      <FormField
+        label="Видимость для добавляющих"
+        hint="Что видят пользователи без права проверки (ниже уровня подтверждения)"
+      >
+        <Select value={visibility} onChange={setVisibility} options={visibilitySelectOptions} />
+      </FormField>
       {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="qb-bank-form-actions">
         <button type="button" className="btn-secondary" onClick={onCancel}>
@@ -422,6 +440,7 @@ export function QuestionList({
   items,
   permissions,
   currentVkId,
+  emptyMessage,
   onEdit,
   onDelete,
   onReview,
@@ -431,6 +450,7 @@ export function QuestionList({
   items: QuestionBankItem[]
   permissions: QuestionBankPermissions
   currentVkId?: number
+  emptyMessage?: string
   onEdit: (item: QuestionBankItem) => void
   onDelete: (item: QuestionBankItem) => void
   onReview: (item: QuestionBankItem) => void
@@ -438,7 +458,11 @@ export function QuestionList({
   onSubmit: (item: QuestionBankItem) => void
 }) {
   if (!items.length) {
-    return <p className="text-white/40 text-sm py-8 text-center">Вопросов пока нет</p>
+    return (
+      <p className="text-white/40 text-sm py-8 text-center">
+        {emptyMessage ?? 'Вопросов пока нет'}
+      </p>
+    )
   }
 
   return (
