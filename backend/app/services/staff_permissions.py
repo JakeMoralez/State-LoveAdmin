@@ -193,6 +193,7 @@ def staff_edit_permissions(
         or actor_level >= AccessLevel.ZGS
         or actor_panel_role in ("owner", "lead")
     )
+    edit_forum_account = edit_discord
     revoke_staff = (
         edit_level
         and not is_self
@@ -213,6 +214,7 @@ def staff_edit_permissions(
         "edit_spheres": edit_spheres,
         "edit_sphere": edit_sphere_legacy or edit_spheres,
         "edit_discord": edit_discord,
+        "edit_forum_account": edit_forum_account,
         "revoke_staff_access": revoke_staff,
         "assign_staff": assign_staff,
         "max_access_level": max_grantable_level(

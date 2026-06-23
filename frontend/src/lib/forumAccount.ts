@@ -3,6 +3,8 @@ export const FORUM_MEMBER_URL_EXAMPLE = 'https://forum.arizona-rp.com/members/65
 const FORUM_MEMBER_URL_RE =
   /^https?:\/\/forum\.arizona-rp\.com\/members\/(\d+)\/?(?:[?#].*)?$/i
 
+const FORUM_MEMBER_ID_RE = /^\d{4,12}$/
+
 export function parseForumMemberUrl(
   raw: string,
 ): { ok: true; memberId: string } | { ok: false; message: string } {
@@ -21,8 +23,12 @@ export function isValidForumMemberUrl(raw: string): boolean {
   return parseForumMemberUrl(raw).ok
 }
 
-export function forumMemberUrl(memberId: string | null | undefined): string {
+export function forumMemberUrl(
+  memberId: string | null | undefined,
+  vkId?: number | null,
+): string {
   const id = (memberId ?? '').trim()
-  if (!id) return ''
+  if (!id || !FORUM_MEMBER_ID_RE.test(id)) return ''
+  if (vkId != null && id === String(vkId)) return ''
   return `https://forum.arizona-rp.com/members/${id}/`
 }

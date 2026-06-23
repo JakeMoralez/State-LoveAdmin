@@ -13,6 +13,7 @@ import {
   stripStaffNicknameTags,
 } from '../lib/staffNickname'
 import { Select } from '../components/ui/Select'
+import { DatePicker } from '../components/ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
 import { todayDateInputValue } from '../lib/grantedAt'
 
@@ -286,16 +287,12 @@ export function AssignPage() {
           </div>
 
           <div className="assign-field">
-            <label className="assign-label" htmlFor="assign-appointed-at">
-              Дата назначения
-            </label>
-            <input
-              id="assign-appointed-at"
-              type="date"
-              className="control w-full"
-              value={appointedAt}
-              disabled={saving}
-              onChange={(e) => setAppointedAt(e.target.value)}
+            <label className="assign-label">Дата назначения</label>
+            <DatePicker
+              value={appointedAt || null}
+              onChange={(iso) => setAppointedAt(iso ?? todayDateInputValue())}
+              showTime={false}
+              allowEmpty={false}
             />
           </div>
 

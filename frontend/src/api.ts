@@ -468,6 +468,7 @@ export interface StaffMemberPermissions {
   edit_spheres: boolean
   edit_sphere: boolean
   edit_discord: boolean
+  edit_forum_account: boolean
   revoke_staff_access: boolean
   assign_staff?: boolean
   max_access_level: number
@@ -499,6 +500,7 @@ export interface StaffMemberUpdateBody {
   spheres?: string[]
   note?: string | null
   discord_id?: string | null
+  forum_account?: string | null
   revoke_staff_access?: boolean
   resync_nickname?: boolean
   granted_at?: string | null

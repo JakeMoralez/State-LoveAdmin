@@ -44,7 +44,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
   const [error, setError] = useState<string | null>(null)
 
   const savedForumUrl = useMemo(
-    () => (member ? forumMemberUrl(member.username) : ''),
+    () => (member ? forumMemberUrl(member.username, member.vk_id) : ''),
     [member],
   )
 
@@ -56,7 +56,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
   useEffect(() => {
     if (!member) return
     setNickname(memberNickname(member))
-    setForumAccount(forumMemberUrl(member.username))
+    setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
     setPosition(member.position ?? '')
     setNote(member.note ?? '')

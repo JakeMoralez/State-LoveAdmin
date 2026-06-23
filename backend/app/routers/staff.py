@@ -107,6 +107,7 @@ class StaffMemberUpdate(BaseModel):
     spheres: list[str] | None = None
     note: str | None = None
     discord_id: str | None = None
+    forum_account: str | None = None
     granted_at: str | None = None
     revoke_staff_access: bool | None = None
     resync_nickname: bool | None = None
@@ -765,7 +766,7 @@ async def patch_staff_member(
         if "spheres" not in kwargs and perms["edit_spheres"]:
             kwargs["spheres"] = list(row.get("spheres") or [])
 
-    if not kwargs and "discord_id" not in fields_set:
+    if not kwargs and "discord_id" not in fields_set and "forum_account" not in fields_set:
         raise HTTPException(status_code=400, detail="Нет полей для обновления")
 
     if kwargs:
@@ -815,6 +816,16 @@ async def patch_staff_member(
             discord_id=discord_id,
             actor_vk_id=user["vk_id"],
         )
+
+    if "forum_account" in fields_set:
+        if not perms["edit_forum_account"]:
+            raise HTTPException(status_code=403, detail="Недостаточно прав для форума")
+        from app.services.role_assign import _apply_forum_account
+
+        try:
+            await _apply_forum_account(vk_id, body.forum_account or "")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     row = await get_staff_member(server_id, vk_id)
     if not row:
