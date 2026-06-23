@@ -160,13 +160,21 @@ export function DatePicker({
   }, [open])
 
   const label = parsed.date
-    ? parsed.date.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        ...(parsed.time ? { hour: '2-digit', minute: '2-digit' } : {}),
-      })
-    : 'Без срока'
+    ? showTime
+      ? parsed.date.toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          ...(parsed.time ? { hour: '2-digit', minute: '2-digit' } : {}),
+        })
+      : parsed.date.toLocaleDateString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })
+    : allowEmpty
+      ? 'Выберите дату'
+      : '—'
 
   const apply = (date: Date | undefined, time: string) => {
     onChange(emitValue(date, time, showTime))
@@ -285,10 +293,10 @@ export function DatePicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={cn('control control-sm dp-trigger flex w-full items-center gap-2 text-left', open && 'control-focus')}
+        className={cn('dp-trigger flex w-full items-center gap-2 text-left', open && 'control-focus')}
       >
-        <Calendar size={14} className="shrink-0 text-white/35" />
-        <span className={cn('flex-1 truncate', !parsed.date && 'text-white/35')}>{label}</span>
+        <Calendar size={15} className="dp-trigger-icon shrink-0" />
+        <span className={cn('flex-1 truncate', !parsed.date && 'dp-trigger-placeholder')}>{label}</span>
         {allowEmpty && parsed.date && (
           <span
             role="button"

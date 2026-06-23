@@ -20,12 +20,13 @@ import {
   todayDateInputValue,
 } from '../../lib/grantedAt'
 import { useAuth } from '../../context/AuthContext'
+import { ForumAccountField } from '../ui/ForumAccountField'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
 import { DatePicker } from '../ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from './SphereMultiSelect'
 import {
-  FORUM_MEMBER_URL_EXAMPLE,
+  forumAccountForApi,
   forumMemberUrl,
   parseForumMemberUrl,
 } from '../../lib/forumAccount'
@@ -91,7 +92,7 @@ export function StaffProfileModal({
     setAccessLevel(String(member.access_level))
     setSpheres(member.spheres ?? [])
     setDiscordId(member.discord_id ?? '')
-    setForumAccount(forumMemberUrl(member.username, member.vk_id))
+    setForumAccount(forumMemberUrl(member.username, member.vk_id) || member.username || '')
     setForumTouched(false)
     setAppointedAt(isoToDateInput(member.granted_at) || todayDateInputValue())
     setError(null)
@@ -100,9 +101,15 @@ export function StaffProfileModal({
   const savedSpheres = member?.spheres ?? []
   const savedAppointedAt = member ? isoToDateInput(member.granted_at) : ''
   const savedForumUrl = member ? forumMemberUrl(member.username, member.vk_id) : ''
+  const savedForumId = useMemo(() => {
+    const fromUrl = parseForumMemberUrl(savedForumUrl)
+    if (fromUrl.ok) return fromUrl.memberId
+    const fromUsername = parseForumMemberUrl(member?.username ?? '')
+    return fromUsername.ok ? fromUsername.memberId : ''
+  }, [member?.username, savedForumUrl])
   const forumValidation = useMemo(() => parseForumMemberUrl(forumAccount), [forumAccount])
   const forumError =
-    forumTouched && permissions.edit_forum_account && forumAccount.trim() !== savedForumUrl.trim() && !forumValidation.ok
+    forumTouched && permissions.edit_forum_account && !forumValidation.ok
       ? forumValidation.message
       : null
   const targetBelowActor =
@@ -187,7 +194,9 @@ export function StaffProfileModal({
     (canEditAccessLevel && parseInt(accessLevel, 10) !== member.access_level) ||
     (canEditSpheres && !spheresEqual(spheres, savedSpheres)) ||
     (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) ||
-    (permissions.edit_forum_account && forumAccount.trim() !== savedForumUrl.trim()) ||
+    (permissions.edit_forum_account &&
+      forumValidation.ok &&
+      forumValidation.memberId !== savedForumId) ||
     (canEditAccessLevel && appointedAt !== savedAppointedAt && appointedAt !== '')
 
   const appendNicknameResync = (body: Record<string, unknown>) => {
@@ -212,6 +221,11 @@ export function StaffProfileModal({
   const handleSave = async () => {
     if (devTagError) {
       setError(devTagError)
+      return
+    }
+    if (forumError) {
+      setError(forumError)
+      setForumTouched(true)
       return
     }
     setSaving(true)
@@ -245,14 +259,12 @@ export function StaffProfileModal({
       if (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) {
         body.discord_id = discordId.trim() || null
       }
-      if (permissions.edit_forum_account && forumAccount.trim() !== savedForumUrl.trim()) {
-        const forumCheck = parseForumMemberUrl(forumAccount)
-        if (!forumCheck.ok) {
-          setError(forumCheck.message)
-          setSaving(false)
-          return
-        }
-        body.forum_account = forumAccount.trim()
+      if (
+        permissions.edit_forum_account &&
+        forumValidation.ok &&
+        forumValidation.memberId !== savedForumId
+      ) {
+        body.forum_account = forumAccountForApi(forumAccount)
       }
       if (canEditAccessLevel && appointedAt && appointedAt !== savedAppointedAt) {
         body.granted_at = appointedAt
@@ -334,50 +346,20 @@ export function StaffProfileModal({
                 </a>
               </dd>
             </div>
-            {member.username && (
-              <div>
-                <dt>Username</dt>
-                <dd>{member.username}</dd>
-              </div>
-            )}
           </dl>
 
           <div className="staff-profile-field">
-            <label className="staff-profile-label" htmlFor="staff-forum">
-              Профиль на форуме
-            </label>
-            {!permissions.edit_forum_account ? (
-              savedForumUrl ? (
-                <p className="staff-profile-value">
-                  <a href={savedForumUrl} target="_blank" rel="noreferrer" className="link-gold">
-                    {savedForumUrl}
-                    <ExternalLink size={13} className="inline ml-1 opacity-60" />
-                  </a>
-                </p>
-              ) : (
-                <p className="staff-profile-value">—</p>
-              )
-            ) : (
-              <>
-                <input
-                  id="staff-forum"
-                  type="url"
-                  className="control w-full"
-                  value={forumAccount}
-                  placeholder={FORUM_MEMBER_URL_EXAMPLE}
-                  disabled={saving}
-                  aria-invalid={forumError ? true : undefined}
-                  aria-describedby={forumError ? 'staff-forum-error' : undefined}
-                  onChange={(e) => setForumAccount(e.target.value)}
-                  onBlur={() => setForumTouched(true)}
-                />
-                {forumError && (
-                  <p id="staff-forum-error" className="assign-field-error" role="alert">
-                    {forumError}
-                  </p>
-                )}
-              </>
-            )}
+            <ForumAccountField
+              id="staff-forum"
+              label="Аккаунт на форуме"
+              value={forumAccount}
+              onChange={setForumAccount}
+              onBlur={() => setForumTouched(true)}
+              disabled={saving}
+              readOnly={!permissions.edit_forum_account}
+              readOnlyMemberId={member.username}
+              error={forumError}
+            />
           </div>
 
           <div className="staff-profile-field">

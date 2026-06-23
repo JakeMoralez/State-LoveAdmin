@@ -10,13 +10,22 @@ export function parseForumMemberUrl(
 ): { ok: true; memberId: string } | { ok: false; message: string } {
   const cleaned = raw.trim()
   if (!cleaned) {
-    return { ok: false, message: 'Укажите ссылку на профиль форума' }
+    return { ok: false, message: 'Укажите ссылку или ID профиля на форуме' }
   }
-  const m = cleaned.match(FORUM_MEMBER_URL_RE)
-  if (!m) {
-    return { ok: false, message: `Нужна ссылка вида ${FORUM_MEMBER_URL_EXAMPLE}` }
+  const urlMatch = cleaned.match(FORUM_MEMBER_URL_RE)
+  if (urlMatch) {
+    return { ok: true, memberId: urlMatch[1] }
   }
-  return { ok: true, memberId: m[1] }
+  if (FORUM_MEMBER_ID_RE.test(cleaned)) {
+    return { ok: true, memberId: cleaned }
+  }
+  return { ok: false, message: `Нужна ссылка или ID, например ${FORUM_MEMBER_URL_EXAMPLE}` }
+}
+
+export function forumAccountForApi(raw: string): string {
+  const parsed = parseForumMemberUrl(raw)
+  if (!parsed.ok) throw new Error(parsed.message)
+  return forumMemberUrl(parsed.memberId)
 }
 
 export function isValidForumMemberUrl(raw: string): boolean {

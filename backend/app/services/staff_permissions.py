@@ -193,7 +193,11 @@ def staff_edit_permissions(
         or actor_level >= AccessLevel.ZGS
         or actor_panel_role in ("owner", "lead")
     )
-    edit_forum_account = edit_discord
+    edit_forum_account = (
+        (actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor)
+        or actor_panel_role in ("owner", "lead")
+        or (is_self and actor_level >= AccessLevel.ZGS)
+    )
     revoke_staff = (
         edit_level
         and not is_self

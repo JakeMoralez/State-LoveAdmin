@@ -96,3 +96,44 @@
 .assign-submit {
   margin-top: 0.25rem;
 }
+
+.forum-field {
+  margin-bottom: 0;
+}
+
+.forum-field-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.72);
+}
+
+.forum-field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 0.38);
+}
+
+.forum-field-error {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: #f87171;
+}
+
+.forum-field-readonly {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgb(255 255 255 / 0.78);
+  word-break: break-all;
+}
+
+.staff-profile-field .forum-field-label {
+  margin-bottom: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}

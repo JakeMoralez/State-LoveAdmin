@@ -1,0 +1,210 @@
+/* DatePicker — глобально (панель в portal на body) */
+
+.dp-trigger {
+  min-height: 2.375rem;
+  height: 2.375rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--radius-input, 8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast, 0.12s) ease,
+    background var(--motion-fast, 0.12s) ease,
+    box-shadow var(--motion-fast, 0.12s) ease;
+}
+
+.dp-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.dp-trigger.control-focus,
+.dp-trigger:focus-visible {
+  border-color: rgba(201, 162, 39, 0.45);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.12);
+  outline: none;
+}
+
+.dp-trigger .dp-trigger-icon {
+  color: rgba(201, 162, 39, 0.75);
+}
+
+.dp-trigger-placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.dp-panel {
+  position: fixed;
+  z-index: 4000;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(201, 162, 39, 0.22);
+  background: linear-gradient(180deg, #1a1d28 0%, #101218 100%);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: dp-scale-in 0.15s ease-out;
+  overflow: hidden;
+}
+
+.dp-panel--above {
+  animation: dp-scale-in-above 0.15s ease-out;
+}
+
+@keyframes dp-scale-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dp-scale-in-above {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+.dp-month {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #fff;
+  text-transform: capitalize;
+}
+
+.dp-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 8px;
+  background: rgba(201, 162, 39, 0.12);
+  color: var(--accent-gold, #c9a227);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dp-nav:hover {
+  background: rgba(201, 162, 39, 0.22);
+}
+
+.dp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.dp-weekday {
+  text-align: center;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  padding: 2px 0;
+}
+
+.dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.dp-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 2rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.dp-day:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.dp-day--outside {
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.dp-day--today:not(.dp-day--selected) {
+  color: var(--accent-gold-bright, #d4af37);
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.35);
+}
+
+.dp-day--selected {
+  background: linear-gradient(180deg, #d4af37 0%, #b8941f 100%);
+  color: #0a0a0e;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.35);
+}
+
+.dp-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dp-footer-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.dp-footer-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.dp-footer-btn--primary {
+  border-color: rgba(201, 162, 39, 0.35);
+  background: rgba(201, 162, 39, 0.14);
+  color: rgba(251, 219, 131, 0.95);
+}
+
+.dp-footer-btn--primary:hover {
+  background: rgba(201, 162, 39, 0.22);
+}

@@ -222,6 +222,7 @@ export function StaffPage() {
             edit_spheres: false,
             edit_sphere: false,
             edit_discord: false,
+            edit_forum_account: false,
             revoke_staff_access: false,
             max_access_level: 0,
           }

@@ -53,11 +53,13 @@ FORUM_MEMBER_URL_RE = re.compile(
 def normalize_forum_account(raw: str) -> str:
     cleaned = (raw or "").strip()
     if not cleaned:
-        raise ValueError("Укажите ссылку на профиль форума")
+        raise ValueError("Укажите ссылку или ID профиля на форуме")
     match = FORUM_MEMBER_URL_RE.match(cleaned)
-    if not match:
-        raise ValueError(f"Нужна ссылка вида {FORUM_MEMBER_URL_HINT}")
-    return match.group(1)
+    if match:
+        return match.group(1)
+    if cleaned.isdigit() and 4 <= len(cleaned) <= 12:
+        return cleaned
+    raise ValueError(f"Нужна ссылка или ID, например {FORUM_MEMBER_URL_HINT}")
 
 
 async def _apply_forum_account(vk_id: int, forum_account: str) -> str:

@@ -5,13 +5,14 @@ import { ApiError, api, type AssignRoleType } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
 import { JUDGE_POSITIONS, looksLikeVkInput } from '../lib/judgePositions'
-import { FORUM_MEMBER_URL_EXAMPLE, parseForumMemberUrl } from '../lib/forumAccount'
+import { forumAccountForApi, parseForumMemberUrl } from '../lib/forumAccount'
 import {
   DEFAULT_DEVELOPER_TAG,
   isDeveloperLevel,
   previewStaffNickname,
   stripStaffNicknameTags,
 } from '../lib/staffNickname'
+import { ForumAccountField } from '../components/ui/ForumAccountField'
 import { Select } from '../components/ui/Select'
 import { DatePicker } from '../components/ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
@@ -175,7 +176,7 @@ export function AssignPage() {
         role_type: roleType,
         vk_id: vkInput.trim(),
         discord_id: discordId.trim() || null,
-        forum_account: forumAccount.trim(),
+        forum_account: forumAccountForApi(forumAccount),
         nickname:
           roleType === 'staff'
             ? stripStaffNicknameTags(nickname).trim()
@@ -264,26 +265,14 @@ export function AssignPage() {
           </div>
 
           <div className="assign-field">
-            <label className="assign-label" htmlFor="assign-forum">
-              Аккаунт на форуме
-            </label>
-            <input
+            <ForumAccountField
               id="assign-forum"
-              type="url"
-              className="control w-full"
               value={forumAccount}
-              placeholder={FORUM_MEMBER_URL_EXAMPLE}
-              disabled={saving}
-              onChange={(e) => setForumAccount(e.target.value)}
+              onChange={setForumAccount}
               onBlur={() => setForumTouched(true)}
-              aria-invalid={forumError ? true : undefined}
-              aria-describedby={forumError ? 'assign-forum-error' : undefined}
+              disabled={saving}
+              error={forumError}
             />
-            {forumError && (
-              <p id="assign-forum-error" className="assign-field-error" role="alert">
-                {forumError}
-              </p>
-            )}
           </div>
 
           <div className="assign-field">
