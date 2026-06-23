@@ -97,6 +97,27 @@ def max_grantable_level(
     return cap
 
 
+def can_revoke_staff_target(
+    *,
+    actor_vk_id: int,
+    actor_level: int,
+    target_level: int,
+    dev_persona: bool = False,
+) -> bool:
+    """Снятие доступа — только если можно снова выдать тот же уровень."""
+    if _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona):
+        return True
+    if int(target_level) >= AccessLevel.ZGS_GOS:
+        return False
+    max_grant = max_grantable_level(
+        actor_vk_id,
+        actor_level,
+        dev_persona=dev_persona,
+        for_other=True,
+    )
+    return int(target_level) <= max_grant
+
+
 def staff_edit_permissions(
     *,
     actor_vk_id: int,
@@ -146,7 +167,16 @@ def staff_edit_permissions(
         or actor_level >= AccessLevel.ZGS
         or actor_panel_role in ("owner", "lead")
     )
-    revoke_staff = edit_level and not is_self
+    revoke_staff = (
+        edit_level
+        and not is_self
+        and can_revoke_staff_target(
+            actor_vk_id=actor_vk_id,
+            actor_level=actor_level,
+            target_level=target_level,
+            dev_persona=dev_persona,
+        )
+    )
     assign_staff = edit_level and not is_self
 
     return {
@@ -313,3 +343,18 @@ def assert_can_revoke_staff(
     )
     if target_level > effective:
         raise HTTPException(status_code=403, detail="Нельзя снять доступ у пользователя с уровнем выше вашего")
+    if not can_revoke_staff_target(
+        actor_vk_id=actor_vk_id,
+        actor_level=actor_level,
+        target_level=target_level,
+        dev_persona=dev_persona,
+    ):
+        if int(target_level) >= AccessLevel.ZGS_GOS:
+            raise HTTPException(
+                status_code=403,
+                detail="Нельзя снять доступ ЗГС ГОС+ через реестр следящих",
+            )
+        raise HTTPException(
+            status_code=403,
+            detail="Нельзя снять доступ: вы не сможете снова выдать этот уровень",
+        )
