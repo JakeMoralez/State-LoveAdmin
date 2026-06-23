@@ -6,7 +6,6 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from app.config import DEFAULT_SERVER_ID, SLED_BOT_SECRET
-from app.services.access import can_use_ca_scope
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
 from app.services.staff import sync_spheres_from_bot
@@ -50,8 +49,6 @@ async def update_discord_link(
     x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
 ):
     _check_secret(x_sled_secret)
-    if not await can_use_ca_scope(body.vk_id):
-        raise HTTPException(status_code=403, detail="Нужен доступ ЦА")
 
     try:
         discord_id = normalize_discord_id(body.discord_id)
