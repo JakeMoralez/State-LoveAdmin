@@ -101,21 +101,23 @@ def can_revoke_staff_target(
     *,
     actor_vk_id: int,
     actor_level: int,
+    target_vk_id: int,
     target_level: int,
     dev_persona: bool = False,
 ) -> bool:
-    """Снятие доступа — только если можно снова выдать тот же уровень."""
-    if _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona):
-        return True
+    """Снятие — только уровень строго ниже своего и не ЗГС ГОС+."""
+    if int(actor_vk_id) == int(target_vk_id):
+        return False
+    if int(target_level) >= int(actor_level):
+        return False
     if int(target_level) >= AccessLevel.ZGS_GOS:
         return False
-    max_grant = max_grantable_level(
+    return int(target_level) <= max_grantable_level(
         actor_vk_id,
         actor_level,
         dev_persona=dev_persona,
         for_other=True,
     )
-    return int(target_level) <= max_grant
 
 
 def staff_edit_permissions(
@@ -173,6 +175,7 @@ def staff_edit_permissions(
         and can_revoke_staff_target(
             actor_vk_id=actor_vk_id,
             actor_level=actor_level,
+            target_vk_id=target_vk_id,
             target_level=target_level,
             dev_persona=dev_persona,
         )
@@ -336,16 +339,15 @@ def assert_can_revoke_staff(
         raise HTTPException(status_code=403, detail="Нельзя снять доступ с себя")
     if MAIN_ADMIN_ID and target_vk_id == MAIN_ADMIN_ID and not dev_persona:
         raise HTTPException(status_code=403, detail="Нельзя снять доступ главного администратора")
-    effective = (
-        AccessLevel.DEVELOPER
-        if _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona)
-        else actor_level
-    )
-    if target_level > effective:
-        raise HTTPException(status_code=403, detail="Нельзя снять доступ у пользователя с уровнем выше вашего")
+    if int(target_level) >= int(actor_level):
+        raise HTTPException(
+            status_code=403,
+            detail="Нельзя снять доступ у пользователя с вашим уровнем или выше",
+        )
     if not can_revoke_staff_target(
         actor_vk_id=actor_vk_id,
         actor_level=actor_level,
+        target_vk_id=target_vk_id,
         target_level=target_level,
         dev_persona=dev_persona,
     ):

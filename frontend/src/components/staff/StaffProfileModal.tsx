@@ -14,6 +14,7 @@ import {
   validateDeveloperTagInput,
 } from '../../lib/staffNickname'
 import { staffLabel } from '../../lib/staff'
+import { useAuth } from '../../context/AuthContext'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from './SphereMultiSelect'
@@ -55,6 +56,7 @@ export function StaffProfileModal({
   onSaved,
   permissions,
 }: StaffProfileModalProps) {
+  const { user } = useAuth()
   const [nickname, setNickname] = useState('')
   const [nicknameTag, setNicknameTag] = useState('')
   const [accessLevel, setAccessLevel] = useState('0')
@@ -124,12 +126,17 @@ export function StaffProfileModal({
 
   const headerLabel = nicknamePreview || member.bot_nickname || member.nickname || staffLabel(member)
 
+  const canRevokeAccess =
+    permissions.revoke_staff_access &&
+    member.vk_id !== user?.vk_id &&
+    member.access_level < (user?.access_level ?? 0)
+
   const canEditAnything =
     permissions.edit_nickname ||
     permissions.edit_access_level ||
     canEditSpheres ||
     permissions.edit_discord ||
-    permissions.revoke_staff_access
+    canRevokeAccess
 
   const savedCleanName = memberCleanName(member)
   const savedNicknameTag = isDeveloperLevel(parsedLevel)
@@ -409,7 +416,7 @@ export function StaffProfileModal({
             </p>
           )}
 
-          {permissions.revoke_staff_access && (
+          {canRevokeAccess && (
             <div className="staff-profile-danger">
               <div className="staff-profile-danger-title">Действия</div>
               <button
