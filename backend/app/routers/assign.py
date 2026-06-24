@@ -20,6 +20,7 @@ from app.services.role_assign import (
     assign_staff_with_profile,
 )
 from app.services.staff import parse_appointment_date
+from app.services.vk_resolve import resolve_vk_id_input
 from app.services.staff_permissions import (
     assert_can_set_level,
     assert_can_set_nickname,
