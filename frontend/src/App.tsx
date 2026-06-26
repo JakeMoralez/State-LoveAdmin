@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
+import { ForumFormattingPage } from './pages/ForumFormattingPage'
 import { JudgeForumListPage } from './pages/JudgeForumListPage'
 import { AccessGuidePage } from './pages/AccessGuidePage'
 import { ActivityLogPage } from './pages/ActivityLogPage'
@@ -44,6 +45,7 @@ function AppRoutes() {
           <Route path="/assign" element={<AssignPage />} />
           <Route path="/activity" element={<ActivityLogPage />} />
           <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
+          <Route path="/forum/formatting" element={<ForumFormattingPage />} />
           <Route path="/forum/judge-assign" element={<Navigate to="/assign?type=judge" replace />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />

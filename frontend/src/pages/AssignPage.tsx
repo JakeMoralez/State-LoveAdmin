@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, HelpCircle, UserPlus } from 'lucide-react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { ApiError, api, type AssignRoleType } from '../api'
+import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
 import { JUDGE_POSITIONS, looksLikeVkInput } from '../lib/judgePositions'
+import { looksLikeDiscordId } from '../lib/discordId'
 import { forumAccountForApi, parseForumMemberUrl } from '../lib/forumAccount'
 import {
   DEFAULT_DEVELOPER_TAG,
@@ -17,6 +19,7 @@ import { Select } from '../components/ui/Select'
 import { DatePicker } from '../components/ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
 import { todayDateInputValue } from '../lib/grantedAt'
+import { cn } from '../lib/utils'
 
 const ROLE_TYPE_OPTIONS = [
   { value: 'staff', label: 'Следящий' },
@@ -40,6 +43,11 @@ function parseRoleType(raw: string | null): AssignRoleType {
   return 'staff'
 }
 
+function fieldState(touched: boolean, ok: boolean): string | undefined {
+  if (!touched) return undefined
+  return ok ? 'assign-control--valid' : 'assign-control--invalid'
+}
+
 export function AssignPage() {
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
@@ -51,6 +59,8 @@ export function AssignPage() {
   const [vkInput, setVkInput] = useState('')
   const [forumAccount, setForumAccount] = useState('')
   const [forumTouched, setForumTouched] = useState(false)
+  const [vkTouched, setVkTouched] = useState(false)
+  const [discordTouched, setDiscordTouched] = useState(false)
   const [nickname, setNickname] = useState('')
   const [accessLevel, setAccessLevel] = useState('1')
   const [spheres, setSpheres] = useState<string[]>([])
@@ -136,23 +146,21 @@ export function AssignPage() {
     setJudgePosition(JUDGE_POSITIONS[1])
     setCongressRole('speaker')
     setForumTouched(false)
+    setVkTouched(false)
+    setDiscordTouched(false)
     setError(null)
   }
 
   const vkOk = looksLikeVkInput(vkInput)
+  const discordOk = looksLikeDiscordId(discordId)
   const forumValidation = useMemo(() => parseForumMemberUrl(forumAccount), [forumAccount])
   const forumOk = forumValidation.ok
   const forumError = forumTouched && !forumValidation.ok ? forumValidation.message : null
+  const nickOk = roleType === 'staff' ? Boolean(stripStaffNicknameTags(nickname).trim()) : Boolean(nickname.trim())
 
-  const canSubmitStaff =
-    vkOk &&
-    forumOk &&
-    stripStaffNicknameTags(nickname).trim() &&
-    spheres.length > 0
-
-  const canSubmitJudge = vkOk && forumOk && nickname.trim() && judgePosition
-
-  const canSubmitCongress = vkOk && forumOk && nickname.trim() && congressRole
+  const canSubmitStaff = vkOk && discordOk && forumOk && nickOk && spheres.length > 0
+  const canSubmitJudge = vkOk && discordOk && forumOk && nickOk && judgePosition
+  const canSubmitCongress = vkOk && discordOk && forumOk && nickOk && congressRole
 
   const canSubmit =
     roleType === 'staff'
@@ -163,19 +171,38 @@ export function AssignPage() {
 
   const handleSubmit = async () => {
     setForumTouched(true)
+    setVkTouched(true)
+    setDiscordTouched(true)
+    setError(null)
+
+    if (!nickOk) {
+      setError('Укажите никнейм')
+      return
+    }
+    if (!looksLikeVkInput(vkInput)) {
+      setError('Укажите VK ID или ссылку на профиль')
+      return
+    }
+    if (!looksLikeDiscordId(discordId)) {
+      setError('Укажите корректный Discord ID (17–20 цифр)')
+      return
+    }
     const forumCheck = parseForumMemberUrl(forumAccount)
     if (!forumCheck.ok) {
       setError(forumCheck.message)
       return
     }
+    if (roleType === 'staff' && spheres.length === 0) {
+      setError('Выберите хотя бы одну сферу')
+      return
+    }
     setSaving(true)
-    setError(null)
     setSuccess(null)
     try {
       const res = await api.assignRole({
         role_type: roleType,
         vk_id: vkInput.trim(),
-        discord_id: discordId.trim() || null,
+        discord_id: discordId.trim(),
         forum_account: forumAccountForApi(forumAccount),
         nickname:
           roleType === 'staff'
@@ -207,197 +234,243 @@ export function AssignPage() {
   }
 
   return (
-    <div className="assign-page">
-      <div className="assign-shell">
-        <div className="assign-heading">
-          <UserPlus className="assign-heading-icon" aria-hidden />
-          <h1 className="assign-title">Назначить на должность</h1>
-        </div>
+    <div className="page-stack page-stack--assign">
+      <PageHeader
+        section="Команда"
+        title="Назначить"
+        icon={UserPlus}
+        shrink
+        subtitle="Новый человек в реестре следящих, судей или конгресса"
+      />
 
-        <div className="assign-card glass-card">
-          <div className="assign-field">
-            <label className="assign-label">Тип должности</label>
-            <Select
-              value={roleType}
-              onChange={(v) => setRoleType(v as AssignRoleType)}
-              options={roleTypeOptions}
-              disabled={saving}
-            />
-          </div>
+      <div className="assign-card glass-card">
+        <div className="assign-body">
+          <section className="assign-section" aria-labelledby="assign-role">
+            <h2 id="assign-role" className="assign-section-title">
+              Должность
+            </h2>
+            <div className="assign-grid">
+              <div className="assign-field assign-field--full">
+                <label className="assign-label">Тип должности</label>
+                <Select
+                  value={roleType}
+                  onChange={(v) => setRoleType(v as AssignRoleType)}
+                  options={roleTypeOptions.map((o) => ({ value: o.value, label: o.label }))}
+                  disabled={saving}
+                />
+              </div>
+            </div>
+          </section>
 
-          <div className="assign-field">
-            <label className="assign-label" htmlFor="assign-discord">
-              ID Discord
-              <button
-                type="button"
-                className="assign-label-hint"
-                aria-label="Что такое Discord ID"
-                title="Числовой ID аккаунта Discord (18–20 цифр). Нужен для входа на портал через Discord. Как узнать: в Discord включите режим разработчика, затем ПКМ по профилю → «Скопировать ID пользователя». Можно также указать в боте: /editmydiscord."
-              >
-                <HelpCircle size={14} aria-hidden />
-              </button>
-            </label>
-            <input
-              id="assign-discord"
-              type="text"
-              inputMode="numeric"
-              className="control w-full"
-              value={discordId}
-              placeholder="945333827025371147"
-              disabled={saving}
-              onChange={(e) => setDiscordId(e.target.value)}
-            />
-          </div>
+          <section className="assign-section" aria-labelledby="assign-person">
+            <h2 id="assign-person" className="assign-section-title">
+              Человек
+            </h2>
+            <div className="assign-grid">
+              <div className="assign-field">
+                <label className="assign-label" htmlFor="assign-nick">
+                  Никнейм
+                </label>
+                <input
+                  id="assign-nick"
+                  type="text"
+                  className={cn('control w-full', nickOk && nickname.trim() && 'assign-control--valid')}
+                  value={nickname}
+                  placeholder="Имя Фамилия"
+                  disabled={saving}
+                  onChange={(e) => setNickname(e.target.value)}
+                />
+              </div>
 
-          <div className="assign-field">
-            <label className="assign-label" htmlFor="assign-vk">
-              VK ID или ссылка
-            </label>
-            <input
-              id="assign-vk"
-              type="text"
-              className="control w-full"
-              value={vkInput}
-              placeholder="604562391, vk.com/mass4ro или https://vk.ru/id604562391"
-              disabled={saving}
-              onChange={(e) => setVkInput(e.target.value)}
-            />
-          </div>
+              <div className="assign-field">
+                <label className="assign-label">Дата назначения</label>
+                <DatePicker
+                  value={appointedAt || null}
+                  onChange={(iso) => setAppointedAt(iso ?? todayDateInputValue())}
+                  showTime={false}
+                  allowEmpty={false}
+                />
+              </div>
+            </div>
 
-          <div className="assign-field">
-            <ForumAccountField
-              id="assign-forum"
-              value={forumAccount}
-              onChange={setForumAccount}
-              onBlur={() => setForumTouched(true)}
-              disabled={saving}
-              error={forumError}
-            />
-          </div>
+            {roleType === 'staff' && nicknamePreview ? (
+              <div className="assign-preview">
+                <span className="assign-preview-label">В реестре</span>
+                <span className="assign-preview-value">{nicknamePreview}</span>
+              </div>
+            ) : null}
+          </section>
 
-          <div className="assign-field">
-            <label className="assign-label">Дата назначения</label>
-            <DatePicker
-              value={appointedAt || null}
-              onChange={(iso) => setAppointedAt(iso ?? todayDateInputValue())}
-              showTime={false}
-              allowEmpty={false}
-            />
-          </div>
+          <section className="assign-section" aria-labelledby="assign-contacts">
+            <h2 id="assign-contacts" className="assign-section-title">
+              Контакты
+            </h2>
+            <div className="assign-grid">
+              <div className="assign-field">
+                <label className="assign-label" htmlFor="assign-vk">
+                  VK ID или ссылка
+                </label>
+                <input
+                  id="assign-vk"
+                  type="text"
+                  className={cn('control w-full', fieldState(vkTouched, vkOk))}
+                  value={vkInput}
+                  placeholder="604562391"
+                  disabled={saving}
+                  onChange={(e) => setVkInput(e.target.value)}
+                  onBlur={() => setVkTouched(true)}
+                />
+              </div>
 
-          <div className="assign-field">
-            <label className="assign-label" htmlFor="assign-nick">
-              Никнейм
-            </label>
-            <input
-              id="assign-nick"
-              type="text"
-              className="control w-full"
-              value={nickname}
-              placeholder="Имя Фамилия"
-              disabled={saving}
-              onChange={(e) => setNickname(e.target.value)}
-            />
-          </div>
+              <div className="assign-field">
+                <label className="assign-label" htmlFor="assign-discord">
+                  ID Discord
+                  <button
+                    type="button"
+                    className="assign-label-hint"
+                    aria-label="Что такое Discord ID"
+                    title="Числовой ID аккаунта Discord (18–20 цифр). Нужен для входа на портал через Discord. Как узнать: в Discord включите режим разработчика, затем ПКМ по профилю → «Скопировать ID пользователя». Можно также указать в боте: /editmydiscord."
+                  >
+                    <HelpCircle size={13} aria-hidden />
+                  </button>
+                </label>
+                <input
+                  id="assign-discord"
+                  type="text"
+                  inputMode="numeric"
+                  className={cn('control w-full', fieldState(discordTouched, discordOk))}
+                  value={discordId}
+                  placeholder="18–20 цифр"
+                  disabled={saving}
+                  onChange={(e) => setDiscordId(e.target.value)}
+                  onBlur={() => setDiscordTouched(true)}
+                />
+              </div>
+
+              <div className="assign-field assign-field--full">
+                <ForumAccountField
+                  id="assign-forum"
+                  value={forumAccount}
+                  onChange={setForumAccount}
+                  onBlur={() => setForumTouched(true)}
+                  disabled={saving}
+                  error={forumError}
+                  placeholder="ID или ссылка на профиль"
+                  labelClassName="assign-label"
+                />
+              </div>
+            </div>
+          </section>
 
           {roleType === 'staff' && (
-            <>
-              <div className="assign-field">
-                <label className="assign-label">Уровень доступа</label>
-                <Select
-                  value={accessLevel}
-                  onChange={setAccessLevel}
-                  options={levelOptions}
-                  disabled={saving}
-                />
-              </div>
-
-              {isDeveloperLevel(parsedLevel) && (
+            <section className="assign-section" aria-labelledby="assign-staff">
+              <h2 id="assign-staff" className="assign-section-title">
+                Параметры следящего
+              </h2>
+              <div className="assign-grid">
                 <div className="assign-field">
-                  <label className="assign-label" htmlFor="assign-nick-tag">
-                    Тег в нике
-                  </label>
-                  <input
-                    id="assign-nick-tag"
-                    type="text"
-                    className="control w-full"
-                    value={nicknameTag}
-                    placeholder={DEFAULT_DEVELOPER_TAG}
+                  <label className="assign-label">Уровень доступа</label>
+                  <Select
+                    value={accessLevel}
+                    onChange={setAccessLevel}
+                    options={levelOptions}
                     disabled={saving}
-                    onChange={(e) => setNicknameTag(e.target.value)}
                   />
-                  <p className="assign-hint">
-                    Свой тег для разработчика. Пусто — «{DEFAULT_DEVELOPER_TAG}».
-                  </p>
                 </div>
-              )}
 
-              <div className="assign-field">
-                <span className="assign-label">{sphereFieldLabel(parsedLevel)}</span>
-                <SphereMultiSelect
-                  value={spheres}
-                  onChange={setSpheres}
-                  disabled={saving}
-                  accessLevel={parsedLevel}
-                  showHint={false}
-                  grantableSpheres={unrestrictedSphereAssign ? undefined : actorSphereIds}
-                />
+                {isDeveloperLevel(parsedLevel) && (
+                  <div className="assign-field">
+                    <label className="assign-label" htmlFor="assign-nick-tag">
+                      Тег в нике
+                    </label>
+                    <input
+                      id="assign-nick-tag"
+                      type="text"
+                      className="control w-full"
+                      value={nicknameTag}
+                      placeholder={DEFAULT_DEVELOPER_TAG}
+                      disabled={saving}
+                      onChange={(e) => setNicknameTag(e.target.value)}
+                    />
+                  </div>
+                )}
+
+                <div className="assign-field assign-field--full assign-spheres">
+                  <span className="assign-label">{sphereFieldLabel(parsedLevel)}</span>
+                  <SphereMultiSelect
+                    value={spheres}
+                    onChange={setSpheres}
+                    disabled={saving}
+                    accessLevel={parsedLevel}
+                    showHint={false}
+                    grantableSpheres={unrestrictedSphereAssign ? undefined : actorSphereIds}
+                  />
+                </div>
               </div>
-
-              {nicknamePreview ? (
-                <p className="assign-hint m-0">
-                  Ник в реестре:{' '}
-                  <span className="text-white/70 font-medium">{nicknamePreview}</span>
-                </p>
-              ) : null}
-            </>
+            </section>
           )}
 
           {roleType === 'judge' && (
-            <div className="assign-field">
-              <label className="assign-label">Должность судьи</label>
-              <Select
-                value={judgePosition}
-                onChange={setJudgePosition}
-                options={judgePositionOptions}
-                disabled={saving}
-              />
-            </div>
+            <section className="assign-section" aria-labelledby="assign-judge">
+              <h2 id="assign-judge" className="assign-section-title">
+                Параметры судьи
+              </h2>
+              <div className="assign-grid">
+                <div className="assign-field assign-field--full">
+                  <label className="assign-label">Должность судьи</label>
+                  <Select
+                    value={judgePosition}
+                    onChange={setJudgePosition}
+                    options={judgePositionOptions}
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+            </section>
           )}
 
           {roleType === 'congress' && (
-            <div className="assign-field">
-              <label className="assign-label">Должность в конгрессе</label>
-              <Select
-                value={congressRole}
-                onChange={(v) => setCongressRole(v as 'speaker' | 'vice')}
-                options={CONGRESS_ROLE_OPTIONS}
-                disabled={saving}
-              />
-            </div>
+            <section className="assign-section" aria-labelledby="assign-congress">
+              <h2 id="assign-congress" className="assign-section-title">
+                Параметры конгресса
+              </h2>
+              <div className="assign-grid">
+                <div className="assign-field assign-field--full">
+                  <label className="assign-label">Должность в конгрессе</label>
+                  <Select
+                    value={congressRole}
+                    onChange={(v) => setCongressRole(v as 'speaker' | 'vice')}
+                    options={CONGRESS_ROLE_OPTIONS}
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+            </section>
           )}
 
-          {error && (
-            <p className="assign-error" role="alert">
-              {error}
-            </p>
-          )}
+          <div className="assign-footer">
+            {error && (
+              <p className="assign-error" role="alert">
+                {error}
+              </p>
+            )}
 
-          {success && (
-            <p className="assign-success" role="status">
-              <CheckCircle2 size={16} className="inline mr-1.5 opacity-80" aria-hidden />
-              {success}
-            </p>
-          )}
+            {success && (
+              <p className="assign-success" role="status">
+                <CheckCircle2 size={14} className="shrink-0 opacity-80" aria-hidden />
+                <span>{success}</span>
+              </p>
+            )}
 
-          <button
-            type="button"
-            className="btn btn-gold assign-submit w-full"
-            disabled={saving || !canSubmit}
-            onClick={() => void handleSubmit()}
-          >
-            {saving ? 'Назначение…' : 'Назначить'}
-          </button>
+            <button
+              type="button"
+              className={cn('btn btn-gold assign-submit w-full', !canSubmit && !saving && 'assign-submit--incomplete')}
+              disabled={saving}
+              onClick={() => void handleSubmit()}
+            >
+              {saving ? 'Назначение…' : 'Назначить'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -106,4 +106,12 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
     sphere: '—',
     actions: 'BBCode-шаблон списка судей на форуме',
   },
+  {
+    section: 'Форум',
+    page: 'Форматирование',
+    path: '/forum/formatting',
+    portal: 'ЗГС ГОС (5+)',
+    sphere: '—',
+    actions: 'Черновик закона → BBCode для тем на форуме',
+  },
 ]

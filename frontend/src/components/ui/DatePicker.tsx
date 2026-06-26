@@ -12,7 +12,7 @@ const MONTHS = [
 
 const PANEL_W = 252
 const PANEL_H_WITH_TIME = 332
-const PANEL_H_DATE_ONLY = 248
+const PANEL_H_DATE_ONLY = 210
 
 function toIsoDate(d: Date): string {
   const y = d.getFullYear()
@@ -249,42 +249,46 @@ export function DatePicker({
 
       {showTime && <TimeScrollPicker value={draftTime} onChange={setDraftTime} />}
 
-      <div className="dp-footer">
-        <button
-          type="button"
-          className="dp-footer-btn"
-          onClick={() => {
-            const now = new Date()
-            const t = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-            setDraftDate(now)
-            setDraftTime(t)
-            apply(now, t)
-          }}
-        >
-          Сегодня
-        </button>
-        {showTime && draftDate && (
-          <button
-            type="button"
-            className="dp-footer-btn dp-footer-btn--primary"
-            onClick={() => apply(draftDate, draftTime)}
-          >
-            Готово
-          </button>
-        )}
-        {allowEmpty && (
-          <button
-            type="button"
-            className="dp-footer-btn"
-            onClick={() => {
-              onChange(null)
-              setOpen(false)
-            }}
-          >
-            Очистить
-          </button>
-        )}
-      </div>
+      {(showTime || allowEmpty) && (
+        <div className="dp-footer">
+          {showTime && (
+            <button
+              type="button"
+              className="dp-footer-btn"
+              onClick={() => {
+                const now = new Date()
+                const t = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+                setDraftDate(now)
+                setDraftTime(t)
+                apply(now, t)
+              }}
+            >
+              Сегодня
+            </button>
+          )}
+          {showTime && draftDate && (
+            <button
+              type="button"
+              className="dp-footer-btn dp-footer-btn--primary"
+              onClick={() => apply(draftDate, draftTime)}
+            >
+              Готово
+            </button>
+          )}
+          {allowEmpty && (
+            <button
+              type="button"
+              className="dp-footer-btn"
+              onClick={() => {
+                onChange(null)
+                setOpen(false)
+              }}
+            >
+              Очистить
+            </button>
+          )}
+        </div>
+      )}
     </div>
   ) : null
 

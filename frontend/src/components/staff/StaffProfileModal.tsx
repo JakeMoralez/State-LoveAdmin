@@ -351,6 +351,7 @@ export function StaffProfileModal({
           <div className="staff-profile-field">
             <ForumAccountField
               id="staff-forum"
+              labelClassName="staff-profile-label"
               label="Аккаунт на форуме"
               value={forumAccount}
               onChange={setForumAccount}

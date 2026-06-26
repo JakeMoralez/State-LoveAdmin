@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   Shield,
+  TextQuote,
   Users,
   UserPlus,
   X,
@@ -208,17 +209,19 @@ function LayoutShell() {
         )}
         aria-hidden={isMobileNav && !mobileOpen}
       >
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className={cn(
-            'sidebar-edge-toggle',
-            sidebarCollapsed && 'sidebar-edge-toggle--collapsed',
-          )}
-          aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
-        >
-          <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} />
-        </button>
+        {!mobileOpen && (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={cn(
+              'sidebar-edge-toggle',
+              sidebarCollapsed && 'sidebar-edge-toggle--collapsed',
+            )}
+            aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
+          >
+            <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} />
+          </button>
+        )}
 
         <div className="sidebar-clip">
           <div className="sidebar-inner">
@@ -281,6 +284,11 @@ function LayoutShell() {
                       collapsed={sidebarCollapsed}
                       onNavigate={closeMobile}
                       item={{ to: '/forum/judge-list', label: 'Список судей', icon: Gavel }}
+                    />
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/forum/formatting', label: 'Форматирование', icon: TextQuote }}
                     />
                   </div>
                 </div>

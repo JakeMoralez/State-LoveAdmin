@@ -4,10 +4,12 @@ import {
   forumMemberUrl,
   parseForumMemberUrl,
 } from '../../lib/forumAccount'
+import { cn } from '../../lib/utils'
 
 interface ForumAccountFieldProps {
   id: string
   label?: string
+  labelClassName?: string
   value: string
   onChange: (value: string) => void
   onBlur?: () => void
@@ -15,12 +17,14 @@ interface ForumAccountFieldProps {
   readOnly?: boolean
   readOnlyMemberId?: string | null
   error?: string | null
-  hint?: string
+  hint?: string | null
+  placeholder?: string
 }
 
 export function ForumAccountField({
   id,
   label = 'Аккаунт на форуме',
+  labelClassName,
   value,
   onChange,
   onBlur,
@@ -28,13 +32,14 @@ export function ForumAccountField({
   readOnly,
   readOnlyMemberId,
   error,
-  hint = `Ссылка или ID профиля, например ${FORUM_MEMBER_URL_EXAMPLE}`,
+  hint = null,
+  placeholder = FORUM_MEMBER_URL_EXAMPLE,
 }: ForumAccountFieldProps) {
   const readOnlyUrl = readOnlyMemberId ? forumMemberUrl(readOnlyMemberId) : ''
 
   return (
     <div className="forum-field">
-      <label className="forum-field-label" htmlFor={id}>
+      <label className={cn('forum-field-label', labelClassName)} htmlFor={id}>
         {label}
       </label>
       {readOnly ? (
@@ -57,7 +62,7 @@ export function ForumAccountField({
             autoComplete="off"
             className="control w-full"
             value={value}
-            placeholder={FORUM_MEMBER_URL_EXAMPLE}
+            placeholder={placeholder}
             disabled={disabled}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}

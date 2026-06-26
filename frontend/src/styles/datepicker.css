@@ -1,4 +1,4 @@
-/* DatePicker — глобально (панель в portal на body) */
+/* DatePicker — панель в portal на body */
 
 .dp-trigger {
   min-height: 2.375rem;
@@ -6,75 +6,62 @@
   padding: 0 0.75rem;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
-  border-radius: var(--radius-input, 8px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.92);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--sl-text);
   cursor: pointer;
   transition:
-    border-color var(--motion-fast, 0.12s) ease,
-    background var(--motion-fast, 0.12s) ease,
-    box-shadow var(--motion-fast, 0.12s) ease;
+    border-color var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
 }
 
 .dp-trigger:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .dp-trigger.control-focus,
 .dp-trigger:focus-visible {
-  border-color: rgba(201, 162, 39, 0.45);
-  background: rgba(255, 255, 255, 0.04);
-  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.035);
+  box-shadow: none;
   outline: none;
 }
 
 .dp-trigger .dp-trigger-icon {
-  color: rgba(201, 162, 39, 0.75);
+  color: var(--sl-text-faint);
 }
 
 .dp-trigger-placeholder {
-  color: rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.28);
 }
 
 .dp-panel {
   position: fixed;
   z-index: 4000;
-  padding: 10px;
-  border-radius: 14px;
-  border: 1px solid rgba(201, 162, 39, 0.22);
-  background: linear-gradient(180deg, #1a1d28 0%, #101218 100%);
-  box-shadow:
-    0 24px 56px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.04);
-  animation: dp-scale-in 0.15s ease-out;
+  padding: var(--space-2);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--sl-border);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  animation: dp-fade-in 0.12s var(--ease) both;
   overflow: hidden;
 }
 
 .dp-panel--above {
-  animation: dp-scale-in-above 0.15s ease-out;
+  animation: dp-fade-in 0.12s var(--ease) both;
 }
 
-@keyframes dp-scale-in {
+@keyframes dp-fade-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(-2px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes dp-scale-in-above {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -82,14 +69,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   padding: 0 2px;
 }
 
 .dp-month {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--sl-text);
   text-transform: capitalize;
 }
 
@@ -97,40 +84,40 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
   border: none;
-  border-radius: 8px;
-  background: rgba(201, 162, 39, 0.12);
-  color: var(--accent-gold, #c9a227);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--sl-text-muted);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
 
 .dp-nav:hover {
-  background: rgba(201, 162, 39, 0.22);
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
 }
 
 .dp-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  margin-bottom: 4px;
+  gap: 1px;
+  margin-bottom: 2px;
 }
 
 .dp-weekday {
   text-align: center;
   font-size: 0.625rem;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.35);
-  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--sl-text-faint);
   padding: 2px 0;
 }
 
 .dp-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: 1px;
 }
 
 .dp-day {
@@ -139,72 +126,66 @@
   justify-content: center;
   width: 100%;
   aspect-ratio: 1;
-  min-height: 2rem;
+  min-height: 1.75rem;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: transparent;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--sl-text-muted);
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
 
 .dp-day:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
 }
 
 .dp-day--outside {
-  color: rgba(255, 255, 255, 0.22);
+  color: var(--sl-text-faint);
 }
 
 .dp-day--today:not(.dp-day--selected) {
-  color: var(--accent-gold-bright, #d4af37);
-  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.35);
+  color: var(--sl-text);
+  box-shadow: inset 0 0 0 1px var(--sl-border-strong);
 }
 
 .dp-day--selected {
-  background: linear-gradient(180deg, #d4af37 0%, #b8941f 100%);
-  color: #0a0a0e;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--sl-text);
+  font-weight: 600;
 }
 
 .dp-footer {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .dp-footer-btn {
   flex: 1;
   min-width: 0;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.65);
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--sl-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--sl-text-muted);
   font-size: 0.6875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  transition: background var(--motion-fast) var(--ease), color var(--motion-fast) var(--ease);
 }
 
 .dp-footer-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--sl-surface-hover);
+  color: var(--sl-text);
 }
 
 .dp-footer-btn--primary {
-  border-color: rgba(201, 162, 39, 0.35);
-  background: rgba(201, 162, 39, 0.14);
-  color: rgba(251, 219, 131, 0.95);
-}
-
-.dp-footer-btn--primary:hover {
-  background: rgba(201, 162, 39, 0.22);
+  border-color: var(--sl-border-strong);
+  color: var(--sl-text);
 }

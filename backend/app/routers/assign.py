@@ -55,7 +55,7 @@ def _role_types_for_level(level: int) -> list[dict]:
 class AssignBody(BaseModel):
     role_type: Literal["staff", "judge", "congress"]
     vk_id: str = Field(min_length=1)
-    discord_id: str | None = None
+    discord_id: str = Field(min_length=1)
     forum_account: str = Field(min_length=1)
     nickname: str = Field(min_length=1)
     access_level: int | None = None
@@ -89,12 +89,10 @@ async def post_assign(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    discord_raw: str | None = None
-    if body.discord_id and body.discord_id.strip():
-        try:
-            discord_raw = normalize_discord_id(body.discord_id)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        discord_raw = normalize_discord_id(body.discord_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     actor_level = int(user.get("access_level") or 0)
     dev_persona = bool(user.get("dev_persona"))

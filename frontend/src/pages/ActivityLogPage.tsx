@@ -1,59 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import {
-  ClipboardList,
-  FolderKanban,
-  Gavel,
-  History,
-  Library,
-  Shield,
-  UserMinus,
-  UserPlus,
-  Users,
-} from 'lucide-react'
+import { History } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, type ActivityLogItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
-import { cn } from '../lib/utils'
 
 const PAGE_SIZE = 50
-
-type ActionTone = 'gold' | 'success' | 'danger' | 'violet' | 'cyan' | 'muted'
-
-interface ActionMeta {
-  tone: ActionTone
-  Icon: LucideIcon
-}
-
-function actionMeta(action: string): ActionMeta {
-  if (action === 'staff_revoke' || action === 'leader_remove') {
-    return { tone: 'danger', Icon: UserMinus }
-  }
-  if (action.includes('assign') || action === 'staff_assign') {
-    return { tone: 'success', Icon: UserPlus }
-  }
-  if (action.startsWith('leader_') || action === 'judge_assign' || action === 'congress_assign') {
-    return { tone: 'violet', Icon: Shield }
-  }
-  if (action.startsWith('qb_')) {
-    return { tone: 'cyan', Icon: Library }
-  }
-  if (action.startsWith('task_')) {
-    return { tone: 'muted', Icon: ClipboardList }
-  }
-  if (action.startsWith('project_')) {
-    return { tone: 'muted', Icon: FolderKanban }
-  }
-  if (action.includes('judge') || action.includes('forum')) {
-    return { tone: 'violet', Icon: Gavel }
-  }
-  if (action.startsWith('staff_')) {
-    return { tone: 'gold', Icon: Users }
-  }
-  return { tone: 'gold', Icon: History }
-}
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
@@ -64,7 +17,12 @@ function formatTime(iso: string): string {
 function formatDayKey(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  const now = new Date()
+  const opts: Intl.DateTimeFormatOptions =
+    d.getFullYear() === now.getFullYear()
+      ? { day: 'numeric', month: 'long' }
+      : { day: 'numeric', month: 'long', year: 'numeric' }
+  return d.toLocaleDateString('ru-RU', opts)
 }
 
 function groupByDay(items: ActivityLogItem[]): { day: string; items: ActivityLogItem[] }[] {
@@ -116,13 +74,13 @@ function ActivityActors({ item }: { item: ActivityLogItem }) {
         : null
 
   return (
-    <p className="activity-log-actors">
-      <Link to={`/staff/${actor_vk_id}`} className="activity-log-person">
+    <p className="activity-row-text">
+      <Link to={`/staff/${actor_vk_id}`} className="activity-row-link">
         {actor_name}
       </Link>
-      <span className="activity-log-verb">{action_label}</span>
+      <span className="activity-row-verb">{action_label}</span>
       {target_name && target_vk_id != null ? (
-        <Link to={targetPath!} className="activity-log-person activity-log-person--target">
+        <Link to={targetPath!} className="activity-row-link">
           {target_name}
         </Link>
       ) : null}
@@ -130,35 +88,31 @@ function ActivityActors({ item }: { item: ActivityLogItem }) {
   )
 }
 
+function ActivityRow({ item }: { item: ActivityLogItem }) {
+  const detail = formatDetail(item.detail, item.action)
+
+  return (
+    <li className="activity-row">
+      <time className="activity-row-time" dateTime={item.created_at}>
+        {formatTime(item.created_at)}
+      </time>
+      <div className="activity-row-body">
+        <ActivityActors item={item} />
+        {detail ? <p className="activity-row-meta">{detail}</p> : null}
+      </div>
+    </li>
+  )
+}
+
 function ActivityDayGroup({ day, items }: { day: string; items: ActivityLogItem[] }) {
   return (
-    <li className="activity-log-day">
-      <h2 className="activity-log-day-title">{day}</h2>
-      <ol className="activity-log-day-events">
-        {items.map((item) => {
-          const { tone, Icon } = actionMeta(item.action)
-          const detail = formatDetail(item.detail, item.action)
-          return (
-            <li key={item.id} className={cn('activity-log-event', `activity-log-event--${tone}`)}>
-              <span className="activity-log-event-icon" aria-hidden>
-                <Icon size={14} strokeWidth={2} />
-              </span>
-              <div className="activity-log-event-body">
-                <div className="activity-log-event-head">
-                  <time className="activity-log-event-time" dateTime={item.created_at}>
-                    {formatTime(item.created_at)}
-                  </time>
-                  <span className={cn('activity-log-badge', `activity-log-badge--${tone}`)}>
-                    {item.action_label}
-                  </span>
-                </div>
-                <ActivityActors item={item} />
-                {detail ? <p className="activity-log-detail">{detail}</p> : null}
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+    <li className="activity-day">
+      <h2 className="activity-day-label">{day}</h2>
+      <ul className="activity-rows">
+        {items.map((item) => (
+          <ActivityRow key={item.id} item={item} />
+        ))}
+      </ul>
     </li>
   )
 }
@@ -200,24 +154,20 @@ export function ActivityLogPage() {
   const hasMore = offset + items.length < total
   const hasPrev = offset > 0
 
+  const subtitle = canView
+    ? total > 0
+      ? `Назначения и правки на панели · ${total} записей`
+      : 'Назначения и правки на панели'
+    : undefined
+
   return (
     <div className="page-stack page-stack--activity">
-      <PageHeader
-        section="Команда"
-        title="Журнал действий"
-        subtitle="Назначения, правки карточек и снятие доступа на панели."
-        icon={History}
-        hint={
-          canView && total > 0 ? (
-            <span className="activity-log-total">{total} записей в журнале</span>
-          ) : undefined
-        }
-      />
+      <PageHeader section="Команда" title="Журнал действий" subtitle={subtitle} icon={History} />
 
       {!canView ? (
-        <div className="activity-log-empty glass-card">
-          <History size={28} className="activity-log-empty-icon" aria-hidden />
-          <p>Журнал доступен с уровня Следящий (2)+.</p>
+        <div className="page-empty-state page-empty-state--card">
+          <p className="page-empty-state-title">Нет доступа</p>
+          <p className="page-empty-state-hint">Журнал доступен с уровня Следящий (2)+.</p>
         </div>
       ) : (
         <>
@@ -229,15 +179,14 @@ export function ActivityLogPage() {
           />
 
           {loading && items.length === 0 ? (
-            <div className="page-loading">Загрузка…</div>
+            <div className="page-empty-state page-empty-state--card page-loading">Загрузка…</div>
           ) : items.length === 0 ? (
-            <div className="activity-log-empty glass-card">
-              <History size={28} className="activity-log-empty-icon" aria-hidden />
-              <p>{q ? 'Ничего не найдено.' : 'Записей пока нет.'}</p>
+            <div className="page-empty-state page-empty-state--card">
+              <p className="page-empty-state-title">{q ? 'Ничего не найдено' : 'Записей пока нет'}</p>
             </div>
           ) : (
-            <div className="activity-log-panel glass-card">
-              <ul className="activity-log-timeline">
+            <div className="activity-log glass-card">
+              <ul className="activity-feed">
                 {groups.map((group) => (
                   <ActivityDayGroup key={group.day} day={group.day} items={group.items} />
                 ))}
@@ -246,7 +195,7 @@ export function ActivityLogPage() {
           )}
 
           {(hasPrev || hasMore) && (
-            <div className="activity-log-pager">
+            <div className="activity-pager">
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -255,7 +204,7 @@ export function ActivityLogPage() {
               >
                 Назад
               </button>
-              <span className="activity-log-pager-meta">
+              <span className="activity-pager-meta">
                 {offset + 1}–{offset + items.length} из {total}
               </span>
               <button

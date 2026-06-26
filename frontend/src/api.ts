@@ -927,7 +927,7 @@ export interface AssignOptionsResponse {
 export interface AssignBody {
   role_type: AssignRoleType
   vk_id: string
-  discord_id?: string | null
+  discord_id: string
   forum_account: string
   nickname: string
   access_level?: number
