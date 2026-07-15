@@ -20,7 +20,7 @@ async def _table_exists(table: str) -> bool:
 
 
 async def ensure_defaults() -> None:
-    from app.config import PANEL_DATABASE_URL
+    from app.config import PANEL_DATABASE_URL, is_sqlite_url
 
     if not is_sqlite_url(PANEL_DATABASE_URL):
         return
