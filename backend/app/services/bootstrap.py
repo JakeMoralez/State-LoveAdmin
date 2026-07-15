@@ -20,6 +20,11 @@ async def _table_exists(table: str) -> bool:
 
 
 async def ensure_defaults() -> None:
+    from app.config import PANEL_DATABASE_URL
+
+    if not is_sqlite_url(PANEL_DATABASE_URL):
+        return
+
     if not await _column_exists("tasks", "due_time"):
         conn = Tortoise.get_connection("default")
         await conn.execute_query("ALTER TABLE tasks ADD COLUMN due_time VARCHAR(5) NULL")

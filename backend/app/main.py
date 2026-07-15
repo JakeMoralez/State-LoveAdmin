@@ -21,6 +21,8 @@ from app.config import (
     PANEL_DATABASE_URL,
     TORTOISE_ORM,
     UPLOAD_DIR,
+    is_postgres_url,
+    is_sqlite_url,
     sqlite_file_path,
 )
 from app.routers.uploads import regenerate_all_gallery_pages
@@ -50,26 +52,35 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db_path = sqlite_file_path(PANEL_DATABASE_URL)
-    if db_path and not db_path.startswith(":"):
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    if is_sqlite_url(PANEL_DATABASE_URL):
+        db_path = sqlite_file_path(PANEL_DATABASE_URL)
+        if db_path and not db_path.startswith(":"):
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     await ensure_defaults()
     galleries = regenerate_all_gallery_pages()
-    bot_db = sqlite_file_path(BOT_DATABASE_URL)
     staff_rows = await list_staff(DEFAULT_SERVER_ID)
-    logger.info(
-        "Startup: bot_db=%s server_id=%s staff=%d galleries=%d",
-        bot_db,
-        DEFAULT_SERVER_ID,
-        len(staff_rows),
-        galleries,
-    )
-    if bot_db and not bot_db.startswith(":") and not Path(bot_db).exists():
-        logger.warning(
-            "BOT_DATABASE_URL points to missing file: %s — staff list will be empty; "
-            "set the same path as bot DATABASE_URL",
+    if is_sqlite_url(BOT_DATABASE_URL):
+        bot_db = sqlite_file_path(BOT_DATABASE_URL)
+        logger.info(
+            "Startup: bot_db=%s server_id=%s staff=%d galleries=%d",
             bot_db,
+            DEFAULT_SERVER_ID,
+            len(staff_rows),
+            galleries,
+        )
+        if bot_db and not bot_db.startswith(":") and not Path(bot_db).exists():
+            logger.warning(
+                "BOT_DATABASE_URL points to missing file: %s — staff list will be empty; "
+                "set the same path as bot DATABASE_URL",
+                bot_db,
+            )
+    else:
+        logger.info(
+            "Startup: bot_db=postgresql server_id=%s staff=%d galleries=%d",
+            DEFAULT_SERVER_ID,
+            len(staff_rows),
+            galleries,
         )
     yield
 
@@ -133,8 +144,15 @@ app.include_router(dev.router)
 
 @app.get("/api/health")
 async def health():
-    bot_db = sqlite_file_path(BOT_DATABASE_URL)
-    bot_db_exists = bool(bot_db and not bot_db.startswith(":") and Path(bot_db).exists())
+    bot_db_exists: bool | None = None
+    bot_db_label = BOT_DATABASE_URL
+    if is_sqlite_url(BOT_DATABASE_URL):
+        bot_db = sqlite_file_path(BOT_DATABASE_URL)
+        bot_db_label = bot_db or BOT_DATABASE_URL
+        bot_db_exists = bool(bot_db and not bot_db.startswith(":") and Path(bot_db).exists())
+    elif is_postgres_url(BOT_DATABASE_URL):
+        bot_db_label = "postgresql"
+        bot_db_exists = True
     try:
         staff_count = len(await list_staff(DEFAULT_SERVER_ID))
     except Exception:
@@ -142,7 +160,7 @@ async def health():
     return {
         "ok": True,
         "server_id": DEFAULT_SERVER_ID,
-        "bot_db": bot_db,
+        "bot_db": bot_db_label,
         "bot_db_exists": bot_db_exists,
         "staff_count": staff_count,
     }

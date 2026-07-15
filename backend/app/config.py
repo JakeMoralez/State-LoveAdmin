@@ -7,6 +7,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from app.db_utils import is_postgres_url, is_sqlite_url
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -30,6 +32,13 @@ def sqlite_file_path(url: str) -> str:
     if path.startswith("/") and len(path) > 2 and path[2] == ":":
         return path[1:]
     return path
+
+
+__all__ = [
+    "is_sqlite_url",
+    "is_postgres_url",
+    "sqlite_file_path",
+]
 
 DEFAULT_SERVER_ID: int = int(os.getenv("DEFAULT_SERVER_ID", "30"))
 MAIN_ADMIN_ID: int = int(os.getenv("MAIN_ADMIN_ID", "0"))
