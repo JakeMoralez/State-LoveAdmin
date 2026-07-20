@@ -3,6 +3,7 @@ import { Check, Copy, Eraser, FilePlus2, FilePenLine, Plus, Trash2 } from 'lucid
 import { BrandLogo } from '../components/BrandLogo'
 import {
   type AmendmentChange,
+  type ChangeMode,
   type CongressInfo,
   type CongressKind,
   AMENDMENT_TITLE_PRESETS,
@@ -14,7 +15,14 @@ import {
   formatBillBbcode,
   loadCongressDraft,
   saveCongressDraft,
+  sidesForMode,
 } from '../lib/congressFormulary'
+
+const CHANGE_MODES: { id: ChangeMode; label: string }[] = [
+  { id: 'edit', label: 'Изменить текст' },
+  { id: 'add', label: 'Добавить пункт' },
+  { id: 'remove', label: 'Удалить пункт' },
+]
 
 function Field({
   label,
@@ -269,7 +277,17 @@ export function CongressPage() {
                 </p>
                 <div className="cg-stack">
                   {changes.map((ch, idx) => {
-                    const preview = diffPreviewHtml(ch.was, ch.became)
+                    const sides = sidesForMode(ch)
+                    const preview = diffPreviewHtml(sides.was, sides.became)
+                    const setMode = (mode: ChangeMode) => {
+                      if (mode === 'add') {
+                        updateChange(ch.id, { mode, was: '' })
+                      } else if (mode === 'remove') {
+                        updateChange(ch.id, { mode, became: '' })
+                      } else {
+                        updateChange(ch.id, { mode })
+                      }
+                    }
                     return (
                       <div key={ch.id} className="cg-block">
                         <div className="cg-block-head">
@@ -286,6 +304,27 @@ export function CongressPage() {
                               <Trash2 size={14} />
                             </button>
                           ) : null}
+                        </div>
+                        <div
+                          className="cg-change-modes"
+                          role="group"
+                          aria-label="Тип изменения"
+                        >
+                          {CHANGE_MODES.map((m) => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              className={
+                                ch.mode === m.id
+                                  ? 'cg-change-mode is-active'
+                                  : 'cg-change-mode'
+                              }
+                              data-mode={m.id}
+                              onClick={() => setMode(m.id)}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
                         </div>
                         <div className="cg-grid cg-grid--2">
                           <Field label="Глава">
@@ -312,28 +351,44 @@ export function CongressPage() {
                             />
                           </Field>
                         </div>
-                        <Field label="Было">
-                          <textarea
-                            className="control cg-textarea"
-                            rows={12}
-                            value={ch.was}
-                            onChange={(e) =>
-                              updateChange(ch.id, { was: e.target.value })
-                            }
-                            placeholder="Старый текст статьи / пункта"
-                          />
-                        </Field>
-                        <Field label="Стало">
-                          <textarea
-                            className="control cg-textarea"
-                            rows={12}
-                            value={ch.became}
-                            onChange={(e) =>
-                              updateChange(ch.id, { became: e.target.value })
-                            }
-                            placeholder="Новый текст (пусто = удаление пункта)"
-                          />
-                        </Field>
+                        {ch.mode === 'edit' || ch.mode === 'remove' ? (
+                          <Field
+                            label={ch.mode === 'remove' ? 'Удаляемый текст' : 'Было'}
+                          >
+                            <textarea
+                              className="control cg-textarea"
+                              rows={12}
+                              value={ch.was}
+                              onChange={(e) =>
+                                updateChange(ch.id, { was: e.target.value })
+                              }
+                              placeholder={
+                                ch.mode === 'remove'
+                                  ? 'Текст пункта, который исключаете'
+                                  : 'Старый текст статьи / пункта'
+                              }
+                            />
+                          </Field>
+                        ) : null}
+                        {ch.mode === 'edit' || ch.mode === 'add' ? (
+                          <Field
+                            label={ch.mode === 'add' ? 'Новый пункт' : 'Стало'}
+                          >
+                            <textarea
+                              className="control cg-textarea"
+                              rows={12}
+                              value={ch.became}
+                              onChange={(e) =>
+                                updateChange(ch.id, { became: e.target.value })
+                              }
+                              placeholder={
+                                ch.mode === 'add'
+                                  ? 'Текст нового пункта / статьи'
+                                  : 'Новый текст'
+                              }
+                            />
+                          </Field>
+                        ) : null}
                         <Field label="Пояснение" hint="Необязательно">
                           <textarea
                             className="control cg-textarea cg-textarea--note"
@@ -342,20 +397,26 @@ export function CongressPage() {
                             onChange={(e) =>
                               updateChange(ch.id, { note: e.target.value })
                             }
-                            placeholder="Зачем меняете этот пункт"
+                            placeholder={
+                              ch.mode === 'add'
+                                ? 'Зачем добавляете'
+                                : ch.mode === 'remove'
+                                  ? 'Зачем исключаете'
+                                  : 'Зачем меняете этот пункт'
+                            }
                           />
                         </Field>
-                        {(ch.was.trim() || ch.became.trim()) && (
+                        {(sides.was.trim() || sides.became.trim()) && (
                           <div className="cg-diff-preview">
                             <div className="cg-diff-col">
-                              <span className="cg-diff-label">Было (превью)</span>
+                              <span className="cg-diff-label">До (превью)</span>
                               <div
                                 className="cg-diff-body"
                                 dangerouslySetInnerHTML={{ __html: preview.was }}
                               />
                             </div>
                             <div className="cg-diff-col">
-                              <span className="cg-diff-label">Стало (превью)</span>
+                              <span className="cg-diff-label">После (превью)</span>
                               <div
                                 className="cg-diff-body"
                                 dangerouslySetInnerHTML={{ __html: preview.became }}

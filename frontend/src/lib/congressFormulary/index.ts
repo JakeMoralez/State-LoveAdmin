@@ -39,11 +39,15 @@ export interface CongressInfo {
   date: string
 }
 
+export type ChangeMode = 'edit' | 'add' | 'remove'
+
 export interface AmendmentChange {
   id: string
   chapterTitle: string
   /** «Статья 5» или «Статья 5. Название» — название необязательно */
   articleTitle: string
+  /** правка текста / новый пункт / исключение пункта */
+  mode: ChangeMode
   was: string
   became: string
   /** Краткое пояснение к этому изменению — необязательно */
@@ -93,10 +97,26 @@ export function emptyChange(): AmendmentChange {
     id: uid(),
     chapterTitle: '',
     articleTitle: '',
+    mode: 'edit',
     was: '',
     became: '',
     note: '',
   }
+}
+
+export function inferChangeMode(was: string, became: string): ChangeMode {
+  const w = was.trim()
+  const b = became.trim()
+  if (!w && b) return 'add'
+  if (w && !b) return 'remove'
+  return 'edit'
+}
+
+/** Текст сторон с учётом режима блока. */
+export function sidesForMode(ch: AmendmentChange): { was: string; became: string } {
+  if (ch.mode === 'add') return { was: '', became: ch.became }
+  if (ch.mode === 'remove') return { was: ch.was, became: '' }
+  return { was: ch.was, became: ch.became }
 }
 
 const CONGRESS_DRAFT_KEY = 'sl-congress-draft-v1'
@@ -112,12 +132,19 @@ export interface CongressDraft {
 function normalizeChange(raw: Partial<AmendmentChange> | null | undefined): AmendmentChange {
   const base = emptyChange()
   if (!raw || typeof raw !== 'object') return base
+  const was = String(raw.was ?? '')
+  const became = String(raw.became ?? '')
+  const mode: ChangeMode =
+    raw.mode === 'add' || raw.mode === 'remove' || raw.mode === 'edit'
+      ? raw.mode
+      : inferChangeMode(was, became)
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : base.id,
     chapterTitle: String(raw.chapterTitle ?? ''),
     articleTitle: String(raw.articleTitle ?? ''),
-    was: String(raw.was ?? ''),
-    became: String(raw.became ?? ''),
+    mode,
+    was,
+    became,
     note: String(raw.note ?? ''),
   }
 }
@@ -545,12 +572,27 @@ function escapeHtml(s: string): string {
 function renderChangeBlock(ch: AmendmentChange): string {
   const chapter = v(ch.chapterTitle, 'Глава N. Название главы')
   const article = v(ch.articleTitle, 'Статья M')
-  const sides = formatCompareSides(ch.was, ch.became)
+  const { was, became } = sidesForMode(ch)
+  const sides = formatCompareSides(was, became)
   const note = ch.note.trim()
+
+  const modeLabel =
+    ch.mode === 'add'
+      ? 'ДОБАВЛЕНИЕ ПУНКТА'
+      : ch.mode === 'remove'
+        ? 'ИСКЛЮЧЕНИЕ ПУНКТА'
+        : null
 
   const lines = [
     `[SIZE=4][FONT=verdana][B]${chapter}`,
     `${article}[/B][/FONT][/SIZE]`,
+  ]
+
+  if (modeLabel) {
+    lines.push(`[SIZE=3][FONT=verdana][I]${modeLabel}[/I][/FONT][/SIZE]`)
+  }
+
+  lines.push(
     `[FONT=verdana][/FONT]`,
     `[TABLE width="100%"]`,
     `[TR]`,
@@ -561,7 +603,7 @@ function renderChangeBlock(ch: AmendmentChange): string {
     `[td width="50.0000%"]${sides.became}[/td]`,
     `[/TR]`,
     `[/TABLE]`,
-  ]
+  )
 
   if (note) {
     lines.push(
