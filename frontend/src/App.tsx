@@ -30,6 +30,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/congress" element={<CongressPage />} />
+      <Route path="/congress/" element={<CongressPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />
@@ -58,7 +59,7 @@ function AppRoutes() {
         </Route>
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
 }
