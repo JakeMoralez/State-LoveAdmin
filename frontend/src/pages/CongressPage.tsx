@@ -137,6 +137,13 @@ function InfoFields({
 }
 
 export function CongressPage() {
+  useEffect(() => {
+    document.title = 'Конгресс · State Love'
+    return () => {
+      document.title = 'State Love · Портал следящих государственных структур'
+    }
+  }, [])
+
   const [boot] = useState(() => {
     const draft = loadCongressDraft()
     if (draft) return draft
