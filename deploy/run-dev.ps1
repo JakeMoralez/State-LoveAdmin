@@ -6,9 +6,9 @@ param([switch]$Frontend)
 
 $Root = Split-Path $PSScriptRoot -Parent
 $BotRoot = Join-Path (Split-Path $Root -Parent) "State-LoveBot"
-$BotDb = Join-Path $BotRoot "users.db"
+$BotDb = Join-Path $BotRoot "bot.db"
 if (-not (Test-Path $BotDb)) {
-    $BotDb = Join-Path $BotRoot "bot.db"
+    $BotDb = Join-Path $BotRoot "users.db"
 }
 
 if (-not (Test-Path "$Root\.env")) {

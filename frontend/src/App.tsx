@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ChecklistPage } from './pages/ChecklistPage'
+import { CongressPage } from './pages/CongressPage'
 import { ForumFormattingPage } from './pages/ForumFormattingPage'
 import { JudgeForumListPage } from './pages/JudgeForumListPage'
 import { AccessGuidePage } from './pages/AccessGuidePage'
@@ -28,6 +29,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/congress" element={<CongressPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<DashboardPage />} />

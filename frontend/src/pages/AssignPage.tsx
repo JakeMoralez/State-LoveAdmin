@@ -19,6 +19,7 @@ import { Select } from '../components/ui/Select'
 import { DatePicker } from '../components/ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
 import { todayDateInputValue } from '../lib/grantedAt'
+import { effectiveGrantableSphereKeys } from '../lib/spheres'
 import { cn } from '../lib/utils'
 
 const ROLE_TYPE_OPTIONS = [
@@ -118,6 +119,14 @@ export function AssignPage() {
   const judgePositionOptions = useMemo(
     () => judgePositions.map((p) => ({ value: p, label: p })),
     [judgePositions],
+  )
+
+  const grantableSphereIds = useMemo(
+    () =>
+      unrestrictedSphereAssign
+        ? undefined
+        : effectiveGrantableSphereKeys(userLevel, actorSphereIds),
+    [unrestrictedSphereAssign, userLevel, actorSphereIds],
   )
 
   const nicknamePreview = useMemo(() => {
@@ -403,7 +412,7 @@ export function AssignPage() {
                     disabled={saving}
                     accessLevel={parsedLevel}
                     showHint={false}
-                    grantableSpheres={unrestrictedSphereAssign ? undefined : actorSphereIds}
+                    grantableSpheres={grantableSphereIds}
                   />
                 </div>
               </div>

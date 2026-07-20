@@ -32,6 +32,17 @@ export function allowedSphereKeysForLevel(level: number): SphereKey[] {
   return [...MINISTRY_SPHERE_KEYS]
 }
 
+/** Сферы, которые актор может выдавать и снимать у других. */
+export function effectiveGrantableSphereKeys(actorLevel: number, actorSpheres: string[]): string[] {
+  const grantable = new Set(actorSpheres)
+  if (actorLevel >= 7) {
+    for (const key of CURATOR_SPHERE_KEYS) grantable.add(key)
+  } else if (actorLevel >= 5) {
+    for (const key of STRUCTURE_SPHERE_KEYS) grantable.add(key)
+  }
+  return [...grantable]
+}
+
 export function sphereOptionsForLevel(level: number) {
   const allowed = new Set(allowedSphereKeysForLevel(level))
   return SPHERE_OPTIONS.filter((o) => allowed.has(o.value))

@@ -66,6 +66,16 @@ def allowed_sphere_keys_for_level(level: int) -> tuple[str, ...]:
     return MINISTRY_SPHERE_KEYS
 
 
+def effective_grantable_sphere_keys(actor_level: int, actor_spheres: list[str]) -> set[str]:
+    """Сферы, которые актор может выдавать и снимать у других."""
+    grantable = set(actor_spheres or [])
+    if actor_level >= AccessLevel.CURATOR:
+        grantable |= set(allowed_sphere_keys_for_level(AccessLevel.CURATOR))
+    elif actor_level >= AccessLevel.ZGS_GOS:
+        grantable |= set(STRUCTURE_SPHERE_KEYS)
+    return grantable
+
+
 def validate_spheres(spheres: list[str], access_level: int | None = None) -> list[str]:
     """Normalize and dedupe sphere keys; optional level guard."""
     if not spheres:
@@ -98,17 +108,18 @@ def validate_spheres(spheres: list[str], access_level: int | None = None) -> lis
 
 
 def constrain_spheres_for_actor(
+    actor_level: int,
     actor_spheres: list[str],
     target_current: list[str],
     requested: list[str],
     access_level: int,
 ) -> list[str]:
-    """ЗГС/ГС может менять только свои сферы; чужие сферы цели остаются без изменений."""
-    actor_set = set(actor_spheres or [])
+    """ЗГС/ГС может менять только свои сферы; ЗГС ГОС+ — все сферы своего tier."""
+    grantable = effective_grantable_sphere_keys(actor_level, actor_spheres)
     current = set(target_current or [])
     requested_set = set(requested or [])
 
-    locked = current - actor_set
+    locked = current - grantable
     if not locked.issubset(requested_set):
         missing = locked - requested_set
         raise ValueError(
@@ -116,14 +127,14 @@ def constrain_spheres_for_actor(
         )
 
     added = requested_set - current
-    illegal_add = added - actor_set
+    illegal_add = added - grantable
     if illegal_add:
         raise ValueError(
             f"Можно выдавать только свои сферы: {format_spheres_display(sorted(illegal_add))}"
         )
 
     removed = current - requested_set
-    illegal_remove = removed - actor_set
+    illegal_remove = removed - grantable
     if illegal_remove:
         raise ValueError(
             f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(illegal_remove))}"

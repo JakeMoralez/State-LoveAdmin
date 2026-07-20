@@ -176,8 +176,13 @@ def staff_edit_permissions(
     unrestricted_spheres = is_developer or actor_panel_role in ("owner", "lead")
     actor_set = set(actor_spheres or [])
     target_set = set(target_spheres or [])
-    locked_spheres = [] if unrestricted_spheres else sorted(target_set - actor_set)
-    grantable_spheres = [] if unrestricted_spheres else sorted(actor_set)
+    grantable_set = (
+        set()
+        if unrestricted_spheres
+        else effective_grantable_sphere_keys(effective, list(actor_set))
+    )
+    locked_spheres = [] if unrestricted_spheres else sorted(target_set - grantable_set)
+    grantable_spheres = [] if unrestricted_spheres else sorted(grantable_set)
 
     edit_nickname = (
         actor_level >= AccessLevel.PGS
@@ -341,7 +346,11 @@ def assert_can_set_spheres(
 ) -> list[str]:
     from fastapi import HTTPException
 
-    from app.services.staff_spheres import constrain_spheres_for_actor, validate_spheres
+    from app.services.staff_spheres import (
+        constrain_spheres_for_actor,
+        effective_grantable_sphere_keys,
+        validate_spheres,
+    )
 
     if actor_level < AccessLevel.ZGS:
         raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для смены сфер")
@@ -351,7 +360,13 @@ def assert_can_set_spheres(
     try:
         if unrestricted:
             return validate_spheres(requested, target_level)
-        return constrain_spheres_for_actor(actor_spheres, target_current, requested, target_level)
+        return constrain_spheres_for_actor(
+            actor_level,
+            actor_spheres,
+            target_current,
+            requested,
+            target_level,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
