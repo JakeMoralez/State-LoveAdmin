@@ -307,22 +307,187 @@ export function diffWords(before: string, after: string): DiffOp[] {
   return out
 }
 
+function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+}
+
+function splitLines(text: string): string[] {
+  return normalizeNewlines(text).split('\n')
+}
+
+/**
+ * Ключ для выравнивания строк: пункты а)/к) с одним текстом считаются одной строкой
+ * (перенумерация), части — по номеру ч.N, чтобы правки внутри ч.2 не «ломались».
+ */
+function lineMatchKey(line: string): string {
+  const t = line.trim()
+  if (!t) return '::blank::'
+
+  const list = /^([a-zа-яё])\)\s*(.*)$/iu.exec(t)
+  if (list) {
+    return `list::${list[2].trim().toLowerCase().replace(/\s+/g, ' ')}`
+  }
+
+  const part = /^ч\.?\s*(\d+)\.?\s*/iu.exec(t)
+  if (part) return `part::${part[1]}`
+
+  const article = /^Статья\s+(\d+(?:\s*\.\s*-\s*\d+)?)/iu.exec(t)
+  if (article) return `article::${article[1].replace(/\s+/g, '')}`
+
+  const chapter = /^ГЛАВА\s+(\d+)/iu.exec(t)
+  if (chapter) return `chapter::${chapter[1]}`
+
+  const section = /^РАЗДЕЛ\s+(\d+)/iu.exec(t)
+  if (section) return `section::${section[1]}`
+
+  return `text::${t.toLowerCase().replace(/\s+/g, ' ')}`
+}
+
+function isMarkerOnlyListChange(before: string, after: string): boolean {
+  const a = /^([a-zа-яё])\)\s*(.*)$/iu.exec(before.trim())
+  const b = /^([a-zа-яё])\)\s*(.*)$/iu.exec(after.trim())
+  return Boolean(a && b && a[2] === b[2])
+}
+
+/** Совпадение строк для выравнивания: текст / тело пункта / буква пункта / № ч. */
+function linesMatch(before: string, after: string): boolean {
+  if (before === after) return true
+  if (lineMatchKey(before) === lineMatchKey(after)) return true
+  const la = /^([a-zа-яё])\)/iu.exec(before.trim())
+  const lb = /^([a-zа-яё])\)/iu.exec(after.trim())
+  if (la && lb && la[1].toLowerCase() === lb[1].toLowerCase()) return true
+  return false
+}
+
+type LineAlign =
+  | { type: 'pair'; before: string; after: string }
+  | { type: 'delete'; before: string }
+  | { type: 'insert'; after: string }
+
+/** Построчный LCS с умным ключом — span’ы diff не пересекают перевод строки. */
+function alignLines(beforeLines: string[], afterLines: string[]): LineAlign[] {
+  const n = beforeLines.length
+  const m = afterLines.length
+  const dp: number[][] = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = linesMatch(beforeLines[i], afterLines[j])
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1])
+    }
+  }
+
+  const out: LineAlign[] = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    if (linesMatch(beforeLines[i], afterLines[j])) {
+      out.push({ type: 'pair', before: beforeLines[i], after: afterLines[j] })
+      i++
+      j++
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push({ type: 'delete', before: beforeLines[i] })
+      i++
+    } else {
+      out.push({ type: 'insert', after: afterLines[j] })
+      j++
+    }
+  }
+  while (i < n) {
+    out.push({ type: 'delete', before: beforeLines[i++] })
+  }
+  while (j < m) {
+    out.push({ type: 'insert', after: afterLines[j++] })
+  }
+  return out
+}
+
+function renderOpsWasHtml(ops: DiffOp[]): string {
+  let s = ''
+  for (const op of ops) {
+    if (op.type === 'equal') s += escapeHtml(op.text)
+    else if (op.type === 'delete') {
+      s += `<span class="cg-diff-del">${escapeHtml(op.text)}</span>`
+    } else if (op.type === 'replace') {
+      s += `<span class="cg-diff-del">${escapeHtml(op.from)}</span>`
+    }
+  }
+  return s
+}
+
+function renderOpsBecameHtml(ops: DiffOp[]): string {
+  let s = ''
+  for (const op of ops) {
+    if (op.type === 'equal') s += escapeHtml(op.text)
+    else if (op.type === 'insert') {
+      s += `<span class="cg-diff-add">${escapeHtml(op.text)}</span>`
+    } else if (op.type === 'replace') {
+      s += `<span class="cg-diff-chg"><u>${escapeHtml(op.to)}</u></span>`
+    }
+  }
+  return s
+}
+
+function renderPairedLineHtml(
+  before: string,
+  after: string,
+): { was: string; became: string } {
+  if (before === after || isMarkerOnlyListChange(before, after)) {
+    return { was: escapeHtml(before), became: escapeHtml(after) }
+  }
+  const ops = diffWords(before, after)
+  return {
+    was: renderOpsWasHtml(ops),
+    became: renderOpsBecameHtml(ops),
+  }
+}
+
+function renderStructuredDiffHtml(
+  before: string,
+  after: string,
+): { was: string; became: string } {
+  const aligned = alignLines(splitLines(before), splitLines(after))
+  const wasLines: string[] = []
+  const becameLines: string[] = []
+
+  for (const row of aligned) {
+    if (row.type === 'pair') {
+      const { was, became } = renderPairedLineHtml(row.before, row.after)
+      wasLines.push(was)
+      becameLines.push(became)
+    } else if (row.type === 'delete') {
+      wasLines.push(
+        `<span class="cg-diff-del">${escapeHtml(row.before)}</span>`,
+      )
+    } else {
+      becameLines.push(
+        `<span class="cg-diff-add">${escapeHtml(row.after)}</span>`,
+      )
+    }
+  }
+
+  return {
+    was: wasLines.join('\n'),
+    became: becameLines.join('\n'),
+  }
+}
+
 function colorWrap(color: string, inner: string): string {
   if (!inner) return ''
   return `[COLOR=${color}]${inner}[/COLOR]`
 }
 
-function renderWasBbcode(ops: DiffOp[]): string {
+function renderOpsWasBbcode(ops: DiffOp[]): string {
   let s = ''
   for (const op of ops) {
     if (op.type === 'equal') s += op.text
     else if (op.type === 'delete') s += colorWrap(RED, op.text)
     else if (op.type === 'replace') s += colorWrap(RED, op.from)
   }
-  return s.trim() || '—'
+  return s
 }
 
-function renderBecameBbcode(ops: DiffOp[]): string {
+function renderOpsBecameBbcode(ops: DiffOp[]): string {
   let s = ''
   for (const op of ops) {
     if (op.type === 'equal') s += op.text
@@ -331,7 +496,47 @@ function renderBecameBbcode(ops: DiffOp[]): string {
       s += colorWrap(YELLOW, `[U]${op.to}[/U]`)
     }
   }
-  return s.trim() || '—'
+  return s
+}
+
+function renderPairedLineBbcode(
+  before: string,
+  after: string,
+): { was: string; became: string } {
+  if (before === after || isMarkerOnlyListChange(before, after)) {
+    return { was: before, became: after }
+  }
+  const ops = diffWords(before, after)
+  return {
+    was: renderOpsWasBbcode(ops),
+    became: renderOpsBecameBbcode(ops),
+  }
+}
+
+function renderStructuredDiffBbcode(
+  before: string,
+  after: string,
+): { was: string; became: string } {
+  const aligned = alignLines(splitLines(before), splitLines(after))
+  const wasLines: string[] = []
+  const becameLines: string[] = []
+
+  for (const row of aligned) {
+    if (row.type === 'pair') {
+      const { was, became } = renderPairedLineBbcode(row.before, row.after)
+      wasLines.push(was)
+      becameLines.push(became)
+    } else if (row.type === 'delete') {
+      wasLines.push(colorWrap(RED, row.before))
+    } else {
+      becameLines.push(colorWrap(GREEN, row.after))
+    }
+  }
+
+  return {
+    was: wasLines.join('\n').trim() || '—',
+    became: becameLines.join('\n').trim() || '—',
+  }
 }
 
 /** Настройки форматирования из панели (без шапки/оглавления) — для Было/Стало. */
@@ -351,6 +556,25 @@ function fontWrap(fontName: string, inner: string): string {
   return `[FONT=${fontName}]${inner}[/FONT]`
 }
 
+function stripBbcode(text: string): string {
+  return text.replace(/\[[^\]]*]/g, '')
+}
+
+/** Снимает обёртку [COLOR=…]…[/COLOR] со всей строки (как у HTML-span). */
+function unwrapFullLineColor(line: string): { color: string | null; inner: string } {
+  const m = /^\[COLOR=([^\]]+)\]([\s\S]*)\[\/COLOR\]$/i.exec(line.trim())
+  if (!m) return { color: null, inner: line }
+  // не снимать, если внутри ещё есть незакрытая структура COLOR (вложенность)
+  const inner = m[2]
+  if (/\[COLOR=/i.test(inner)) return { color: null, inner: line }
+  return { color: m[1], inner }
+}
+
+function wrapColor(color: string | null, inner: string): string {
+  if (!color || !inner) return inner
+  return colorWrap(color, inner)
+}
+
 /**
  * Структурная разметка как в панели (Глава / Статья / ч. / a)),
  * поверх уже раскрашенного diff-текста. Цвета изменений не трогаем.
@@ -360,59 +584,90 @@ function applyLawStructureBbcode(text: string, options: LawFormatOptions): strin
   const { font: f, colors, bold, sizes } = options
   const out: string[] = []
 
-  for (const line of text.split('\n')) {
-    const chapter = /^ГЛАВА\s+(\d+)\.?\s*(.*)$/iu.exec(line)
+  for (const rawLine of text.split('\n')) {
+    const { color, inner: line } = unwrapFullLineColor(rawLine)
+    const plain = stripBbcode(line).trim()
+
+    const chapter = /^ГЛАВА\s+(\d+)\.?\s*(.*)$/iu.exec(plain)
     if (chapter) {
       const head = colorWrap(colors.chapter, `ГЛАВА ${chapter[1]}. `)
-      const inner = `[SIZE=${sizes.chapter}]${head}${chapter[2]}[/SIZE]`
+      const rest = wrapColor(
+        color,
+        stripLeadingLabelBbcode(line, /^ГЛАВА\s+\d+\.?\s*/iu),
+      )
+      const inner = `[SIZE=${sizes.chapter}]${head}${rest}[/SIZE]`
       out.push(
         `[CENTER]${fontWrap(f, bold.chapter ? `[B]${inner}[/B]` : inner)}[/CENTER]`,
       )
       continue
     }
 
-    const section = /^РАЗДЕЛ\s+(\d+)\.?\s*(.*)$/iu.exec(line)
+    const section = /^РАЗДЕЛ\s+(\d+)\.?\s*(.*)$/iu.exec(plain)
     if (section) {
       const head = colorWrap(colors.section, `РАЗДЕЛ ${section[1]}. `)
-      const inner = `[SIZE=${sizes.chapter}]${head}${section[2]}[/SIZE]`
+      const rest = wrapColor(
+        color,
+        stripLeadingLabelBbcode(line, /^РАЗДЕЛ\s+\d+\.?\s*/iu),
+      )
+      const inner = `[SIZE=${sizes.chapter}]${head}${rest}[/SIZE]`
       out.push(
         `[CENTER]${fontWrap(f, bold.section ? `[B]${inner}[/B]` : inner)}[/CENTER]`,
       )
       continue
     }
 
-    const article = /^Статья\s+(\d+)\.?\s*(.*)$/iu.exec(line)
+    const article = /^Статья\s+(\d+(?:\s*\.\s*-\s*\d+)?)\.?\s*(.*)$/iu.exec(plain)
     if (article) {
-      const label = `Статья ${article[1]}.`
+      const label = `Статья ${article[1].replace(/\s+/g, '')}.`
       const head = bold.article
         ? `[B]${colorWrap(colors.article, label)}[/B]`
         : colorWrap(colors.article, label)
-      const rest = article[2] ? ` ${article[2]}` : ''
-      out.push(fontWrap(f, `${head}${rest}`))
+      const rest = wrapColor(
+        color,
+        stripLeadingLabelBbcode(
+          line,
+          /^Статья\s+\d+(?:\s*\.\s*-\s*\d+)?\.?\s*/iu,
+        ),
+      )
+      out.push(fontWrap(f, `${head}${rest ? ` ${rest}` : ''}`))
       continue
     }
 
-    const part = /^ч\.?\s*(\d+)\.?\s*(.*)$/iu.exec(line)
+    const part = /^ч\.?\s*(\d+)\.?\s*(.*)$/iu.exec(plain)
     if (part) {
+      const rest = wrapColor(
+        color,
+        stripLeadingLabelBbcode(line, /^ч\.?\s*\d+\.?\s*/iu),
+      )
       out.push(
-        fontWrap(f, `${colorWrap(colors.part, `ч.${part[1]}. `)}${part[2]}`),
+        fontWrap(f, `${colorWrap(colors.part, `ч.${part[1]}. `)}${rest}`),
       )
       continue
     }
 
-    const list = /^([a-zа-яё])\)\s*(.*)$/iu.exec(line)
+    const list = /^([a-zа-яё])\)\s*(.*)$/iu.exec(plain)
     if (list) {
-      out.push(
-        `[INDENT]${fontWrap(f, `${colorWrap(colors.listItem, `${list[1]}) `)}${list[2]}`)}[/INDENT]`,
+      const body = wrapColor(
+        color,
+        stripLeadingLabelBbcode(line, /^[a-zа-яё]\)\s*/iu),
       )
+      const marker = color
+        ? colorWrap(color, `${list[1]}) `)
+        : colorWrap(colors.listItem, `${list[1]}) `)
+      out.push(`[INDENT]${fontWrap(f, `${marker}${body}`)}[/INDENT]`)
       continue
     }
 
-    const numbered = /^(\d+)\)\s*(.*)$/u.exec(line)
+    const numbered = /^(\d+)\)\s*(.*)$/u.exec(plain)
     if (numbered) {
-      out.push(
-        `[INDENT]${fontWrap(f, `${numbered[1]}) ${numbered[2]}`)}[/INDENT]`,
+      const rest = wrapColor(
+        color,
+        stripLeadingLabelBbcode(line, /^\d+\)\s*/u),
       )
+      const marker = color
+        ? colorWrap(color, `${numbered[1]}) `)
+        : `${numbered[1]}) `
+      out.push(`[INDENT]${fontWrap(f, `${marker}${rest}`)}[/INDENT]`)
       continue
     }
 
@@ -421,10 +676,30 @@ function applyLawStructureBbcode(text: string, options: LawFormatOptions): strin
       continue
     }
 
-    out.push(fontWrap(f, line))
+    out.push(fontWrap(f, wrapColor(color, line)))
   }
 
   return out.join('\n')
+}
+
+/** Срезает ведущий ярлык из BBCode-строки по plain-тексту. */
+function stripLeadingLabelBbcode(line: string, re: RegExp): string {
+  const plain = stripBbcode(line)
+  const m = re.exec(plain)
+  if (!m) return line
+  const labelLen = m[0].length
+  let seen = 0
+  let i = 0
+  while (i < line.length && seen < labelLen) {
+    if (line[i] === '[') {
+      const end = line.indexOf(']', i)
+      i = end === -1 ? line.length : end + 1
+      continue
+    }
+    seen++
+    i++
+  }
+  return line.slice(i).replace(/^\s+/, '')
 }
 
 function formatLawBody(text: string): string {
@@ -449,10 +724,10 @@ function formatCompareSides(was: string, became: string): { was: string; became:
     }
   }
 
-  const ops = diffWords(wasT, becameT)
+  const sides = renderStructuredDiffBbcode(wasT, becameT)
   return {
-    was: applyLawStructureBbcode(renderWasBbcode(ops), options),
-    became: applyLawStructureBbcode(renderBecameBbcode(ops), options),
+    was: applyLawStructureBbcode(sides.was, options),
+    became: applyLawStructureBbcode(sides.became, options),
   }
 }
 
@@ -476,24 +751,50 @@ function stripLeadingLabelHtml(line: string, re: RegExp): string {
   return line.slice(i).replace(/^\s+/, '')
 }
 
+/** Если вся строка в одном span add/del — снять обёртку, чтобы ярлык не съел открывающий тег. */
+function unwrapFullLineDiff(line: string): {
+  cls: 'cg-diff-add' | 'cg-diff-del' | null
+  inner: string
+} {
+  const m = /^<span class="(cg-diff-add|cg-diff-del)">(.*)<\/span>$/s.exec(line)
+  if (!m) return { cls: null, inner: line }
+  return {
+    cls: m[1] as 'cg-diff-add' | 'cg-diff-del',
+    inner: m[2],
+  }
+}
+
+function wrapDiffCls(
+  cls: 'cg-diff-add' | 'cg-diff-del' | null,
+  html: string,
+): string {
+  if (!cls || !html) return html
+  return `<span class="${cls}">${html}</span>`
+}
+
 function applyLawStructureHtml(html: string): string {
   if (!html.trim() || html === '—') return html
   const out: string[] = []
-  for (const line of html.split('\n')) {
+  for (const rawLine of html.split('\n')) {
+    const { cls, inner: line } = unwrapFullLineDiff(rawLine)
     const plain = line.replace(/<[^>]+>/g, '')
     const chapter = /^ГЛАВА\s+(\d+)\.?\s*/iu.exec(plain)
     if (chapter) {
       const rest = stripLeadingLabelHtml(line, /^ГЛАВА\s+\d+\.?\s*/iu)
       out.push(
-        `<div class="cg-law-chapter"><span class="cg-law-label cg-law-chapter-label">ГЛАВА ${chapter[1]}.</span> ${rest}</div>`,
+        `<div class="cg-law-chapter"><span class="cg-law-label cg-law-chapter-label">ГЛАВА ${chapter[1]}.</span> ${wrapDiffCls(cls, rest)}</div>`,
       )
       continue
     }
-    const article = /^Статья\s+(\d+)\.?\s*/iu.exec(plain)
+    const article = /^Статья\s+(\d+(?:\s*\.\s*-\s*\d+)?)\.?\s*/iu.exec(plain)
     if (article) {
-      const rest = stripLeadingLabelHtml(line, /^Статья\s+\d+\.?\s*/iu)
+      const num = article[1].replace(/\s+/g, '')
+      const rest = stripLeadingLabelHtml(
+        line,
+        /^Статья\s+\d+(?:\s*\.\s*-\s*\d+)?\.?\s*/iu,
+      )
       out.push(
-        `<div class="cg-law-article"><span class="cg-law-label cg-law-article-label">Статья ${article[1]}.</span> ${rest}</div>`,
+        `<div class="cg-law-article"><span class="cg-law-label cg-law-article-label">Статья ${num}.</span> ${wrapDiffCls(cls, rest)}</div>`,
       )
       continue
     }
@@ -501,16 +802,20 @@ function applyLawStructureHtml(html: string): string {
     if (part) {
       const rest = stripLeadingLabelHtml(line, /^ч\.?\s*\d+\.?\s*/iu)
       out.push(
-        `<div class="cg-law-part"><span class="cg-law-label cg-law-part-label">ч.${part[1]}.</span> ${rest}</div>`,
+        `<div class="cg-law-part"><span class="cg-law-label cg-law-part-label">ч.${part[1]}.</span> ${wrapDiffCls(cls, rest)}</div>`,
       )
       continue
     }
     const list = /^([a-zа-яё])\)\s*/iu.exec(plain)
     if (list) {
-      out.push(`<div class="cg-law-indent">${line}</div>`)
+      out.push(`<div class="cg-law-indent">${wrapDiffCls(cls, line)}</div>`)
       continue
     }
-    out.push(line ? `<div>${line}</div>` : '<div class="cg-law-blank"></div>')
+    if (!line.trim()) {
+      out.push('<div class="cg-law-blank"></div>')
+      continue
+    }
+    out.push(`<div>${wrapDiffCls(cls, line)}</div>`)
   }
   return out.join('')
 }
@@ -523,15 +828,13 @@ export function diffPreviewHtml(before: string, after: string): { was: string; b
     return { was: '—', became: '—' }
   }
   if (wasEmpty) {
-    const marked = after
-      .split('\n')
+    const marked = splitLines(after)
       .map((l) => `<span class="cg-diff-add">${escapeHtml(l)}</span>`)
       .join('\n')
     return { was: '—', became: applyLawStructureHtml(marked) }
   }
   if (becameEmpty) {
-    const marked = before
-      .split('\n')
+    const marked = splitLines(before)
       .map((l) => `<span class="cg-diff-del">${escapeHtml(l)}</span>`)
       .join('\n')
     return {
@@ -539,25 +842,10 @@ export function diffPreviewHtml(before: string, after: string): { was: string; b
       became: '<span class="cg-diff-del">— пункт исключается.</span>',
     }
   }
-  const ops = diffWords(before, after)
-  let was = ''
-  let became = ''
-  for (const op of ops) {
-    if (op.type === 'equal') {
-      was += escapeHtml(op.text)
-      became += escapeHtml(op.text)
-    } else if (op.type === 'delete') {
-      was += `<span class="cg-diff-del">${escapeHtml(op.text)}</span>`
-    } else if (op.type === 'insert') {
-      became += `<span class="cg-diff-add">${escapeHtml(op.text)}</span>`
-    } else {
-      was += `<span class="cg-diff-del">${escapeHtml(op.from)}</span>`
-      became += `<span class="cg-diff-chg"><u>${escapeHtml(op.to)}</u></span>`
-    }
-  }
+  const sides = renderStructuredDiffHtml(before, after)
   return {
-    was: applyLawStructureHtml(was || '—'),
-    became: applyLawStructureHtml(became || '—'),
+    was: applyLawStructureHtml(sides.was || '—'),
+    became: applyLawStructureHtml(sides.became || '—'),
   }
 }
 
