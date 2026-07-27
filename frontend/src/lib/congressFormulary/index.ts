@@ -230,13 +230,21 @@ function footer(info: CongressInfo): string {
 }
 
 type DiffOp =
-  | { type: 'equal'; text: string }
+  | { type: 'equal'; was: string; became: string }
   | { type: 'delete'; text: string }
   | { type: 'insert'; text: string }
   | { type: 'replace'; from: string; to: string }
 
+/** е/ё и регистр не считаем отличием при сравнении. */
+function foldForDiff(s: string): string {
+  return s.replace(/ё/g, 'е').replace(/Ё/g, 'Е').toLowerCase()
+}
+
+/** Слова, пробелы и знаки препинания — отдельно («указом,» ≠ один токен). */
 function tokenize(text: string): string[] {
-  return text.match(/\S+|\s+/g) ?? []
+  return (
+    text.match(/[а-яёА-ЯЁa-zA-Z0-9_]+|\s+|[^а-яёА-ЯЁa-zA-Z0-9_\s]/g) ?? []
+  )
 }
 
 /** Word-level LCS diff → ops (adjacent delete+insert merged to replace). */
@@ -245,19 +253,23 @@ export function diffWords(before: string, after: string): DiffOp[] {
   const b = tokenize(after)
   const n = a.length
   const m = b.length
+  const aFold = a.map(foldForDiff)
+  const bFold = b.map(foldForDiff)
   const dp: number[][] = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0))
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       dp[i][j] =
-        a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+        aFold[i] === bFold[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1])
     }
   }
   const raw: DiffOp[] = []
   let i = 0
   let j = 0
   while (i < n && j < m) {
-    if (a[i] === b[j]) {
-      raw.push({ type: 'equal', text: a[i] })
+    if (aFold[i] === bFold[j]) {
+      raw.push({ type: 'equal', was: a[i], became: b[j] })
       i++
       j++
     } else if (dp[i + 1][j] >= dp[i][j + 1]) {
@@ -290,8 +302,14 @@ export function diffWords(before: string, after: string): DiffOp[] {
         to += (raw[k] as { text: string }).text
         k++
       }
-      if (to) out.push({ type: 'replace', from, to })
-      else out.push({ type: 'delete', text: from })
+      if (to) {
+        // «отчетность» / «отчётность» после склейки — не подсвечивать
+        if (foldForDiff(from) === foldForDiff(to)) {
+          out.push({ type: 'equal', was: from, became: to })
+        } else {
+          out.push({ type: 'replace', from, to })
+        }
+      } else out.push({ type: 'delete', text: from })
     } else if (raw[k].type === 'insert') {
       let to = ''
       while (k < raw.length && raw[k].type === 'insert') {
@@ -325,7 +343,7 @@ function lineMatchKey(line: string): string {
 
   const list = /^([a-zа-яё])\)\s*(.*)$/iu.exec(t)
   if (list) {
-    return `list::${list[2].trim().toLowerCase().replace(/\s+/g, ' ')}`
+    return `list::${foldForDiff(list[2].trim()).replace(/\s+/g, ' ')}`
   }
 
   const part = /^ч\.?\s*(\d+)\.?\s*/iu.exec(t)
@@ -340,7 +358,7 @@ function lineMatchKey(line: string): string {
   const section = /^РАЗДЕЛ\s+(\d+)/iu.exec(t)
   if (section) return `section::${section[1]}`
 
-  return `text::${t.toLowerCase().replace(/\s+/g, ' ')}`
+  return `text::${foldForDiff(t).replace(/\s+/g, ' ')}`
 }
 
 function isMarkerOnlyListChange(before: string, after: string): boolean {
@@ -405,7 +423,7 @@ function alignLines(beforeLines: string[], afterLines: string[]): LineAlign[] {
 function renderOpsWasHtml(ops: DiffOp[]): string {
   let s = ''
   for (const op of ops) {
-    if (op.type === 'equal') s += escapeHtml(op.text)
+    if (op.type === 'equal') s += escapeHtml(op.was)
     else if (op.type === 'delete') {
       s += `<span class="cg-diff-del">${escapeHtml(op.text)}</span>`
     } else if (op.type === 'replace') {
@@ -418,7 +436,7 @@ function renderOpsWasHtml(ops: DiffOp[]): string {
 function renderOpsBecameHtml(ops: DiffOp[]): string {
   let s = ''
   for (const op of ops) {
-    if (op.type === 'equal') s += escapeHtml(op.text)
+    if (op.type === 'equal') s += escapeHtml(op.became)
     else if (op.type === 'insert') {
       s += `<span class="cg-diff-add">${escapeHtml(op.text)}</span>`
     } else if (op.type === 'replace') {
@@ -480,7 +498,7 @@ function colorWrap(color: string, inner: string): string {
 function renderOpsWasBbcode(ops: DiffOp[]): string {
   let s = ''
   for (const op of ops) {
-    if (op.type === 'equal') s += op.text
+    if (op.type === 'equal') s += op.was
     else if (op.type === 'delete') s += colorWrap(RED, op.text)
     else if (op.type === 'replace') s += colorWrap(RED, op.from)
   }
@@ -490,7 +508,7 @@ function renderOpsWasBbcode(ops: DiffOp[]): string {
 function renderOpsBecameBbcode(ops: DiffOp[]): string {
   let s = ''
   for (const op of ops) {
-    if (op.type === 'equal') s += op.text
+    if (op.type === 'equal') s += op.became
     else if (op.type === 'insert') s += colorWrap(GREEN, op.text)
     else if (op.type === 'replace') {
       s += colorWrap(YELLOW, `[U]${op.to}[/U]`)
@@ -808,7 +826,10 @@ function applyLawStructureHtml(html: string): string {
     }
     const list = /^([a-zа-яё])\)\s*/iu.exec(plain)
     if (list) {
-      out.push(`<div class="cg-law-indent">${wrapDiffCls(cls, line)}</div>`)
+      const rest = stripLeadingLabelHtml(line, /^[a-zа-яё]\)\s*/iu)
+      out.push(
+        `<div class="cg-law-indent"><span class="cg-law-label cg-law-list-label">${list[1]})</span> ${wrapDiffCls(cls, rest)}</div>`,
+      )
       continue
     }
     if (!line.trim()) {
