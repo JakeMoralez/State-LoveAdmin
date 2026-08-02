@@ -58,10 +58,10 @@ _LEGACY_TEXT_MAP: list[tuple[str, str]] = [
 
 
 def allowed_sphere_keys_for_level(level: int) -> tuple[str, ...]:
-    """1–4: сферы министерств; 5–6: структуры; 7+: сервер."""
+    """1–4: сферы министерств; 5–7: структуры; 8+: сервер."""
     if level >= AccessLevel.CURATOR:
         return (SERVER,)
-    if level >= AccessLevel.ZGS_GOS:
+    if level >= AccessLevel.STRUCTURE_SUPERVISOR:
         return STRUCTURE_SPHERE_KEYS
     return MINISTRY_SPHERE_KEYS
 
@@ -71,7 +71,7 @@ def effective_grantable_sphere_keys(actor_level: int, actor_spheres: list[str]) 
     grantable = set(actor_spheres or [])
     if actor_level >= AccessLevel.CURATOR:
         grantable |= set(allowed_sphere_keys_for_level(AccessLevel.CURATOR))
-    elif actor_level >= AccessLevel.ZGS_GOS:
+    elif actor_level >= AccessLevel.STRUCTURE_SUPERVISOR:
         grantable |= set(STRUCTURE_SPHERE_KEYS)
     return grantable
 
@@ -99,7 +99,7 @@ def validate_spheres(spheres: list[str], access_level: int | None = None) -> lis
         if bad:
             if access_level >= AccessLevel.CURATOR:
                 tier = "сервер"
-            elif access_level >= AccessLevel.ZGS_GOS:
+            elif access_level >= AccessLevel.STRUCTURE_SUPERVISOR:
                 tier = "государственные или нелегальные структуры"
             else:
                 tier = "сферы министерств (ЦА, МЮ, МО, МЗ)"
@@ -192,11 +192,15 @@ def migrate_legacy_sphere(
 
     if level >= AccessLevel.CURATOR and SERVER not in spheres:
         spheres.append(SERVER)
-    if level >= AccessLevel.ZGS_GOS and GOV_STRUCTURES not in spheres and GOV_STRUCTURES in allowed:
+    if (
+        level >= AccessLevel.STRUCTURE_SUPERVISOR
+        and GOV_STRUCTURES not in spheres
+        and GOV_STRUCTURES in allowed
+    ):
         spheres.append(GOV_STRUCTURES)
 
     if not spheres:
-        if level >= AccessLevel.ZGS_GOS:
+        if level >= AccessLevel.STRUCTURE_SUPERVISOR:
             spheres.append(GOV_STRUCTURES)
         elif level >= AccessLevel.CURATOR:
             spheres.append(SERVER)

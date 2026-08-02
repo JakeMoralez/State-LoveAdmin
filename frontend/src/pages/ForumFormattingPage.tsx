@@ -80,7 +80,7 @@ function StyleField({
 
 export function ForumFormattingPage() {
   const { user } = useAuth()
-  const canUse = (user?.access_level ?? 0) >= 5
+  const canUse = (user?.access_level ?? 0) >= 6
 
   const initialState = useRef(readInitialForumFormat())
   const [presetId, setPresetId] = useState(() => initialState.current.presetId)

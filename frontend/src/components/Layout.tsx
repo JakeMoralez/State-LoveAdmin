@@ -275,7 +275,7 @@ function LayoutShell() {
                   </div>
                 </div>
               ))}
-              {(user?.access_level ?? 0) >= 5 && (
+              {(user?.access_level ?? 0) >= 6 && (
                 <div className="sidebar-nav-group sidebar-nav-group--spaced sidebar-nav-group--rail-break">
                   <div className="sidebar-nav-category">Форум</div>
                   <div className="sidebar-nav-divider" aria-hidden />

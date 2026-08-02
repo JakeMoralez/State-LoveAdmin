@@ -6,12 +6,13 @@ export const ACCESS_LEVEL_SHORT: Record<number, string> = {
   2: 'Следящий',
   3: 'ЗГС',
   4: 'ГС',
-  5: 'ЗГС ГОС',
-  6: 'ГС ГОС',
-  7: 'Куратор',
-  8: 'ЗГА',
-  9: 'ГА',
-  10: 'Разработчик',
+  5: 'Следящий структуры',
+  6: 'ЗГС ГОС',
+  7: 'ГС ГОС',
+  8: 'Куратор',
+  9: 'ЗГА',
+  10: 'ГА',
+  11: 'Разработчик',
 }
 
 /** Полные названия ролей (колонка «Доступ» в реестре). */
@@ -20,12 +21,13 @@ export const ACCESS_ROLE_TITLES: Record<number, string> = {
   2: 'Следящий',
   3: 'Зам. Главного следящего сферы',
   4: 'Главный следящий сферы',
-  5: 'Зам. Главного следящего структуры',
-  6: 'Главный следящий структуры',
-  7: 'Куратор',
-  8: 'Зам. Главного Администратора',
-  9: 'Главный Администратор',
-  10: 'Разработчик',
+  5: 'Следящий структуры',
+  6: 'Зам. Главного следящего структуры',
+  7: 'Главный следящий структуры',
+  8: 'Куратор',
+  9: 'Зам. Главного Администратора',
+  10: 'Главный Администратор',
+  11: 'Разработчик',
 }
 
 export function accessLevelShort(level: number): string {
@@ -37,7 +39,7 @@ export function accessRoleTitle(level: number): string {
 }
 
 /** Все уровни доступа — подписи как в колонке «Доступ» реестра. */
-export const ACCESS_LEVEL_OPTIONS: SelectOption[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(
+export const ACCESS_LEVEL_OPTIONS: SelectOption[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(
   (level) => ({
     value: String(level),
     label: accessRoleTitle(level),
@@ -58,7 +60,7 @@ export function canEditLeadershipRegistry(
   actorVkId: number,
   targetVkId: number,
 ): boolean {
-  if (actorLevel >= 10) return true
+  if (actorLevel >= 11) return true
   return actorLevel >= LEADER_REGISTRY_MANAGE_MIN_LEVEL && actorVkId !== targetVkId
 }
 
@@ -68,7 +70,7 @@ export function canRemoveFromLeadershipRegistry(
   targetVkId: number,
 ): boolean {
   if (actorVkId === targetVkId) return false
-  return actorLevel >= LEADER_REGISTRY_MANAGE_MIN_LEVEL || actorLevel >= 10
+  return actorLevel >= LEADER_REGISTRY_MANAGE_MIN_LEVEL || actorLevel >= 11
 }
 
 export function canOpenLeaderSettings(

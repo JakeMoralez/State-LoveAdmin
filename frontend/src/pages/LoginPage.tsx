@@ -46,7 +46,7 @@ export function LoginPage() {
   const [vkGroupId, setVkGroupId] = useState<number | null>(null)
   const [defaultDevVkId, setDefaultDevVkId] = useState<number | null>(null)
   const [devVkId, setDevVkId] = useState('')
-  const [accessLevel, setAccessLevel] = useState('10')
+  const [accessLevel, setAccessLevel] = useState('11')
   const [devSpheres, setDevSpheres] = useState<string[]>(['central_apparatus'])
   const [levelOptions, setLevelOptions] = useState(ACCESS_LEVEL_OPTIONS)
 
@@ -72,9 +72,9 @@ export function LoginPage() {
           setDefaultDevVkId(null)
         }
         setLevelOptions(mergeAccessLevelOptions(cfg.access_levels))
-        const dev = (cfg.access_levels ?? []).find((l) => l.value === 10)
-        if (dev || ACCESS_LEVEL_OPTIONS.some((l) => l.value === '10')) {
-          setAccessLevel('10')
+        const dev = (cfg.access_levels ?? []).find((l) => l.value === 11)
+        if (dev || ACCESS_LEVEL_OPTIONS.some((l) => l.value === '11')) {
+          setAccessLevel('11')
         }
       })
       .catch(() => {

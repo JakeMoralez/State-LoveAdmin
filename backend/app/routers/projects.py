@@ -33,7 +33,7 @@ class ProjectUpdate(BaseModel):
     status: str | None = None
 
 
-CREATE_PROJECT_MIN_LEVEL = AccessLevel.CURATOR  # Lead+ (7+)
+CREATE_PROJECT_MIN_LEVEL = AccessLevel.CURATOR  # Lead+ (куратор+)
 
 
 def _can_create_project(user: dict) -> bool:

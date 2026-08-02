@@ -1,4 +1,4 @@
-export const DEVELOPER_LEVEL = 10
+export const DEVELOPER_LEVEL = 11
 export const DEFAULT_DEVELOPER_TAG = 'Разработчик'
 
 const LEVEL_NICK_TAGS: Record<number, string> = {
@@ -6,12 +6,13 @@ const LEVEL_NICK_TAGS: Record<number, string> = {
   2: 'След.',
   3: 'ЗГС',
   4: 'ГС',
-  5: 'ЗГС',
-  6: 'ГС',
-  7: 'Куратор',
-  8: 'ЗГА',
-  9: 'ГА',
-  10: 'Разработчик',
+  5: 'След.стр',
+  6: 'ЗГС',
+  7: 'ГС',
+  8: 'Куратор',
+  9: 'ЗГА',
+  10: 'ГА',
+  11: 'Разработчик',
 }
 
 const MINISTRY_NICK_TAGS: Record<string, string> = {
@@ -58,7 +59,7 @@ export function normalizeCustomTag(tag: string | null | undefined): string | nul
 }
 
 function pickSphereNickTag(spheres: string[], accessLevel: number): string | null {
-  if (accessLevel >= 7) return null
+  if (accessLevel >= 8) return null
 
   if (accessLevel >= 5) {
     if (spheres.includes('gov_structures')) {
@@ -92,7 +93,7 @@ export function formatStaffNickname(
 
   const levelTag = LEVEL_NICK_TAGS[accessLevel] ?? `Уровень ${accessLevel}`
 
-  if (accessLevel >= 7) {
+  if (accessLevel >= 8) {
     return `[${levelTag}] ${name}`
   }
 
@@ -105,9 +106,9 @@ export function isDeveloperLevel(level: number): boolean {
   return level >= DEVELOPER_LEVEL
 }
 
-/** Нужны выбранные сферы/структуры для тега (ур. 1–6). */
+/** Нужны выбранные сферы/структуры для тега (ур. 1–7). */
 export function nicknamePreviewNeedsSpheres(level: number): boolean {
-  return level >= 1 && level < 7
+  return level >= 1 && level < 8
 }
 
 export function previewStaffNickname(

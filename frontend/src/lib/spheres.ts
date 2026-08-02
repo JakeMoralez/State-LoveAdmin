@@ -27,7 +27,7 @@ const LABEL_BY_KEY = Object.fromEntries(SPHERE_OPTIONS.map((o) => [o.value, o.la
 >
 
 export function allowedSphereKeysForLevel(level: number): SphereKey[] {
-  if (level >= 7) return [...CURATOR_SPHERE_KEYS]
+  if (level >= 8) return [...CURATOR_SPHERE_KEYS]
   if (level >= 5) return [...STRUCTURE_SPHERE_KEYS]
   return [...MINISTRY_SPHERE_KEYS]
 }
@@ -35,7 +35,7 @@ export function allowedSphereKeysForLevel(level: number): SphereKey[] {
 /** Сферы, которые актор может выдавать и снимать у других. */
 export function effectiveGrantableSphereKeys(actorLevel: number, actorSpheres: string[]): string[] {
   const grantable = new Set(actorSpheres)
-  if (actorLevel >= 7) {
+  if (actorLevel >= 8) {
     for (const key of CURATOR_SPHERE_KEYS) grantable.add(key)
   } else if (actorLevel >= 5) {
     for (const key of STRUCTURE_SPHERE_KEYS) grantable.add(key)
@@ -54,13 +54,13 @@ export function filterSpheresForLevel(spheres: string[], level: number): string[
 }
 
 export function sphereFieldLabel(level: number): string {
-  if (level >= 7) return 'Сервер'
+  if (level >= 8) return 'Сервер'
   if (level >= 5) return 'Структуры'
   return 'Сферы'
 }
 
 export function sphereFieldHint(level: number): string {
-  if (level >= 7) {
+  if (level >= 8) {
     return 'Для куратора и выше — только сервер, тег сферы в ник не добавляется.'
   }
   if (level >= 5) {

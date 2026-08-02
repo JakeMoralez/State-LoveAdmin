@@ -77,7 +77,7 @@ export function AssignPage() {
   const maxAccessLevel = userLevel
   const actorSphereIds = user?.spheres ?? []
   const unrestrictedSphereAssign =
-    userLevel >= 10 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
+    userLevel >= 11 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
 
   const roleTypeOptions = useMemo(() => {
     if (userLevel >= 3) return [...ROLE_TYPE_OPTIONS]

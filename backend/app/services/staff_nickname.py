@@ -21,6 +21,7 @@ LEVEL_NICK_TAGS: dict[int, str] = {
     AccessLevel.SUPERVISOR: "След.",
     AccessLevel.ZGS: "ЗГС",
     AccessLevel.GS: "ГС",
+    AccessLevel.STRUCTURE_SUPERVISOR: "След.стр",
     AccessLevel.ZGS_GOS: "ЗГС",
     AccessLevel.GS_GOS: "ГС",
     AccessLevel.CURATOR: "Куратор",
@@ -92,13 +93,13 @@ def strip_nickname_tags(raw: str | None) -> str:
 def pick_sphere_nick_tag(spheres: list[str], access_level: int) -> str | None:
     """
     1–4: сферы министерств (МЮ&МО…).
-    5–6: структуры (Гос перебивает остальные, иначе Нелег&…).
-    7+: без тега сферы.
+    5–7: структуры (Гос перебивает остальные, иначе Нелег&…).
+    8+: без тега сферы.
     """
     if access_level >= AccessLevel.CURATOR:
         return None
 
-    if access_level >= AccessLevel.ZGS_GOS:
+    if access_level >= AccessLevel.STRUCTURE_SUPERVISOR:
         if GOV_STRUCTURES in spheres:
             return STRUCTURE_NICK_TAGS[GOV_STRUCTURES]
         tags = [
