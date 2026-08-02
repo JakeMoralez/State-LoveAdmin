@@ -6,7 +6,7 @@ const LEVEL_NICK_TAGS: Record<number, string> = {
   2: 'След.',
   3: 'ЗГС',
   4: 'ГС',
-  5: 'След.стр',
+  5: 'След.',
   6: 'ЗГС',
   7: 'ГС',
   8: 'Куратор',
@@ -63,6 +63,8 @@ function pickSphereNickTag(spheres: string[], accessLevel: number): string | nul
 
   if (accessLevel >= 5) {
     if (spheres.includes('gov_structures')) {
+      // Следящий структуры + Гос → [След. ГОС]
+      if (accessLevel === 5) return 'ГОС'
       return STRUCTURE_NICK_TAGS.gov_structures
     }
     const tags = STRUCTURE_NICK_TAG_ORDER.filter(
@@ -128,8 +130,11 @@ export function isLegacyStaffTag(tag: string): boolean {
   const t = tag.trim()
   if (!t) return true
   if (/^Уровень\s/i.test(t)) return true
-  const levelTags = ['ПГС', 'След.', 'ЗГС', 'ГС', 'Куратор', 'ЗГА', 'ГА', 'Разработчик']
-  return levelTags.includes(t)
+  const levelTags = ['ПГС', 'След.', 'След.стр', 'ЗГС', 'ГС', 'Куратор', 'ЗГА', 'ГА', 'Разработчик']
+  if (levelTags.includes(t)) return true
+  // Составные теги уровня+сферы (в т.ч. старый След.стр Гос)
+  if (/^(ПГС|След\.|След\.стр|ЗГС|ГС)\s/.test(t)) return true
+  return false
 }
 
 /** Тег разработчика из сохранённого ника (без legacy «ЗГС МО»). */

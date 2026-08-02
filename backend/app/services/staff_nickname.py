@@ -21,7 +21,7 @@ LEVEL_NICK_TAGS: dict[int, str] = {
     AccessLevel.SUPERVISOR: "След.",
     AccessLevel.ZGS: "ЗГС",
     AccessLevel.GS: "ГС",
-    AccessLevel.STRUCTURE_SUPERVISOR: "След.стр",
+    AccessLevel.STRUCTURE_SUPERVISOR: "След.",
     AccessLevel.ZGS_GOS: "ЗГС",
     AccessLevel.GS_GOS: "ГС",
     AccessLevel.CURATOR: "Куратор",
@@ -101,6 +101,9 @@ def pick_sphere_nick_tag(spheres: list[str], access_level: int) -> str | None:
 
     if access_level >= AccessLevel.STRUCTURE_SUPERVISOR:
         if GOV_STRUCTURES in spheres:
+            # Следящий структуры + Гос → [След. ГОС], не [След.стр Гос]
+            if access_level == AccessLevel.STRUCTURE_SUPERVISOR:
+                return "ГОС"
             return STRUCTURE_NICK_TAGS[GOV_STRUCTURES]
         tags = [
             STRUCTURE_NICK_TAGS[key]
