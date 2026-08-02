@@ -355,6 +355,19 @@ textarea.control::-webkit-scrollbar-button,
   color: var(--sl-text);
 }
 
+.select-option-disabled,
+.select-option:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.select-option-disabled:hover,
+.select-option:disabled:hover {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.35);
+}
+
 .dp-panel {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #0a0a0e;

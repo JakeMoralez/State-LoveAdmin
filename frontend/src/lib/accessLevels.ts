@@ -42,7 +42,7 @@ export function accessRoleTitle(level: number): string {
 export const ACCESS_LEVEL_OPTIONS: SelectOption[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(
   (level) => ({
     value: String(level),
-    label: accessRoleTitle(level),
+    label: `${level} · ${accessRoleTitle(level)}`,
   }),
 )
 
@@ -50,6 +50,31 @@ export function mergeAccessLevelOptions(
   _fromApi?: { value: number; label: string }[],
 ): SelectOption[] {
   return ACCESS_LEVEL_OPTIONS
+}
+
+/**
+ * Все уровни 1–11 всегда в списке.
+ * Выше лимита выдачи — disabled (видно, но не выбрать).
+ * Разработчик / owner / ур.≥10 (миграция со старой шкалы) — всё доступно.
+ */
+export function grantableAccessLevelOptions(
+  actorLevel: number,
+  opts?: { isDeveloper?: boolean; allowEqual?: boolean },
+): SelectOption[] {
+  const isDev =
+    Boolean(opts?.isDeveloper) || actorLevel >= 11 || actorLevel >= 10
+  let max: number
+  if (isDev) {
+    max = 11
+  } else if (opts?.allowEqual) {
+    max = Math.min(Math.max(0, actorLevel), 11)
+  } else {
+    max = Math.min(Math.max(0, actorLevel - 1), 11)
+  }
+  return ACCESS_LEVEL_OPTIONS.map((opt) => ({
+    ...opt,
+    disabled: parseInt(opt.value, 10) > max,
+  }))
 }
 
 /** Назначение и правка реестра «Руководство» — Следящий (2+), не свой профиль; разработчик — любые. */

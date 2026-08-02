@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
-import { ACCESS_LEVEL_OPTIONS } from '../../lib/accessLevels'
+import { grantableAccessLevelOptions } from '../../lib/accessLevels'
 import { formatSpheresDisplay } from '../../lib/spheres'
 import {
   DEFAULT_DEVELOPER_TAG,
@@ -133,13 +133,14 @@ export function StaffProfileModal({
     }
   }, [parsedLevel, canEditAccessLevel])
 
-  const levelOptions = useMemo(
-    () =>
-      ACCESS_LEVEL_OPTIONS.filter(
-        (opt) => parseInt(opt.value, 10) <= permissions.max_access_level,
-      ),
-    [permissions.max_access_level],
-  )
+  const levelOptions = useMemo(() => {
+    const max = permissions.max_access_level
+    // max_access_level с API уже «строго ниже своего»; allowEqual — чтобы потолок входил в список
+    return grantableAccessLevelOptions(max, {
+      isDeveloper: max >= 10 || (user?.access_level ?? 0) >= 10,
+      allowEqual: true,
+    })
+  }, [permissions.max_access_level, user?.access_level])
 
   const nicknamePreview = useMemo(() => {
     if (!member) return ''

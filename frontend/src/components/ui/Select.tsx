@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils'
 export interface SelectOption {
   value: string
   label: string
+  disabled?: boolean
 }
 
 interface SelectProps {
@@ -23,7 +24,7 @@ export function recordToOptions(record: Record<string, string>): SelectOption[] 
 }
 
 function menuHeight(optionCount: number) {
-  return Math.min(optionCount * 40 + 8, 224)
+  return Math.min(optionCount * 40 + 8, 320)
 }
 
 export function Select({
@@ -106,20 +107,29 @@ export function Select({
       <ul ref={menuRef} role="listbox" className="select-menu select-menu--portal ll-scroll">
         {options.map((opt) => {
           const active = opt.value === value
+          const optDisabled = Boolean(opt.disabled)
           return (
-            <li key={opt.value} role="option" aria-selected={active}>
+            <li key={opt.value} role="option" aria-selected={active} aria-disabled={optDisabled}>
               <button
                 type="button"
+                disabled={optDisabled}
                 onMouseDown={(e) => e.preventDefault()}
                 onPointerDown={(e) => {
                   e.preventDefault()
+                  if (optDisabled) return
                   onChange(opt.value)
                   setOpen(false)
                 }}
-                className={cn('select-option', active && 'select-option-active')}
+                className={cn(
+                  'select-option',
+                  active && 'select-option-active',
+                  optDisabled && 'select-option-disabled',
+                )}
               >
                 <span className="truncate">{opt.label}</span>
-                {active && <Check size={14} className="shrink-0 text-[var(--accent-gold)]" />}
+                {active && !optDisabled && (
+                  <Check size={14} className="shrink-0 text-[var(--accent-gold)]" />
+                )}
               </button>
             </li>
           )

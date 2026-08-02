@@ -427,7 +427,7 @@ body {
     position: absolute;
     z-index: 60;
     margin-top: 4px;
-    max-height: 14rem;
+    max-height: 20rem;
     width: 100%;
     overflow: auto;
     border-radius: var(--radius-input);

@@ -4,7 +4,7 @@ import { Navigate, useSearchParams } from 'react-router-dom'
 import { ApiError, api, type AssignRoleType } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
-import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
+import { grantableAccessLevelOptions } from '../lib/accessLevels'
 import { JUDGE_POSITIONS, looksLikeVkInput } from '../lib/judgePositions'
 import { looksLikeDiscordId } from '../lib/discordId'
 import { forumAccountForApi, parseForumMemberUrl } from '../lib/forumAccount'
@@ -77,7 +77,7 @@ export function AssignPage() {
   const maxAccessLevel = userLevel
   const actorSphereIds = user?.spheres ?? []
   const unrestrictedSphereAssign =
-    userLevel >= 11 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
+    userLevel >= 10 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
 
   const roleTypeOptions = useMemo(() => {
     if (userLevel >= 3) return [...ROLE_TYPE_OPTIONS]
@@ -112,8 +112,12 @@ export function AssignPage() {
   }, [parsedLevel, roleType])
 
   const levelOptions = useMemo(
-    () => ACCESS_LEVEL_OPTIONS.filter((opt) => parseInt(opt.value, 10) <= maxAccessLevel),
-    [maxAccessLevel],
+    () =>
+      grantableAccessLevelOptions(maxAccessLevel, {
+        isDeveloper: unrestrictedSphereAssign,
+        allowEqual: true,
+      }),
+    [maxAccessLevel, unrestrictedSphereAssign],
   )
 
   const judgePositionOptions = useMemo(
