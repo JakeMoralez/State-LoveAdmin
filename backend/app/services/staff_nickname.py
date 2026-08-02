@@ -14,7 +14,8 @@ from app.services.staff_spheres import (
     JUSTICE,
 )
 
-_TAG_PREFIX_RE = re.compile(r"^(\[[^\]]+\])\s*")
+_TAG_PREFIX_RE = re.compile(r"^[\[［]([^\］\]]+)[\]］]\s*")
+
 
 LEVEL_NICK_TAGS: dict[int, str] = {
     AccessLevel.PGS: "ПГС",
@@ -56,12 +57,12 @@ STRUCTURE_NICK_TAG_ORDER: tuple[str, ...] = (
 
 
 def extract_leading_nickname_tag(raw: str | None) -> str | None:
-    """Первый [тег] из ника."""
+    """Первый [тег] из ника (в т.ч. полноширинные ［］ из VK)."""
     rest = (raw or "").strip()
     match = _TAG_PREFIX_RE.match(rest)
     if not match:
         return None
-    inner = match.group(1)[1:-1].strip()
+    inner = match.group(1).strip()
     return inner or None
 
 
@@ -69,16 +70,16 @@ def normalize_custom_tag(tag: str | None) -> str | None:
     """Пустой → None (дефолт «Разработчик»)."""
     if tag is None:
         return None
-    t = tag.strip().strip("[]").strip()
+    t = tag.strip().strip("[]［］").strip()
     if not t:
         return None
-    if len(t) > 24 or "[" in t or "]" in t:
+    if len(t) > 24 or "[" in t or "]" in t or "［" in t or "］" in t:
         raise ValueError("Тег: до 24 символов, без скобок")
     return t
 
 
 def strip_nickname_tags(raw: str | None) -> str:
-    """Имя без префикса [тег …]."""
+    """Имя без префикса [тег …] / ［тег …］."""
     rest = (raw or "").strip()
     if not rest:
         return ""
@@ -88,6 +89,24 @@ def strip_nickname_tags(raw: str | None) -> str:
             break
         rest = rest[match.end() :].strip()
     return rest
+
+
+def rewrite_legacy_nickname_tags(nickname: str) -> str:
+    """Старые теги → актуальные (на случай ника, сохранённого до смены)."""
+    text = (nickname or "").strip()
+    if not text:
+        return text
+    replacements = (
+        ("След.стр Гос", "След. ГОС"),
+        ("След.стр ГОС", "След. ГОС"),
+        ("ЗГС Гос", "ЗГС ГОС"),
+        ("ГС Гос", "ГС ГОС"),
+        ("След.стр", "След."),
+    )
+    for old, new in replacements:
+        text = text.replace(f"[{old}]", f"[{new}]")
+        text = text.replace(f"［{old}］", f"[{new}]")
+    return text.replace("［", "[").replace("］", "]")
 
 
 def pick_sphere_nick_tag(spheres: list[str], access_level: int) -> str | None:

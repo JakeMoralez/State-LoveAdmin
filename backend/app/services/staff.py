@@ -16,6 +16,7 @@ from app.services.staff_nickname import (
     extract_leading_nickname_tag,
     format_staff_nickname,
     normalize_custom_tag,
+    rewrite_legacy_nickname_tags,
     strip_nickname_tags,
 )
 from app.services.staff_spheres import (
@@ -493,6 +494,8 @@ async def _persist_member_nickname(
         raise ValueError("Пользователь не найден")
 
     nick = nickname.strip() if nickname else ""
+    if nick:
+        nick = rewrite_legacy_nickname_tags(nick)
     value = nick or None
 
     if nick:

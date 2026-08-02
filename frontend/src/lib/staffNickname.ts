@@ -31,7 +31,7 @@ const STRUCTURE_NICK_TAGS: Record<string, string> = {
 
 const STRUCTURE_NICK_TAG_ORDER = ['gov_structures', 'illegal_structures']
 
-const TAG_PREFIX_RE = /^(\[[^\]]+\])\s*/
+const TAG_PREFIX_RE = /^[\[［]([^］\]]+)[\]］]\s*/
 
 export function stripStaffNicknameTags(raw: string | null | undefined): string {
   let rest = (raw ?? '').trim()
@@ -48,13 +48,13 @@ export function extractNicknameTag(raw: string | null | undefined): string {
   const rest = (raw ?? '').trim()
   const match = TAG_PREFIX_RE.exec(rest)
   if (!match) return ''
-  return match[1].slice(1, -1).trim()
+  return match[1].trim()
 }
 
 export function normalizeCustomTag(tag: string | null | undefined): string | null {
-  const t = (tag ?? '').trim().replace(/^\[|\]$/g, '').trim()
+  const t = (tag ?? '').trim().replace(/^[\[［]|[\]］]$/g, '').trim()
   if (!t) return null
-  if (t.length > 24 || t.includes('[') || t.includes(']')) return null
+  if (t.length > 24 || /[\[\]［］]/.test(t)) return null
   return t
 }
 
@@ -145,10 +145,10 @@ export function developerTagFromNickname(raw: string | null | undefined): string
 export function validateDeveloperTagInput(tag: string): string | null {
   const raw = tag.trim()
   if (!raw) return null
-  const t = raw.replace(/^\[|\]$/g, '').trim()
+  const t = raw.replace(/^[\[［]|[\]］]$/g, '').trim()
   if (!t) return null
   if (t.length > 24) return 'Тег: до 24 символов'
-  if (t.includes('[') || t.includes(']')) return 'Тег без скобок'
+  if (/[\[\]［］]/.test(t)) return 'Тег без скобок'
   if (isLegacyStaffTag(t)) return 'Это тег уровня/сферы, не кастомный тег разработчика'
   return null
 }
