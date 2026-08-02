@@ -1,4 +1,4 @@
-"""Staff nickname tags: [ЗГС МЮ&МО] / [ЗГС Гос] / [Куратор] Имя."""
+"""Staff nickname tags: [ЗГС МЮ&МО] / [ЗГС ГОС] / [След. ГОС] / [Куратор] Имя."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ MINISTRY_NICK_TAG_ORDER: tuple[str, ...] = (
 )
 
 STRUCTURE_NICK_TAGS: dict[str, str] = {
-    GOV_STRUCTURES: "Гос",
+    GOV_STRUCTURES: "ГОС",
     ILLEGAL_STRUCTURES: "Нелег",
 }
 
@@ -93,7 +93,7 @@ def strip_nickname_tags(raw: str | None) -> str:
 def pick_sphere_nick_tag(spheres: list[str], access_level: int) -> str | None:
     """
     1–4: сферы министерств (МЮ&МО…).
-    5–7: структуры (Гос перебивает остальные, иначе Нелег&…).
+    5–7: структуры (ГОС перебивает остальные, иначе Нелег&…).
     8+: без тега сферы.
     """
     if access_level >= AccessLevel.CURATOR:
@@ -101,9 +101,6 @@ def pick_sphere_nick_tag(spheres: list[str], access_level: int) -> str | None:
 
     if access_level >= AccessLevel.STRUCTURE_SUPERVISOR:
         if GOV_STRUCTURES in spheres:
-            # Следящий структуры + Гос → [След. ГОС], не [След.стр Гос]
-            if access_level == AccessLevel.STRUCTURE_SUPERVISOR:
-                return "ГОС"
             return STRUCTURE_NICK_TAGS[GOV_STRUCTURES]
         tags = [
             STRUCTURE_NICK_TAGS[key]

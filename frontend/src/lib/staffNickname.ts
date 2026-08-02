@@ -25,7 +25,7 @@ const MINISTRY_NICK_TAGS: Record<string, string> = {
 const MINISTRY_NICK_TAG_ORDER = ['central_apparatus', 'justice', 'defense', 'health']
 
 const STRUCTURE_NICK_TAGS: Record<string, string> = {
-  gov_structures: 'Гос',
+  gov_structures: 'ГОС',
   illegal_structures: 'Нелег',
 }
 
@@ -63,8 +63,6 @@ function pickSphereNickTag(spheres: string[], accessLevel: number): string | nul
 
   if (accessLevel >= 5) {
     if (spheres.includes('gov_structures')) {
-      // Следящий структуры + Гос → [След. ГОС]
-      if (accessLevel === 5) return 'ГОС'
       return STRUCTURE_NICK_TAGS.gov_structures
     }
     const tags = STRUCTURE_NICK_TAG_ORDER.filter(
