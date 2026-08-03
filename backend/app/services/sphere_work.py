@@ -116,7 +116,11 @@ def user_sphere_set(user: dict) -> set[str]:
 
 
 def visible_work_spheres(user: dict) -> list[str]:
-    """Вкладки: только назначенные сферы; Гос/Нелег/Сервер — все операционные; разработчик — все."""
+    """Вкладки: только назначенные сферы; Гос/Нелег/Сервер — все операционные; разработчик — все.
+
+    ЗГС/ГС сфер (ур. 3–4) с министерской сферой дополнительно видят «Государственные структуры»
+    (банки вопросов и остальная работа по Гос).
+    """
     if _has_full_work_sphere_access(user):
         return _operational_work_sphere_list()
 
@@ -128,6 +132,10 @@ def visible_work_spheres(user: dict) -> list[str]:
 
     if GOV_STRUCTURES in mine or ILLEGAL_STRUCTURES in mine or SERVER in mine:
         visible |= _ALL_OPERATIONAL
+
+    level = int(user.get("access_level") or 0)
+    if AccessLevel.ZGS <= level <= AccessLevel.GS and (mine & _MINISTRY):
+        visible.add(GOV_STRUCTURES)
 
     # «Сервер» — право видеть все сферы, отдельного чеклиста/задач нет
     visible.discard(SERVER)

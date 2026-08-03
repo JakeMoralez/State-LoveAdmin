@@ -63,7 +63,7 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
     page: 'Задачи',
     path: '/tasks',
     portal: 'ПГС (1+)',
-    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    sphere: 'Назначенные; ЗГС/ГС сфер (+Гос); Гос./Нелег./Сервер — все операционные',
     actions: 'Создание/удаление: ЗГС (3+) или lead проекта',
   },
   {
@@ -71,7 +71,7 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
     page: 'Чеклист',
     path: '/checklist',
     portal: 'ПГС (1+)',
-    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    sphere: 'Назначенные; ЗГС/ГС сфер (+Гос); Гос./Нелег./Сервер — все операционные',
     actions: 'Чужие ячейки и настройки: ЗГС (3+)',
   },
   {
@@ -79,7 +79,7 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
     page: 'Проекты',
     path: '/projects',
     portal: 'ПГС (1+)',
-    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    sphere: 'Назначенные; ЗГС/ГС сфер (+Гос); Гос./Нелег./Сервер — все операционные',
     actions: 'Создание: куратор (8+) или owner',
   },
   {
@@ -87,7 +87,7 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
     page: 'Банки вопросов',
     path: '/question-banks',
     portal: 'ПГС (1+)',
-    sphere: 'Назначенные; Гос./Нелег./Сервер — все операционные',
+    sphere: 'Назначенные; ЗГС/ГС сфер (+Гос); Гос./Нелег./Сервер — все операционные',
     actions: 'Добавление — min_submit_level банка; модерация — min_approve_level',
   },
   {
