@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.config import MAIN_ADMIN_ID
 from app.models.bot import AccessLevel
+from app.services.staff_spheres import effective_grantable_sphere_keys
 
 # Судьи / конгресс: назначение и правка реестра «Руководство» — Следящий (2)+
 LEADER_REGISTRY_EDIT_MIN_LEVEL = AccessLevel.SUPERVISOR
