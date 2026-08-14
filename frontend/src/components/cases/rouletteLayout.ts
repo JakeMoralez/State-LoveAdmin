@@ -327,7 +327,7 @@ export const RARITY_OPTIONS = [
   { value: 'legendary', label: 'Легендарный', className: 'case-prize-card--legendary' },
 ] as const
 
-/** Относительный шанс редкости. Сначала выбирается редкость, затем случайный приз этой редкости. */
+/** Относительный шанс редкости. Затем внутри редкости — по количеству в ленте (weight). */
 export const RARITY_DROP_WEIGHT: Record<string, number> = {
   '': 50,
   uncommon: 25,
@@ -336,24 +336,30 @@ export const RARITY_DROP_WEIGHT: Record<string, number> = {
   legendary: 2,
 }
 
+function prizeCopies(prize: { weight?: number }): number {
+  const w = Math.floor(Number(prize.weight) || 1)
+  return Number.isFinite(w) && w >= 1 ? w : 1
+}
+
 export function dropChanceRatio(
-  prize: { rarity_label: string },
-  prizes: { rarity_label: string }[],
+  prize: { rarity_label: string; weight?: number },
+  prizes: { rarity_label: string; weight?: number }[],
 ): number {
   if (prizes.length === 0) return 0
-  const buckets = new Map<string, number>()
+  const copiesByRarity = new Map<string, number>()
   for (const item of prizes) {
     const rarity = normalizeRarity(item.rarity_label)
-    buckets.set(rarity, (buckets.get(rarity) ?? 0) + 1)
+    copiesByRarity.set(rarity, (copiesByRarity.get(rarity) ?? 0) + prizeCopies(item))
   }
   let rarityTotal = 0
-  for (const rarity of buckets.keys()) {
+  for (const rarity of copiesByRarity.keys()) {
     rarityTotal += RARITY_DROP_WEIGHT[rarity] ?? RARITY_DROP_WEIGHT['']
   }
   if (rarityTotal <= 0) return 1 / prizes.length
   const rarity = normalizeRarity(prize.rarity_label)
-  const share = (RARITY_DROP_WEIGHT[rarity] ?? RARITY_DROP_WEIGHT['']) / rarityTotal
-  return share / (buckets.get(rarity) ?? 1)
+  const rarityShare = (RARITY_DROP_WEIGHT[rarity] ?? RARITY_DROP_WEIGHT['']) / rarityTotal
+  const rarityCopies = copiesByRarity.get(rarity) ?? 1
+  return rarityShare * (prizeCopies(prize) / rarityCopies)
 }
 
 export function formatDropChance(ratio: number): string {

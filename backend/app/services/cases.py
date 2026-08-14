@@ -100,7 +100,7 @@ def normalize_rarity(label: str) -> str:
     return key
 
 
-# Сначала выбирается редкость, затем случайный приз этой редкости.
+# Сначала редкость, затем приз внутри редкости с учётом «в ленте» (weight).
 RARITY_DROP_WEIGHT = {
     "": 50,
     "uncommon": 25,
@@ -110,15 +110,20 @@ RARITY_DROP_WEIGHT = {
 }
 
 
+def _prize_copies(prize: LootCasePrize) -> int:
+    return max(1, int(getattr(prize, "weight", 1) or 1))
+
+
 def pick_weighted_prize(prizes: list[LootCasePrize]) -> LootCasePrize:
     buckets: dict[str, list[LootCasePrize]] = {}
     for prize in prizes:
         rarity = normalize_rarity(prize.rarity_label)
         buckets.setdefault(rarity, []).append(prize)
     keys = list(buckets)
-    weights = [RARITY_DROP_WEIGHT.get(key, RARITY_DROP_WEIGHT[""]) for key in keys]
-    rarity = random.choices(keys, weights=weights, k=1)[0]
-    return random.choice(buckets[rarity])
+    rarity_weights = [RARITY_DROP_WEIGHT.get(key, RARITY_DROP_WEIGHT[""]) for key in keys]
+    rarity = random.choices(keys, weights=rarity_weights, k=1)[0]
+    pool = buckets[rarity]
+    return random.choices(pool, weights=[_prize_copies(p) for p in pool], k=1)[0]
 
 
 async def spin_case(case_id: int) -> dict:

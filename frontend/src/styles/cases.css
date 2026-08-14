@@ -701,7 +701,20 @@
 }
 
 .case-prize-card-image--lg {
-  min-height: 8rem;
+  width: 4.5rem;
+  height: 4.5rem;
+  min-height: 4.5rem;
+  flex: none;
+  padding: 0.35rem;
+}
+
+.case-prize-card-image--lg img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.case-roulette-result-card .case-prize-card-placeholder {
+  font-size: 1.5rem;
 }
 
 .case-prize-card-placeholder {
@@ -750,16 +763,16 @@
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  padding: 1rem;
-  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
   background: rgba(255, 255, 255, 0.04);
   border: 2px solid rgba(75, 85, 99, 0.9);
-  min-width: 12rem;
+  min-width: 9rem;
 }
 
 .case-roulette-result-title {
-  margin-top: 0.75rem;
-  font-size: 1.125rem;
+  margin-top: 0.5rem;
+  font-size: 0.9375rem;
   font-weight: 700;
 }
 
