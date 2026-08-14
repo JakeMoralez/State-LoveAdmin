@@ -83,6 +83,9 @@ export function LeaderMemberPage() {
           has_ca_access: false,
           server_id: member.server_id ?? 30,
           badges: member.badges?.length ? member.badges : ['🛡'],
+          discord_id: member.discord_id,
+          discord_username: member.discord_username,
+          discord_display_name: member.discord_display_name,
           sphere: member.note || undefined,
         }}
         backTo={{ label: 'Руководство', href: '/leaders' }}

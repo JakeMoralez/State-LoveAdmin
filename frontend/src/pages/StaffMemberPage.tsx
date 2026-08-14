@@ -87,6 +87,10 @@ export function StaffMemberPage() {
           badges: member.badges,
           sphere: member.sphere,
           spheres: member.spheres,
+          discord_id: member.discord_id,
+          discord_username: member.discord_username,
+          discord_display_name: member.discord_display_name,
+          granted_at: member.granted_at,
         }}
         backTo={{ label: 'Следящие', href: '/staff' }}
       />

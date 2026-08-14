@@ -21,6 +21,9 @@ export function ProfilePage() {
         dev_persona: user.dev_persona,
         sphere: user.sphere,
         spheres: user.spheres,
+        discord_id: user.discord_id,
+        discord_username: user.discord_username,
+        discord_display_name: user.discord_display_name,
       }}
       showQuickLinks
     />

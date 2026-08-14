@@ -11,7 +11,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/forum/judge-list': 'Список судей',
   '/forum/formatting': 'Форматирование',
   '/projects': 'Проекты',
-  '/profile': 'Профиль',
+  '/profile': 'Кабинет',
   '/dev': 'Лог ошибок',
   '/dev/leadership': 'Флаги руководства',
   '/dev/cases': 'Кейсы',

@@ -44,7 +44,7 @@ function formatDetail(detail: Record<string, unknown>, action: string): string |
       const ch = level as { from_name?: string; to_name?: string; from?: unknown; to?: unknown }
       const from = ch.from_name ?? ch.from
       const to = ch.to_name ?? ch.to
-      if (from != null && to != null) bits.push(`уровень: ${from} → ${to}`)
+      if (from != null && to != null) bits.push(`[Было: ${from} | Стало: ${to}]`)
     }
     if (detail.nickname) bits.push('ник')
     if (detail.spheres) bits.push('сферы')

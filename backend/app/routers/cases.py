@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import random
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.routers.dev import require_dev_user
@@ -27,7 +29,7 @@ class CaseCreate(BaseModel):
     description: str = ""
     cover_image_url: str = ""
     is_active: bool = True
-    spin_duration_ms: int = Field(default=12000, ge=MIN_SPIN_DURATION_MS, le=MAX_SPIN_DURATION_MS)
+    spin_duration_ms: int = Field(default=28000, ge=MIN_SPIN_DURATION_MS, le=MAX_SPIN_DURATION_MS)
 
 
 class CaseUpdate(BaseModel):
@@ -44,6 +46,19 @@ class PrizeCreate(BaseModel):
     weight: int = Field(default=1, ge=1, le=10000)
     sort_order: int = 0
     rarity_label: str = Field(default="", max_length=64)
+
+
+class PrizeBulkItem(BaseModel):
+    title: str = Field(min_length=1, max_length=256)
+    image_url: str = ""
+    weight: int = Field(default=1, ge=1, le=10000)
+    sort_order: int | None = None
+    rarity_label: str = Field(default="", max_length=64)
+
+
+class PrizeBulkImport(BaseModel):
+    prizes: list[PrizeBulkItem] = Field(min_length=1, max_length=200)
+    replace: bool = False
 
 
 class PrizeUpdate(BaseModel):
@@ -144,6 +159,62 @@ async def create_prize(
         {"case_id": case_id, "title": prize.title},
     )
     return serialize_prize(prize)
+
+
+@router.post("/{case_id}/prizes/bulk")
+async def import_prizes(
+    case_id: int,
+    body: PrizeBulkImport,
+    user: dict = Depends(require_dev_user),
+):
+    case = await get_case_or_404(case_id)
+    if body.replace:
+        await LootCasePrize.filter(case_id=case_id).delete()
+        start_order = 0
+    else:
+        start_order = await LootCasePrize.filter(case_id=case_id).count()
+
+    created: list[LootCasePrize] = []
+    for i, item in enumerate(body.prizes):
+        prize = await LootCasePrize.create(
+            case_id=case_id,
+            title=item.title.strip(),
+            image_url=(item.image_url or "").strip(),
+            weight=item.weight,
+            sort_order=item.sort_order if item.sort_order is not None else start_order + i,
+            rarity_label=(item.rarity_label or "").strip(),
+        )
+        created.append(prize)
+
+    await log_audit(
+        user["vk_id"],
+        "loot_case_prize_bulk",
+        "loot_case",
+        case_id,
+        {"replace": body.replace, "count": len(created), "titles": [p.title for p in created[:30]]},
+    )
+    return await serialize_case(case, include_prizes=True)
+
+
+@router.post("/{case_id}/prizes/shuffle")
+async def shuffle_prizes(case_id: int, user: dict = Depends(require_dev_user)):
+    case = await get_case_or_404(case_id)
+    prizes = await LootCasePrize.filter(case_id=case_id)
+    if len(prizes) < 2:
+        raise HTTPException(status_code=400, detail="Нужно минимум 2 приза")
+    order = list(range(len(prizes)))
+    random.shuffle(order)
+    for prize, sort_order in zip(prizes, order):
+        prize.sort_order = sort_order
+        await prize.save(update_fields=["sort_order"])
+    await log_audit(
+        user["vk_id"],
+        "loot_case_prize_shuffle",
+        "loot_case",
+        case_id,
+        {"count": len(prizes)},
+    )
+    return await serialize_case(case, include_prizes=True)
 
 
 @router.patch("/{case_id}/prizes/{prize_id}")

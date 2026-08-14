@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from tortoise.expressions import Q
+
 from app.models.bot import AccessLevel
 from app.models.panel import PanelAuditLog
 from app.services.display_names import resolve_display_names
@@ -13,7 +15,7 @@ VIEW_MIN_LEVEL = AccessLevel.SUPERVISOR
 ACTION_MESSAGES: dict[str, str] = {
     # Следящие и назначения
     "staff_assign": "назначил следящим",
-    "staff_update": "изменил карточку следящего",
+    "staff_update": "изменил должность",
     "staff_revoke": "снял доступ следящего",
     "judge_assign": "назначил судьёй",
     "congress_assign": "назначил в конгресс",
@@ -123,6 +125,31 @@ def _detail_suffix(action: str, detail: dict | None) -> str:
     return ""
 
 
+def _format_staff_update(
+    actor_name: str,
+    target_name: str | None,
+    detail: dict,
+) -> str:
+    who = f" {target_name}" if target_name else ""
+    level = detail.get("access_level")
+    if isinstance(level, dict):
+        old = level.get("from_name") or level.get("from") or "—"
+        new = level.get("to_name") or level.get("to") or "—"
+        return f"{actor_name} изменил должность{who} [Было: {old} | Стало: {new}]"
+    if detail.get("spheres") is not None:
+        spheres = detail.get("spheres_display") or format_spheres_display(
+            list(detail.get("spheres") or [])
+        )
+        return f"{actor_name} изменил сферы{who} [Стало: {spheres or '—'}]"
+    if detail.get("nickname"):
+        return f"{actor_name} изменил ник{who}"
+    if detail.get("has_ca_access") is not None:
+        state = "выдан" if detail.get("has_ca_access") else "снят"
+        return f"{actor_name} изменил доступ к порталу{who} [Стало: {state}]"
+    suffix = _detail_suffix("staff_update", detail)
+    return f"{actor_name} изменил карточку следящего{who}{suffix}"
+
+
 def format_activity_message(
     action: str,
     *,
@@ -130,6 +157,8 @@ def format_activity_message(
     target_name: str | None = None,
     detail: dict | None = None,
 ) -> str:
+    if action == "staff_update":
+        return _format_staff_update(actor_name, target_name, detail or {})
     verb = action_label(action)
     if target_name:
         suffix = _detail_suffix(action, detail)
@@ -178,10 +207,14 @@ async def list_activity(
     limit: int = 50,
     offset: int = 0,
     q: str | None = None,
+    vk_id: int | None = None,
 ) -> dict:
     qs = PanelAuditLog.all().order_by("-created_at")
+    if vk_id is not None:
+        sid = str(int(vk_id))
+        qs = qs.filter(Q(actor_vk_id=int(vk_id)) | Q(entity_id=sid))
+    total = await qs.count()
     rows = await qs.offset(offset).limit(min(limit, 100))
-    total = await PanelAuditLog.all().count()
 
     vk_ids: set[int] = {row.actor_vk_id for row in rows}
     for row in rows:

@@ -10,13 +10,15 @@ from fastapi import HTTPException
 from app.models.panel import LootCase, LootCasePrize
 
 MIN_PRIZES_FOR_SPIN = 2
-DEFAULT_SPIN_DURATION_MS = 12000
+DEFAULT_SPIN_DURATION_MS = 28000
+LEGACY_SPIN_DURATION_MS = 12000
+LEGACY_SPIN_DURATION_MS_V2 = 20000
 MIN_SPIN_DURATION_MS = 3000
-MAX_SPIN_DURATION_MS = 30000
+MAX_SPIN_DURATION_MS = 45000
 
 
 def normalize_spin_duration_ms(value: int | None) -> int:
-    if value is None:
+    if value is None or int(value) in (LEGACY_SPIN_DURATION_MS, LEGACY_SPIN_DURATION_MS_V2):
         return DEFAULT_SPIN_DURATION_MS
     return max(MIN_SPIN_DURATION_MS, min(MAX_SPIN_DURATION_MS, int(value)))
 
@@ -83,9 +85,40 @@ async def list_spin_prizes(case_id: int) -> list[LootCasePrize]:
     return prizes
 
 
+def normalize_rarity(label: str) -> str:
+    key = (label or "").strip().lower()
+    if not key or key == "common" or "обыч" in key:
+        return ""
+    if "legend" in key or "легенд" in key:
+        return "legendary"
+    if "epic" in key or "эпич" in key:
+        return "epic"
+    if "uncommon" in key or "необыч" in key:
+        return "uncommon"
+    if "rare" in key or "редк" in key:
+        return "rare"
+    return key
+
+
+# Сначала выбирается редкость, затем случайный приз этой редкости.
+RARITY_DROP_WEIGHT = {
+    "": 50,
+    "uncommon": 25,
+    "rare": 12,
+    "epic": 5,
+    "legendary": 2,
+}
+
+
 def pick_weighted_prize(prizes: list[LootCasePrize]) -> LootCasePrize:
-    weights = [max(1, int(p.weight)) for p in prizes]
-    return random.choices(prizes, weights=weights, k=1)[0]
+    buckets: dict[str, list[LootCasePrize]] = {}
+    for prize in prizes:
+        rarity = normalize_rarity(prize.rarity_label)
+        buckets.setdefault(rarity, []).append(prize)
+    keys = list(buckets)
+    weights = [RARITY_DROP_WEIGHT.get(key, RARITY_DROP_WEIGHT[""]) for key in keys]
+    rarity = random.choices(keys, weights=weights, k=1)[0]
+    return random.choice(buckets[rarity])
 
 
 async def spin_case(case_id: int) -> dict:

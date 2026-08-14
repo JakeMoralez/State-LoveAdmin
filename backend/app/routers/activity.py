@@ -15,12 +15,14 @@ async def get_activity_log(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     q: str | None = None,
+    vk_id: int | None = Query(None),
     user: dict = Depends(require_ca_user),
 ):
     level = int(user.get("access_level") or 0)
-    if level < VIEW_MIN_LEVEL:
+    own = vk_id is not None and int(vk_id) == int(user["vk_id"])
+    if not own and level < VIEW_MIN_LEVEL:
         raise HTTPException(
             status_code=403,
             detail="Журнал действий доступен с уровня Следящий (2)+",
         )
-    return await list_activity(limit=limit, offset=offset, q=q)
+    return await list_activity(limit=limit, offset=offset, q=q, vk_id=vk_id)

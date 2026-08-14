@@ -1,13 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Gift, Pencil, Play, Save, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ClipboardCopy, Gift, ListPlus, Pencil, Play, Save, Shuffle, Trash2 } from 'lucide-react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ApiError, api, type LootCaseDetail, type LootCasePrize } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { ImageUploadButton } from '../components/ui/ImageUpload'
 import { NumberStepper } from '../components/ui/NumberStepper'
 import { CaseRarityPicker } from '../components/cases/CaseRarityPicker'
-import { rarityLabel, normalizeRarity, DEFAULT_SPIN_DURATION_MS, MIN_SPIN_DURATION_MS, MAX_SPIN_DURATION_MS } from '../components/cases/rouletteLayout'
+import { formatPrizeConfig, parsePrizeConfig } from '../components/cases/parsePrizeConfig'
+import { rarityLabel, normalizeRarity, dropChanceRatio, formatDropChance, DEFAULT_SPIN_DURATION_MS, MIN_SPIN_DURATION_MS, MAX_SPIN_DURATION_MS, resolveSpinDurationMs } from '../components/cases/rouletteLayout'
 import { useAuth } from '../context/AuthContext'
+
+const PRIZE_LIST_PLACEHOLDER = `1кк | 20 | легендарный
+5кк | 15 | эпический
+20кк | 10 | редкий
+Иммунитет выговора | 1
+10 баллов | 30 | обычный`
 
 type PrizeDraft = {
   title: string
@@ -41,6 +48,10 @@ export function LootCaseEditPage() {
   const [error, setError] = useState<string | null>(null)
   const [prizeDraft, setPrizeDraft] = useState<PrizeDraft>(emptyPrizeDraft)
   const [editingPrizeId, setEditingPrizeId] = useState<number | null>(null)
+  const [prizeListText, setPrizeListText] = useState('')
+  const [replacePrizes, setReplacePrizes] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [shuffling, setShuffling] = useState(false)
 
   const load = useCallback(() => {
     if (!Number.isFinite(caseId)) return
@@ -54,7 +65,7 @@ export function LootCaseEditPage() {
         setDescription(res.description)
         setCoverImageUrl(res.cover_image_url)
         setIsActive(res.is_active)
-        setSpinDurationSec(Math.round((res.spin_duration_ms ?? DEFAULT_SPIN_DURATION_MS) / 1000))
+        setSpinDurationSec(Math.round(resolveSpinDurationMs(res.spin_duration_ms) / 1000))
       })
       .catch((e: unknown) => {
         setError(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка загрузки')
@@ -81,7 +92,7 @@ export function LootCaseEditPage() {
         spin_duration_ms: spinDurationSec * 1000,
       })
       setData(updated)
-      setSpinDurationSec(Math.round((updated.spin_duration_ms ?? DEFAULT_SPIN_DURATION_MS) / 1000))
+      setSpinDurationSec(Math.round(resolveSpinDurationMs(updated.spin_duration_ms) / 1000))
     } catch (e: unknown) {
       window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения')
     } finally {
@@ -111,7 +122,7 @@ export function LootCaseEditPage() {
       image_url: prize.image_url,
       weight: String(prize.weight),
       sort_order: String(prize.sort_order),
-          rarity_label: normalizeRarity(prize.rarity_label),
+      rarity_label: normalizeRarity(prize.rarity_label),
     })
   }
 
@@ -123,7 +134,7 @@ export function LootCaseEditPage() {
     const weight = Number(prizeDraft.weight)
     const sortOrder = Number(prizeDraft.sort_order)
     if (!Number.isFinite(weight) || weight < 1) {
-      window.alert('Вес должен быть >= 1')
+      window.alert('Количество в ленте должно быть не меньше 1')
       return
     }
     try {
@@ -148,6 +159,76 @@ export function LootCaseEditPage() {
       load()
     } catch (e: unknown) {
       window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения приза')
+    }
+  }
+
+  const parsedList = useMemo(() => parsePrizeConfig(prizeListText), [prizeListText])
+
+  const importPrizeList = async () => {
+    const { prizes, errors } = parsePrizeConfig(prizeListText)
+    if (errors.length) {
+      window.alert(errors.slice(0, 8).join('\n') + (errors.length > 8 ? `\n…ещё ${errors.length - 8}` : ''))
+      return
+    }
+    if (prizes.length === 0) {
+      window.alert('Вставьте список: каждая строка «название | количество | редкость»')
+      return
+    }
+    if (replacePrizes && data?.prizes.length) {
+      if (!window.confirm(`Удалить текущие ${data.prizes.length} призов и добавить ${prizes.length} из списка?`)) {
+        return
+      }
+    }
+    setImporting(true)
+    try {
+      const updated = await api.importDevCasePrizes(caseId, {
+        replace: replacePrizes,
+        prizes: prizes.map((p, i) => ({
+          title: p.title,
+          weight: p.weight,
+          rarity_label: p.rarity,
+          sort_order: (replacePrizes ? 0 : data?.prizes.length ?? 0) + i,
+        })),
+      })
+      setData(updated)
+      setTitle(updated.title)
+      setDescription(updated.description)
+      setCoverImageUrl(updated.cover_image_url)
+      setIsActive(updated.is_active)
+      setSpinDurationSec(Math.round(resolveSpinDurationMs(updated.spin_duration_ms) / 1000))
+      setPrizeListText('')
+    } catch (e: unknown) {
+      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка импорта списка')
+      load()
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const copyCurrentList = async () => {
+    const text = formatPrizeConfig(data?.prizes ?? [])
+    if (!text) {
+      window.alert('Пока нет призов, чтобы скопировать')
+      return
+    }
+    setPrizeListText(text)
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      /* textarea already filled */
+    }
+  }
+
+  const shufflePrizes = async () => {
+    if (!data || data.prizes.length < 2 || shuffling) return
+    setShuffling(true)
+    try {
+      const updated = await api.shuffleDevCasePrizes(caseId)
+      setData(updated)
+    } catch (e: unknown) {
+      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось перемешать')
+    } finally {
+      setShuffling(false)
     }
   }
 
@@ -259,8 +340,69 @@ export function LootCaseEditPage() {
         <h2 className="case-section-title">Призы</h2>
 
         <p className="case-section-hint">
-          Минимум 2 приза. Сервер выбирает победителя по весам — чем выше вес, тем чаще выпадает.
+          Шанс выпадения задаёт редкость: обычный падает чаще, легендарный — редко.
+          Число «в ленте» только для рулетки, на шанс не влияет.
+          В списке: «1кк | 20 | легендарный».
         </p>
+
+        <div className="case-prize-bulk">
+          <div className="case-prize-bulk-head">
+            <span className="case-field-label">Список</span>
+            {data.prizes.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyCurrentList()}>
+                  <ClipboardCopy size={14} />
+                  Скопировать текущий
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={data.prizes.length < 2 || shuffling}
+                  onClick={() => void shufflePrizes()}
+                >
+                  <Shuffle size={14} />
+                  Перемешать
+                </button>
+              </div>
+            )}
+          </div>
+          <textarea
+            className="control w-full case-prize-bulk-textarea"
+            rows={10}
+            spellCheck={false}
+            placeholder={PRIZE_LIST_PLACEHOLDER}
+            value={prizeListText}
+            onChange={(e) => setPrizeListText(e.target.value)}
+          />
+          <div className="case-prize-bulk-foot">
+            <label className="ui-checkbox-label text-sm text-white/70">
+              <input
+                type="checkbox"
+                className="ui-checkbox"
+                checked={replacePrizes}
+                onChange={(e) => setReplacePrizes(e.target.checked)}
+              />
+              <span className="ui-checkbox-box" />
+              Заменить текущие призы
+            </label>
+            <span className="case-prize-bulk-meta">
+              {parsedList.errors.length
+                ? `${parsedList.errors.length} ошибок`
+                  : parsedList.prizes.length
+                    ? `${parsedList.prizes.length} призов`
+                    : 'название | кол-во | редкость'}
+            </span>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              disabled={importing || parsedList.prizes.length === 0}
+              onClick={() => void importPrizeList()}
+            >
+              <ListPlus size={16} />
+              {importing ? 'Добавление…' : replacePrizes ? 'Загрузить список' : 'Добавить списком'}
+            </button>
+          </div>
+        </div>
 
         <div className="case-prize-form">
           <label className="case-field">
@@ -273,15 +415,17 @@ export function LootCaseEditPage() {
             />
           </label>
           <label className="case-field">
-            <span className="case-field-label">Шанс (вес)</span>
+            <span className="case-field-label">Сколько раз в ленте</span>
             <NumberStepper
-              ariaLabel="Шанс выпадения"
+              ariaLabel="Количество в ленте"
               min={1}
-              max={100}
+              max={200}
               value={Number(prizeDraft.weight) || 1}
               onChange={(v) => setPrizeDraft((d) => ({ ...d, weight: String(v) }))}
             />
-            <span className="case-field-hint">1 = базовый шанс. При весе 5 приз выпадает ~в 5 раз чаще, чем при весе 1.</span>
+            <span className="case-field-hint">
+              Сколько карточек этого приза видно в рулетке. На шанс выпадения не влияет.
+            </span>
           </label>
           <label className="case-field">
             <span className="case-field-label">Порядок в рулетке</span>
@@ -295,11 +439,14 @@ export function LootCaseEditPage() {
             <span className="case-field-hint">Меньше число — левее в ленте. Обычно 0, 1, 2…</span>
           </label>
           <div className="case-field case-field--full">
-            <span className="case-field-label">Редкость (цвет рамки)</span>
+            <span className="case-field-label">Редкость (шанс и цвет рамки)</span>
             <CaseRarityPicker
               value={prizeDraft.rarity_label}
               onChange={(v) => setPrizeDraft((d) => ({ ...d, rarity_label: v }))}
             />
+            <span className="case-field-hint">
+              Обычный — самый частый, легендарный — самый редкий. Призы одной редкости делят шанс поровну.
+            </span>
           </div>
           <div className="case-field case-field--image">
             <span className="case-field-label">Картинка приза</span>
@@ -335,8 +482,9 @@ export function LootCaseEditPage() {
               <div>#</div>
               <div>Картинка</div>
               <div>Название</div>
-              <div>Шанс</div>
+              <div>В ленте</div>
               <div>Редкость</div>
+              <div>Шанс</div>
               <div />
             </div>
             {data.prizes.map((prize, i) => (
@@ -351,7 +499,8 @@ export function LootCaseEditPage() {
                 </div>
                 <div>{prize.title}</div>
                 <div>{prize.weight}</div>
-                <div>{prize.rarity_label ? rarityLabel(prize.rarity_label) : '—'}</div>
+                <div>{rarityLabel(prize.rarity_label)}</div>
+                <div>{formatDropChance(dropChanceRatio(prize, data.prizes))}</div>
                 <div className="case-prizes-row-actions">
                   <button
                     type="button"

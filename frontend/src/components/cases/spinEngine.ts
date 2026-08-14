@@ -1,57 +1,58 @@
-/** rAF / WAAPI-движок прокрутки */
+/** rAF-движок прокрутки — короткая лента в DOM, без WAAPI-сжатия слоя */
 
-/** Плавная кривая без скачков скорости (ease-out quint) */
+/** Почти ровный ход и мягкая остановка — без пика, на котором карточки смазываются. */
 export function spinEase(t: number): number {
   if (t <= 0) return 0
   if (t >= 1) return 1
-  return 1 - Math.pow(1 - t, 4.2)
+  const kickEnd = 0.05
+  const power = 1.28
+  const restTime = 1 - kickEnd
+  const kickDist = (kickEnd * power) / (2 * restTime + kickEnd * power)
+  if (t < kickEnd) {
+    const u = t / kickEnd
+    return kickDist * u * u
+  }
+  const u = (t - kickEnd) / restTime
+  return kickDist + (1 - kickDist) * (1 - Math.pow(1 - u, power))
 }
 
 export interface SpinAnimatorOptions {
-  element: HTMLElement
   startX: number
   endX: number
   durationMs: number
+  onFrame?: (t: number, x: number) => void
   onComplete?: (x: number) => void
 }
 
-const KEYFRAME_STEPS = 100
-
-function buildSpinKeyframes(startX: number, endX: number): Keyframe[] {
-  const keyframes: Keyframe[] = []
-  for (let i = 0; i <= KEYFRAME_STEPS; i++) {
-    const t = i / KEYFRAME_STEPS
-    const x = startX + (endX - startX) * spinEase(t)
-    keyframes.push({
-      transform: `translate3d(${x}px, 0, 0)`,
-      offset: t,
-    })
-  }
-  return keyframes
+function roundPx(x: number): number {
+  return Math.round(x)
 }
 
-/** Анимация на compositor через Web Animations API */
+/** Анимация через rAF: позиция в целых/полупикселях, без гигантского compositor-слоя */
 export function runSpinAnimator(options: SpinAnimatorOptions): () => void {
-  const { element, startX, endX, durationMs, onComplete } = options
+  const { startX, endX, durationMs, onFrame, onComplete } = options
+  const dist = endX - startX
+  let raf = 0
+  let stopped = false
+  const t0 = performance.now()
 
-  element.getAnimations().forEach((a) => a.cancel())
-  element.style.transition = 'none'
-  element.style.transform = `translate3d(${startX}px, 0, 0)`
+  const tick = (now: number) => {
+    if (stopped) return
+    const t = Math.min(1, Math.max(0, (now - t0) / Math.max(1, durationMs)))
+    const x = roundPx(startX + dist * spinEase(t))
+    onFrame?.(t, x)
+    if (t >= 1) {
+      onComplete?.(roundPx(endX))
+      return
+    }
+    raf = requestAnimationFrame(tick)
+  }
 
-  const animation = element.animate(buildSpinKeyframes(startX, endX), {
-    duration: durationMs,
-    easing: 'linear',
-    fill: 'forwards',
-  })
+  onFrame?.(0, roundPx(startX))
+  raf = requestAnimationFrame(tick)
 
-  void animation.finished
-    .then(() => {
-      element.style.transform = `translate3d(${endX}px, 0, 0)`
-      onComplete?.(endX)
-    })
-    .catch(() => {
-      /* cancelled */
-    })
-
-  return () => animation.cancel()
+  return () => {
+    stopped = true
+    cancelAnimationFrame(raf)
+  }
 }

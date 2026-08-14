@@ -40,14 +40,19 @@ function formatApiDetail(detail: unknown): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
-    ...init,
-  })
+  let res: Response
+  try {
+    res = await fetch(`${API}${path}`, {
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...init?.headers,
+      },
+      ...init,
+    })
+  } catch {
+    throw new ApiError(0, 'Сервер не ответил. Запустите API или обновите страницу.')
+  }
   if (!res.ok) {
     let detail = res.statusText
     try {
@@ -356,6 +361,16 @@ export const api = {
     }),
   deleteDevCasePrize: (caseId: number, prizeId: number) =>
     request<{ ok: boolean }>(`/dev/cases/${caseId}/prizes/${prizeId}`, { method: 'DELETE' }),
+  importDevCasePrizes: (
+    caseId: number,
+    body: { prizes: LootCasePrizeBody[]; replace?: boolean },
+  ) =>
+    request<LootCaseDetail>(`/dev/cases/${caseId}/prizes/bulk`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  shuffleDevCasePrizes: (caseId: number) =>
+    request<LootCaseDetail>(`/dev/cases/${caseId}/prizes/shuffle`, { method: 'POST' }),
   spinDevCase: (caseId: number) =>
     request<LootCaseSpinResult>(`/dev/cases/${caseId}/spin`, { method: 'POST' }),
   judgeForumListServers: () =>
@@ -383,11 +398,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  activityLog: (params?: { q?: string; limit?: number; offset?: number }) => {
+  activityLog: (params?: { q?: string; limit?: number; offset?: number; vk_id?: number }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
     if (params?.limit != null) q.set('limit', String(params.limit))
     if (params?.offset != null) q.set('offset', String(params.offset))
+    if (params?.vk_id != null) q.set('vk_id', String(params.vk_id))
     const s = q.toString()
     return request<ActivityLogResponse>(`/activity${s ? `?${s}` : ''}`)
   },

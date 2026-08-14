@@ -341,7 +341,7 @@ function LayoutShell() {
             <span className="mobile-top-bar-title">{mobilePageTitle}</span>
           </div>
           {user && (
-            <NavLink to="/profile" className="mobile-top-bar-avatar" aria-label="Профиль">
+            <NavLink to="/profile" className="mobile-top-bar-avatar" aria-label="Личный кабинет">
               <img
                 src={user.avatar_url || DEFAULT_AVATAR}
                 alt=""

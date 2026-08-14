@@ -24,6 +24,22 @@ STATUS_LABELS: dict[str, str] = {
     "cancelled": "Отменена",
 }
 
+TASK_TYPE_LABELS: dict[str, str] = {
+    "assignment": "Поручение",
+    "check": "Проверка",
+    "report": "Отчёт",
+    "bug": "Баг",
+}
+
+STATUS_EMOJI: dict[str, str] = {
+    "backlog": "📥",
+    "todo": "📌",
+    "in_progress": "▶️",
+    "review": "👀",
+    "done": "✅",
+    "cancelled": "🚫",
+}
+
 
 def assignee_ids(task: Task) -> list[int]:
     raw = task.assignee_vk_ids or []
@@ -69,3 +85,13 @@ def format_due_display(due_date: date | None, due_time: str | None) -> str:
     if due_time:
         return f"{base}, {due_time}"
     return base
+
+
+def task_watchers(task: Task, *, exclude: int | None = None) -> list[int]:
+    """Исполнители + постановщик, без автора действия."""
+    ids: set[int] = set(assignee_ids(task))
+    if task.reporter_vk_id:
+        ids.add(int(task.reporter_vk_id))
+    if exclude:
+        ids.discard(int(exclude))
+    return sorted(ids)

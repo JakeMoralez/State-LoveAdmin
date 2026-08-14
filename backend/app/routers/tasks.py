@@ -22,12 +22,21 @@ from app.services.sphere_work import (
     work_item_sphere_filter,
 )
 from app.services.display_names import resolve_display_name, resolve_display_names, resolve_vk_photos
-from app.services.task_helpers import assignee_ids as _assignee_ids, format_due_display, STATUS_LABELS
+from app.services.task_helpers import (
+    PRIORITY_LABELS,
+    STATUS_EMOJI,
+    STATUS_LABELS,
+    assignee_ids as _assignee_ids,
+    format_due_display,
+    task_watchers,
+)
 from app.services.vk_notify import (
-    notify_reporter_task_update,
+    format_priority_line,
+    format_status_line,
+    format_type_line,
     notify_task_assigned,
     notify_task_comment,
-    notify_task_status,
+    notify_task_event,
 )
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -215,6 +224,40 @@ def _parse_due(value: str | date | None) -> tuple[date | None, str | None]:
     return date.fromisoformat(raw), None
 
 
+def _label_names(labels) -> str:
+    names = []
+    for item in _normalize_labels(labels):
+        name = str(item.get("name") or "").strip()
+        if name:
+            names.append(name)
+    return ", ".join(names) if names else "—"
+
+
+def _actor_name(user: dict) -> str:
+    return str(user.get("nickname") or user.get("vk_id") or "")
+
+
+async def _notify_assignees(
+    vk_ids: list[int] | set[int],
+    task: Task,
+    actor_name: str,
+    *,
+    exclude: int | None = None,
+) -> None:
+    due = format_due_display(task.due_date, task.due_time) if task.due_date else None
+    for vid in vk_ids:
+        if exclude and vid == exclude:
+            continue
+        await notify_task_assigned(
+            vid,
+            task.id,
+            task.title,
+            actor_name,
+            due_display=due,
+            priority=task.priority,
+        )
+
+
 def _serialize_task(t: Task) -> dict:
     ids = _assignee_ids(t)
     return {
@@ -332,16 +375,16 @@ async def create_task(
         due_time=due_t,
         labels=_normalize_labels(body.labels),
     )
-    for vid in assignee_ids:
-        if vid != user["vk_id"]:
-            await notify_task_assigned(
-                vid,
-                task.id,
-                task.title,
-                user.get("nickname") or str(user["vk_id"]),
-                due_display=format_due_display(task.due_date, task.due_time) if task.due_date else None,
-                priority=task.priority,
-            )
+    actor_name = _actor_name(user)
+    await _notify_assignees(assignee_ids, task, actor_name, exclude=user["vk_id"])
+    if not assignee_ids and task.reporter_vk_id != user["vk_id"]:
+        await notify_task_event(
+            [task.reporter_vk_id],
+            task.id,
+            task.title,
+            f"📋 Создана задача ({actor_name})",
+            [format_status_line(task.status), format_priority_line(task.priority)],
+        )
     await log_audit(user["vk_id"], "task_create", "task", task.id, {"title": task.title})
     return _serialize_task(task)
 
@@ -405,8 +448,17 @@ async def update_task(
         raise HTTPException(status_code=404, detail="Задача не найдена")
     if not _can_edit_task(user, task):
         raise HTTPException(status_code=403, detail="Недостаточно прав")
+
+    old_title = task.title
+    old_description = task.description or ""
     old_status = task.status
+    old_priority = task.priority
+    old_type = task.task_type
     old_assignees = set(_assignee_ids(task))
+    old_project_id = task.project_id
+    old_due = format_due_display(task.due_date, task.due_time) if task.due_date else ""
+    old_labels = _label_names(task.labels)
+
     if body.title is not None:
         task.title = body.title
     if body.description is not None:
@@ -432,35 +484,65 @@ async def update_task(
     if body.labels is not None:
         task.labels = _normalize_labels(body.labels)
     await task.save()
+
     new_assignees = set(_assignee_ids(task))
-    actor_name = user.get("nickname") or str(user["vk_id"])
-    for vid in new_assignees - old_assignees:
-        await notify_task_assigned(
-            vid,
+    actor_name = _actor_name(user)
+    actor_id = user["vk_id"]
+    added = new_assignees - old_assignees
+    removed = old_assignees - new_assignees
+    await _notify_assignees(added, task, actor_name, exclude=actor_id)
+    if removed:
+        await notify_task_event(
+            removed - {actor_id},
             task.id,
             task.title,
-            actor_name,
-            due_display=format_due_display(task.due_date, task.due_time) if task.due_date else None,
-            priority=task.priority,
+            f"👤 Вас сняли с задачи ({actor_name})",
         )
+
+    details: list[str] = []
     if task.status != old_status:
-        for vid in _assignee_ids(task):
-            if vid != user["vk_id"]:
-                await notify_task_status(
-                    vid,
-                    task.id,
-                    task.title,
-                    task.status,
-                    by_name=actor_name,
-                )
-        if task.reporter_vk_id != user["vk_id"] and task.status in ("review", "done"):
-            label = STATUS_LABELS.get(task.status, task.status)
-            await notify_reporter_task_update(
-                task.reporter_vk_id,
-                task.id,
-                task.title,
-                f"📋 Задача {label.lower()} ({actor_name})",
+        details.append(f"{format_status_line(old_status)} → {STATUS_LABELS.get(task.status, task.status)}")
+    if task.priority != old_priority:
+        details.append(
+            f"{format_priority_line(old_priority)} → {PRIORITY_LABELS.get(task.priority, task.priority)}"
+        )
+    if (task.task_type or "assignment") != (old_type or "assignment"):
+        details.append(format_type_line(task.task_type or "assignment"))
+    if task.title != old_title:
+        details.append(f"Название: {old_title} → {task.title}")
+    if (task.description or "") != old_description:
+        details.append("Описание обновлено")
+    new_due = format_due_display(task.due_date, task.due_time) if task.due_date else ""
+    if new_due != old_due:
+        details.append(f"Срок: {old_due or 'без срока'} → {new_due or 'без срока'}")
+    new_labels = _label_names(task.labels)
+    if new_labels != old_labels:
+        details.append(f"Метки: {new_labels}")
+    if task.project_id != old_project_id:
+        if task.project_id:
+            project = await Project.get_or_none(id=task.project_id)
+            details.append(f"Проект: {project.title if project else f'#{task.project_id}'}")
+        else:
+            details.append("Проект снят")
+    if added or removed:
+        names = await resolve_display_names(new_assignees)
+        if new_assignees:
+            details.append(
+                "Исполнители: "
+                + ", ".join(names.get(vid) or f"id{vid}" for vid in sorted(new_assignees))
             )
+        else:
+            details.append("Исполнители: не назначен")
+
+    watchers = set(task_watchers(task, exclude=actor_id)) | (removed - {actor_id})
+    watchers -= added
+    if details and watchers:
+        headline = f"📋 Задача обновлена ({actor_name})"
+        if len(details) == 1 and task.status != old_status:
+            emoji = STATUS_EMOJI.get(task.status, "📋")
+            headline = f"{emoji} Задача — {STATUS_LABELS.get(task.status, task.status)} ({actor_name})"
+        await notify_task_event(watchers, task.id, task.title, headline, details)
+
     await log_audit(user["vk_id"], "task_update", "task", task.id, {"status": task.status})
     return _serialize_task(task)
 
@@ -472,9 +554,20 @@ async def delete_task(task_id: int, user: dict = Depends(require_ca_user)):
     task = await Task.get_or_none(id=task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
+    watchers = task_watchers(task, exclude=user["vk_id"])
+    title = task.title
+    task_pk = task.id
     await TaskComment.filter(task_id=task_id).delete()
     await TaskAttachment.filter(task_id=task_id).delete()
     await task.delete()
+    if watchers:
+        await notify_task_event(
+            watchers,
+            task_pk,
+            title,
+            f"🗑 Задача удалена ({_actor_name(user)})",
+            with_link=False,
+        )
     await log_audit(user["vk_id"], "task_delete", "task", task_id, {})
     return {"ok": True}
 
@@ -492,8 +585,7 @@ async def add_comment(
         task=task, author_vk_id=user["vk_id"], body=body.body
     )
     author_name = await resolve_display_name(user["vk_id"])
-    notify_targets = set(_assignee_ids(task)) | {task.reporter_vk_id}
-    notify_targets.discard(user["vk_id"])
+    notify_targets = task_watchers(task, exclude=user["vk_id"])
     for vid in notify_targets:
         await notify_task_comment(
             vid,
@@ -521,6 +613,16 @@ async def add_attachment(
     if not task:
         raise HTTPException(status_code=404, detail="Задача не найдена")
     att = await TaskAttachment.create(task=task, url=body.url, title=body.title)
+    watchers = task_watchers(task, exclude=user["vk_id"])
+    if watchers:
+        label = (body.title or "").strip() or "файл"
+        await notify_task_event(
+            watchers,
+            task.id,
+            task.title,
+            f"📎 Вложение добавлено ({_actor_name(user)})",
+            [label],
+        )
     return {"id": att.id, "url": att.url, "title": att.title}
 
 
@@ -538,5 +640,15 @@ async def delete_attachment(
     att = await TaskAttachment.get_or_none(id=attachment_id, task_id=task_id)
     if not att:
         raise HTTPException(status_code=404, detail="Вложение не найдено")
+    att_title = (att.title or "").strip() or "файл"
     await att.delete()
+    watchers = task_watchers(task, exclude=user["vk_id"])
+    if watchers:
+        await notify_task_event(
+            watchers,
+            task.id,
+            task.title,
+            f"📎 Вложение удалено ({_actor_name(user)})",
+            [att_title],
+        )
     return {"ok": True}
