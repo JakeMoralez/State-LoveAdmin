@@ -14,6 +14,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/profile': 'Профиль',
   '/dev': 'Лог ошибок',
   '/dev/leadership': 'Флаги руководства',
+  '/dev/cases': 'Кейсы',
 }
 
 export function getMobilePageTitle(pathname: string): string {
@@ -22,6 +23,8 @@ export function getMobilePageTitle(pathname: string): string {
   if (pathname.startsWith('/projects/')) return 'Проект'
   if (pathname.includes('/question-banks/') && pathname.endsWith('/review')) return 'Проверка'
   if (pathname.startsWith('/question-banks/')) return 'Банк вопросов'
+  if (pathname.startsWith('/dev/cases/') && pathname.endsWith('/spin')) return 'Прокрутка кейса'
+  if (pathname.startsWith('/dev/cases/')) return 'Кейс'
 
   const exact = ROUTE_TITLES[pathname]
   if (exact) return exact

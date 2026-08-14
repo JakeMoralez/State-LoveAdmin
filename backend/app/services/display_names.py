@@ -43,7 +43,9 @@ async def resolve_bot_nickname(
     if access is None:
         access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     if access and access.nickname and access.nickname.strip():
-        return access.nickname.strip()
+        from app.services.staff_nickname import rewrite_legacy_nickname_tags
+
+        return rewrite_legacy_nickname_tags(access.nickname.strip())
     return None
 
 

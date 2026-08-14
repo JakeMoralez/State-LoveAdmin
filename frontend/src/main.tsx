@@ -16,6 +16,7 @@ import './styles/activity.css'
 import './styles/forum-formatting.css'
 import './styles/congress.css'
 import './styles/datepicker.css'
+import './styles/cases.css'
 import App from './App.tsx'
 import { installGlobalErrorHandlers } from './lib/errorReporter'
 

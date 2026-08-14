@@ -883,6 +883,16 @@ async def sync_spheres_from_bot(
         current = [s for s in current if s != CENTRAL_APPARATUS]
 
     if not current:
-        current = [DEFENSE] if not grant_central_apparatus else [CENTRAL_APPARATUS]
+        if grant_central_apparatus:
+            current = [CENTRAL_APPARATUS]
+        elif level > AccessLevel.PGS:
+            return list(panel.spheres or [])
+        else:
+            panel.spheres = []
+            panel.updated_by = updated_by
+            await panel.save(update_fields=["spheres", "updated_by", "updated_at"])
+            if access:
+                await sync_ca_access_from_spheres(access, [])
+            return []
 
     return await _persist_staff_spheres(vk_id, server_id, current, granted_by=updated_by)

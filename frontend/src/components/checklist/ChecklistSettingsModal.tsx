@@ -107,13 +107,9 @@ export function ChecklistSettingsModal({
     )
   }
 
-  const persistSettings = async () => {
+  const saveTasks = async () => {
     if (tasks.length === 0) {
       setError('Нужна хотя бы одна задача')
-      return
-    }
-    if (selectedCount === 0) {
-      setError('Выберите хотя бы одну колонку')
       return
     }
     setSaving(true)
@@ -130,7 +126,6 @@ export function ChecklistSettingsModal({
         },
         sphere,
       )
-      await api.updateChecklistMembers({ vk_ids: selectedIds }, sphere)
       onSaved()
       onClose()
     } catch (e: unknown) {
@@ -140,12 +135,22 @@ export function ChecklistSettingsModal({
     }
   }
 
-  const saveTasks = async () => {
-    await persistSettings()
-  }
-
   const saveMembers = async () => {
-    await persistSettings()
+    if (selectedCount === 0) {
+      setError('Выберите хотя бы одну колонку')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await api.updateChecklistMembers({ vk_ids: selectedIds }, sphere)
+      onSaved()
+      onClose()
+    } catch (e: unknown) {
+      setError(formatError(e))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const enableMyColumn = async () => {

@@ -17,6 +17,9 @@
   /* Layout semantics */
   --page-pad-x: var(--space-4);
   --page-pad-y: var(--space-4);
+  --app-top-bar-height: 2.75rem;
+  --app-top-bar-profile-reserve: 9rem;
+  --scrollbar-size: 6px;
   --page-stack-gap: var(--space-3);
   --section-gap: var(--space-6);
   --toolbar-gap: var(--space-2);

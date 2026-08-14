@@ -6,13 +6,13 @@ import {
   ClipboardCheck,
   FolderKanban,
   Gavel,
+  Gift,
   History,
   KeyRound,
   LayoutDashboard,
   Library,
   LogOut,
   Menu,
-  Shield,
   TextQuote,
   Users,
   UserPlus,
@@ -54,7 +54,6 @@ const navCategories: NavCategory[] = [
     title: 'Команда',
     items: [
       { to: '/staff', label: 'Следящие', icon: Users },
-      { to: '/leaders', label: 'Руководство', icon: Shield },
       { to: '/assign', label: 'Назначить', icon: UserPlus, minAccessLevel: 2 },
       { to: '/activity', label: 'Журнал', icon: History, minAccessLevel: 2 },
     ],
@@ -306,7 +305,7 @@ function LayoutShell() {
                     <SidebarNavLink
                       collapsed={sidebarCollapsed}
                       onNavigate={closeMobile}
-                      item={{ to: '/dev/leadership', label: 'Флаги руководства', icon: Shield }}
+                      item={{ to: '/dev/cases', label: 'Кейсы', icon: Gift }}
                     />
                     <SidebarNavLink
                       collapsed={sidebarCollapsed}

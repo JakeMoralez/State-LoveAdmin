@@ -1,10 +1,13 @@
+import { rewriteLegacyNicknameTags } from './staffNickname'
+
 export function staffLabel(m: {
   display_name?: string
   nickname: string
   bot_nickname?: string | null
   vk_id?: number
 }): string {
-  return m.bot_nickname || m.display_name || m.nickname || (m.vk_id != null ? String(m.vk_id) : '')
+  const raw = m.bot_nickname || m.display_name || m.nickname || (m.vk_id != null ? String(m.vk_id) : '')
+  return rewriteLegacyNicknameTags(raw)
 }
 
 /** Parse "[TAG] Name" from staff display label */

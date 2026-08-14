@@ -33,6 +33,23 @@ const STRUCTURE_NICK_TAG_ORDER = ['gov_structures', 'illegal_structures']
 
 const TAG_PREFIX_RE = /^[\[［]([^］\]]+)[\]］]\s*/
 
+export function rewriteLegacyNicknameTags(nickname: string): string {
+  let text = (nickname ?? '').trim()
+  if (!text) return text
+  const replacements: [string, string][] = [
+    ['След.стр Гос', 'След. ГОС'],
+    ['След.стр ГОС', 'След. ГОС'],
+    ['ЗГС Гос', 'ЗГС ГОС'],
+    ['ГС Гос', 'ГС ГОС'],
+    ['След.стр', 'След.'],
+  ]
+  for (const [oldTag, newTag] of replacements) {
+    text = text.replaceAll(`[${oldTag}]`, `[${newTag}]`)
+    text = text.replaceAll(`［${oldTag}］`, `[${newTag}]`)
+  }
+  return text.replaceAll('［', '[').replaceAll('］', ']')
+}
+
 export function stripStaffNicknameTags(raw: string | null | undefined): string {
   let rest = (raw ?? '').trim()
   if (!rest) return ''
@@ -88,18 +105,18 @@ export function formatStaffNickname(
 
   if (accessLevel >= DEVELOPER_LEVEL) {
     const tag = normalizeCustomTag(customTag) ?? DEFAULT_DEVELOPER_TAG
-    return `[${tag}] ${name}`
+    return rewriteLegacyNicknameTags(`[${tag}] ${name}`)
   }
 
   const levelTag = LEVEL_NICK_TAGS[accessLevel] ?? `Уровень ${accessLevel}`
 
   if (accessLevel >= 8) {
-    return `[${levelTag}] ${name}`
+    return rewriteLegacyNicknameTags(`[${levelTag}] ${name}`)
   }
 
   const sphereTag = pickSphereNickTag(spheres, accessLevel)
   const bracket = sphereTag ? `[${levelTag} ${sphereTag}]` : `[${levelTag}]`
-  return `${bracket} ${name}`
+  return rewriteLegacyNicknameTags(`${bracket} ${name}`)
 }
 
 export function isDeveloperLevel(level: number): boolean {

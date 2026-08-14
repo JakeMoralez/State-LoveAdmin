@@ -22,7 +22,13 @@ from app.services.sphere_work import (
     work_item_sphere_filter,
 )
 from app.services.display_names import resolve_display_name, resolve_display_names, resolve_vk_photos
-from app.services.vk_notify import notify_task_assigned, notify_task_status
+from app.services.task_helpers import assignee_ids as _assignee_ids, format_due_display, STATUS_LABELS
+from app.services.vk_notify import (
+    notify_reporter_task_update,
+    notify_task_assigned,
+    notify_task_comment,
+    notify_task_status,
+)
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -55,21 +61,6 @@ def _can_edit_task(user: dict, task: Task) -> bool:
         return True
     ids = _assignee_ids(task)
     return user["vk_id"] in ids or task.reporter_vk_id == user["vk_id"]
-
-
-def _assignee_ids(task: Task) -> list[int]:
-    raw = task.assignee_vk_ids or []
-    ids: list[int] = []
-    for item in raw:
-        try:
-            vid = int(item)
-            if vid not in ids:
-                ids.append(vid)
-        except (TypeError, ValueError):
-            continue
-    if task.assignee_vk_id and task.assignee_vk_id not in ids:
-        ids.insert(0, task.assignee_vk_id)
-    return ids
 
 
 def _sync_assignees(task: Task, ids: list[int] | None) -> None:
@@ -344,7 +335,12 @@ async def create_task(
     for vid in assignee_ids:
         if vid != user["vk_id"]:
             await notify_task_assigned(
-                vid, task.id, task.title, user.get("nickname") or str(user["vk_id"])
+                vid,
+                task.id,
+                task.title,
+                user.get("nickname") or str(user["vk_id"]),
+                due_display=format_due_display(task.due_date, task.due_time) if task.due_date else None,
+                priority=task.priority,
             )
     await log_audit(user["vk_id"], "task_create", "task", task.id, {"title": task.title})
     return _serialize_task(task)
@@ -437,13 +433,34 @@ async def update_task(
         task.labels = _normalize_labels(body.labels)
     await task.save()
     new_assignees = set(_assignee_ids(task))
+    actor_name = user.get("nickname") or str(user["vk_id"])
     for vid in new_assignees - old_assignees:
         await notify_task_assigned(
-            vid, task.id, task.title, user.get("nickname") or str(user["vk_id"])
+            vid,
+            task.id,
+            task.title,
+            actor_name,
+            due_display=format_due_display(task.due_date, task.due_time) if task.due_date else None,
+            priority=task.priority,
         )
     if task.status != old_status:
         for vid in _assignee_ids(task):
-            await notify_task_status(vid, task.id, task.title, task.status)
+            if vid != user["vk_id"]:
+                await notify_task_status(
+                    vid,
+                    task.id,
+                    task.title,
+                    task.status,
+                    by_name=actor_name,
+                )
+        if task.reporter_vk_id != user["vk_id"] and task.status in ("review", "done"):
+            label = STATUS_LABELS.get(task.status, task.status)
+            await notify_reporter_task_update(
+                task.reporter_vk_id,
+                task.id,
+                task.title,
+                f"📋 Задача {label.lower()} ({actor_name})",
+            )
     await log_audit(user["vk_id"], "task_update", "task", task.id, {"status": task.status})
     return _serialize_task(task)
 
@@ -475,6 +492,16 @@ async def add_comment(
         task=task, author_vk_id=user["vk_id"], body=body.body
     )
     author_name = await resolve_display_name(user["vk_id"])
+    notify_targets = set(_assignee_ids(task)) | {task.reporter_vk_id}
+    notify_targets.discard(user["vk_id"])
+    for vid in notify_targets:
+        await notify_task_comment(
+            vid,
+            task.id,
+            task.title,
+            author_name or str(user["vk_id"]),
+            body.body,
+        )
     return {
         "id": comment.id,
         "author_vk_id": comment.author_vk_id,

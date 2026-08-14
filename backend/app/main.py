@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -19,6 +21,7 @@ from app.config import (
     DEFAULT_SERVER_ID,
     PANEL_BASE_URL,
     PANEL_DATABASE_URL,
+    TASK_REMINDER_INTERVAL_SEC,
     TORTOISE_ORM,
     UPLOAD_DIR,
     is_postgres_url,
@@ -30,6 +33,7 @@ from app.routers import (
     activity,
     assign,
     auth,
+    cases,
     checklist,
     dashboard,
     dev,
@@ -46,8 +50,19 @@ from app.routers import (
 from app.services.bootstrap import ensure_defaults
 from app.services.error_log import record_server_exception
 from app.services.staff import list_staff
+from app.services.task_notifications import run_task_reminders
 
 logger = logging.getLogger(__name__)
+
+
+async def _task_reminder_loop() -> None:
+    await asyncio.sleep(30)
+    while True:
+        try:
+            await run_task_reminders()
+        except Exception as exc:
+            logger.warning("task reminder loop: %s", exc)
+        await asyncio.sleep(max(300, TASK_REMINDER_INTERVAL_SEC))
 
 
 @asynccontextmanager
@@ -82,7 +97,13 @@ async def lifespan(app: FastAPI):
             len(staff_rows),
             galleries,
         )
-    yield
+    reminder_task = asyncio.create_task(_task_reminder_loop())
+    try:
+        yield
+    finally:
+        reminder_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await reminder_task
 
 
 app = FastAPI(title="State Love Admin", version="0.1.0", lifespan=lifespan)
@@ -140,6 +161,7 @@ app.include_router(forum_judge_list.router)
 app.include_router(assign.router)
 app.include_router(activity.router)
 app.include_router(dev.router)
+app.include_router(cases.router)
 
 
 @app.get("/api/health")

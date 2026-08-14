@@ -337,6 +337,27 @@ export const api = {
     return request<DevErrorListResponse>(`/dev/errors${suffix}`)
   },
   clearDevErrors: () => request<{ ok: boolean; deleted: number }>('/dev/errors', { method: 'DELETE' }),
+  devCases: () => request<{ cases: LootCase[] }>('/dev/cases'),
+  devCase: (id: number) => request<LootCaseDetail>(`/dev/cases/${id}`),
+  createDevCase: (body: LootCaseCreateBody) =>
+    request<LootCaseDetail>('/dev/cases', { method: 'POST', body: JSON.stringify(body) }),
+  updateDevCase: (id: number, body: LootCaseUpdateBody) =>
+    request<LootCaseDetail>(`/dev/cases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteDevCase: (id: number) => request<{ ok: boolean }>(`/dev/cases/${id}`, { method: 'DELETE' }),
+  createDevCasePrize: (caseId: number, body: LootCasePrizeBody) =>
+    request<LootCasePrize>(`/dev/cases/${caseId}/prizes`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateDevCasePrize: (caseId: number, prizeId: number, body: Partial<LootCasePrizeBody>) =>
+    request<LootCasePrize>(`/dev/cases/${caseId}/prizes/${prizeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteDevCasePrize: (caseId: number, prizeId: number) =>
+    request<{ ok: boolean }>(`/dev/cases/${caseId}/prizes/${prizeId}`, { method: 'DELETE' }),
+  spinDevCase: (caseId: number) =>
+    request<LootCaseSpinResult>(`/dev/cases/${caseId}/spin`, { method: 'POST' }),
   judgeForumListServers: () =>
     request<{ servers: JudgeForumServer[] }>('/forum/judge-list/servers'),
   judgeForumListSettings: (serverId: number) =>
@@ -968,4 +989,65 @@ export interface ActivityLogResponse {
   items: ActivityLogItem[]
   limit: number
   offset: number
+}
+
+export interface LootCasePrize {
+  id: number
+  case_id: number
+  title: string
+  image_url: string
+  weight: number
+  sort_order: number
+  rarity_label: string
+  created_at: string
+  updated_at: string
+}
+
+export interface LootCase {
+  id: number
+  title: string
+  description: string
+  cover_image_url: string
+  is_active: boolean
+  spin_duration_ms: number
+  created_by_vk_id: number
+  prize_count: number
+  can_spin: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface LootCaseDetail extends LootCase {
+  prizes: LootCasePrize[]
+}
+
+export interface LootCaseCreateBody {
+  title: string
+  description?: string
+  cover_image_url?: string
+  is_active?: boolean
+  spin_duration_ms?: number
+}
+
+export interface LootCaseUpdateBody {
+  title?: string
+  description?: string
+  cover_image_url?: string
+  is_active?: boolean
+  spin_duration_ms?: number
+}
+
+export interface LootCasePrizeBody {
+  title: string
+  image_url?: string
+  weight?: number
+  sort_order?: number
+  rarity_label?: string
+}
+
+export interface LootCaseSpinResult {
+  spin_token: string
+  spin_duration_ms: number
+  prize: LootCasePrize
+  prizes: LootCasePrize[]
 }

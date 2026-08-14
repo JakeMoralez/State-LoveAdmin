@@ -124,6 +124,12 @@ async def ensure_defaults() -> None:
                 "ALTER TABLE question_bank_items ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
             )
 
+    if await _table_exists("loot_cases") and not await _column_exists("loot_cases", "spin_duration_ms"):
+        conn = Tortoise.get_connection("default")
+        await conn.execute_query(
+            "ALTER TABLE loot_cases ADD COLUMN spin_duration_ms INTEGER NOT NULL DEFAULT 12000"
+        )
+
     _sphere_tables = (
         "tasks",
         "projects",

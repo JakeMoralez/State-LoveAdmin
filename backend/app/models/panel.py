@@ -154,6 +154,21 @@ class TaskAttachment(Model):
         table = "task_attachments"
 
 
+class TaskNotificationLog(Model):
+    """Дедупликация VK-уведомлений по задачам."""
+
+    id = fields.IntField(pk=True)
+    task_id = fields.IntField(index=True)
+    vk_id = fields.BigIntField(index=True)
+    kind = fields.CharField(max_length=32, index=True)
+    sent_on = fields.DateField(index=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "task_notification_log"
+        unique_together = (("task_id", "vk_id", "kind", "sent_on"),)
+
+
 class ChecklistCell(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
@@ -289,4 +304,34 @@ class QuestionBankItemEvent(Model):
 
     class Meta:
         table = "question_bank_item_events"
+
+
+class LootCase(Model):
+    id = fields.IntField(pk=True)
+    title = fields.CharField(max_length=256)
+    description = fields.TextField(default="")
+    cover_image_url = fields.CharField(max_length=1024, default="")
+    is_active = fields.BooleanField(default=True)
+    spin_duration_ms = fields.IntField(default=12000)
+    created_by_vk_id = fields.BigIntField(index=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "loot_cases"
+
+
+class LootCasePrize(Model):
+    id = fields.IntField(pk=True)
+    case = fields.ForeignKeyField("models.LootCase", related_name="prizes")
+    title = fields.CharField(max_length=256)
+    image_url = fields.CharField(max_length=1024, default="")
+    weight = fields.IntField(default=1)
+    sort_order = fields.IntField(default=0)
+    rarity_label = fields.CharField(max_length=64, default="")
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "loot_case_prizes"
 

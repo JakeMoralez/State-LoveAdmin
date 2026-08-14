@@ -10,6 +10,7 @@ import {
   isDeveloperLevel,
   isLegacyStaffTag,
   previewStaffNickname,
+  rewriteLegacyNicknameTags,
   stripStaffNicknameTags,
   validateDeveloperTagInput,
 } from '../../lib/staffNickname'
@@ -184,7 +185,7 @@ export function StaffProfileModal({
     : extractNicknameTag(member.bot_nickname ?? member.nickname ?? '')
   const showDevTag = isDeveloperLevel(parsedLevel)
 
-  const storedNick = (member.bot_nickname ?? member.nickname ?? '').trim()
+  const storedNick = rewriteLegacyNicknameTags((member.bot_nickname ?? member.nickname ?? '').trim())
   const nickOutOfSync = Boolean(nicknamePreview && nicknamePreview.trim() !== storedNick)
 
   const hasChanges =

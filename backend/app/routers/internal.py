@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Header, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_SERVER_ID, SLED_BOT_SECRET
+from app.models.bot import UserServerAccess
+from app.models.panel import StaffNote
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
+from app.services.internal_assign import assign_staff_from_bot
 from app.services.staff import sync_spheres_from_bot
 from app.services.staff_spheres import validate_spheres
 
@@ -27,6 +30,17 @@ class DiscordLinkBody(BaseModel):
 class StaffSpheresBody(BaseModel):
     spheres: list[str] | None = None
     grant_central_apparatus: bool | None = None
+
+
+class StaffAssignBody(BaseModel):
+    actor_vk_id: int
+    vk_id: int
+    forum_account: str = Field(min_length=1)
+    nickname: str = Field(min_length=1)
+    access_level: int
+    spheres: list[str] = Field(min_length=1)
+    discord_id: str = Field(min_length=1)
+    nickname_tag: str | None = None
 
 
 @router.get("/discord-link")
@@ -96,3 +110,46 @@ async def put_staff_spheres(
         return {"ok": True, "vk_id": vk_id, "spheres": spheres}
 
     raise HTTPException(status_code=400, detail="Укажите spheres или grant_central_apparatus")
+
+
+@router.post("/staff-assign")
+async def post_staff_assign(
+    body: StaffAssignBody,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+
+    try:
+        discord_raw = normalize_discord_id(body.discord_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    actor_access = await UserServerAccess.get_or_none(
+        user_id=body.actor_vk_id,
+        server_id=server_id,
+    )
+    actor_level = actor_access.access_level if actor_access else 0
+    actor_note = await StaffNote.get_or_none(vk_id=body.actor_vk_id, server_id=server_id)
+    actor_spheres = list(actor_note.spheres or []) if actor_note else []
+
+    try:
+        result = await assign_staff_from_bot(
+            server_id,
+            body.vk_id,
+            actor_vk_id=body.actor_vk_id,
+            actor_level=actor_level,
+            actor_spheres=actor_spheres,
+            forum_account=body.forum_account.strip(),
+            nickname=body.nickname.strip(),
+            access_level=body.access_level,
+            spheres=body.spheres,
+            discord_id=discord_raw,
+            nickname_tag=body.nickname_tag,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return result

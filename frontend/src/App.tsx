@@ -14,6 +14,9 @@ import { QuestionBankReviewPage } from './pages/QuestionBankReviewPage'
 import { QuestionBanksPage } from './pages/QuestionBanksPage'
 import { DevPage } from './pages/DevPage'
 import { DevLeadershipPage } from './pages/DevLeadershipPage'
+import { LootCasesPage } from './pages/LootCasesPage'
+import { LootCaseEditPage } from './pages/LootCaseEditPage'
+import { LootCaseSpinPage } from './pages/LootCaseSpinPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -56,7 +59,10 @@ function AppRoutes() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/dev" element={<DevPage />} />
           <Route path="/dev/leadership" element={<DevLeadershipPage />} />
+          <Route path="/dev/cases" element={<LootCasesPage />} />
+          <Route path="/dev/cases/:id" element={<LootCaseEditPage />} />
         </Route>
+        <Route path="/dev/cases/:id/spin" element={<LootCaseSpinPage />} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
