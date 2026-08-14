@@ -1,5 +1,5 @@
 import { cn } from '../../lib/utils'
-import { RARITY_OPTIONS, normalizeRarity, rarityClass } from './rouletteLayout'
+import { RARITY_OPTIONS, normalizeRarity } from './rouletteLayout'
 
 export function CaseRarityPicker({
   value,

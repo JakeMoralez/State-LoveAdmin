@@ -45,10 +45,24 @@ systemctl status state-love-admin
 
 ```bash
 cd /opt/State-Love-Admin
+sudo bash deploy/update.sh
+```
+
+Или вручную:
+
+```bash
+cd /opt/State-Love-Admin
 git pull
 cd frontend && npm ci && npm run build
 cd ../backend && ./venv/bin/pip install -r requirements.txt
 sudo systemctl restart state-love-admin
+```
+
+После обновления панели **и** бота (если менялся код бота):
+
+```bash
+cd /opt/State-LoveBot && sudo bash deploy/update.sh
+cd /opt/State-Love-Admin && sudo bash deploy/update.sh
 ```
 
 ### БД бота и список следящих
