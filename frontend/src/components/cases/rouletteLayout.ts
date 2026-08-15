@@ -1,4 +1,5 @@
 import type { LootCasePrize } from '../../api'
+import { peakCruisePxPerSec, peakToAverageRatio } from './spinEngine'
 
 export const CARD_WIDTH = 140
 export const CARD_GAP = 12
@@ -245,9 +246,8 @@ export function buildSpinPlan(
   const winnerIdx = slots.length ? slots[Math.floor(Math.random() * slots.length)] : 0
   const { copies, lapCount, targetCopy } = spinStripGeometry(prizeCount)
   const durationMs = resolveSpinDurationMs(spinDurationMs)
-  const peakEase = 1.3
-  const maxPxPerSec = 22 * 60
-  const maxDist = (maxPxPerSec * durationMs) / 1000 / peakEase
+  const maxPxPerSec = peakCruisePxPerSec(durationMs)
+  const maxDist = (maxPxPerSec * durationMs) / 1000 / peakToAverageRatio(durationMs)
   const maxLaps = Math.max(3, Math.floor(maxDist / (prizeCount * CARD_STRIDE)))
   const laps = Math.min(lapCount, maxLaps)
   const winnerStripIndex = targetCopy * prizeCount + winnerIdx

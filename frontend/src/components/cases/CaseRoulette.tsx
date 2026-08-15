@@ -40,11 +40,11 @@ function stripIndexAtMarker(translateX: number, viewportWidth: number): number {
   return Math.round((center - CARD_WIDTH / 2) / CARD_STRIDE)
 }
 
-function spinSpeedAt(t: number): number {
+function spinSpeedAt(t: number, durationMs: number): number {
   const dt = 0.004
-  const a = spinEase(Math.max(0, t - dt))
-  const b = spinEase(Math.min(1, t + dt))
-  return Math.max(0.1, Math.min(2.2, (b - a) / (2 * dt)))
+  const a = spinEase(Math.max(0, t - dt), durationMs)
+  const b = spinEase(Math.min(1, t + dt), durationMs)
+  return Math.max(0.08, Math.min(2.4, (b - a) / (2 * dt)))
 }
 
 export function CaseRoulette({ caseId, caseTitle }: CaseRouletteProps) {
@@ -176,7 +176,7 @@ export function CaseRoulette({ caseId, caseTitle }: CaseRouletteProps) {
       durationMs: plan.durationMs,
       onFrame: (t, x) => {
         applyWorldX(x, nextStrip.length)
-        const speed = spinSpeedAt(t)
+        const speed = spinSpeedAt(t, plan.durationMs)
         soundRef.current.setSpeed(speed)
         const idx = stripIndexAtMarker(x, viewportRef.current?.clientWidth ?? viewport.clientWidth)
         if (idx !== lastTickIndexRef.current) {
