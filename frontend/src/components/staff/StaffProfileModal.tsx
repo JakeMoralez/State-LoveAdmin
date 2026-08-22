@@ -73,6 +73,8 @@ export function StaffProfileModal({
   const [nicknameTag, setNicknameTag] = useState('')
   const [accessLevel, setAccessLevel] = useState('0')
   const [spheres, setSpheres] = useState<string[]>([])
+  const [isSenior, setIsSenior] = useState(false)
+  const [seniorSpheres, setSeniorSpheres] = useState<string[]>([])
   const [discordId, setDiscordId] = useState('')
   const [forumAccount, setForumAccount] = useState('')
   const [forumTouched, setForumTouched] = useState(false)
@@ -91,6 +93,8 @@ export function StaffProfileModal({
     )
     setAccessLevel(String(member.access_level))
     setSpheres(member.spheres ?? [])
+    setIsSenior(Boolean(member.is_senior))
+    setSeniorSpheres(member.senior_spheres ?? [])
     setDiscordId(member.discord_id ?? '')
     setForumAccount(forumMemberUrl(member.username, member.vk_id) || member.username || '')
     setForumTouched(false)
@@ -145,11 +149,15 @@ export function StaffProfileModal({
   const nicknamePreview = useMemo(() => {
     if (!member) return ''
     const previewSpheres = canEditSpheres ? spheres : savedSpheres
+    const previewIsSenior = canEditSpheres ? isSenior : Boolean(member.is_senior)
+    const previewSeniorSpheres = canEditSpheres ? seniorSpheres : (member.senior_spheres ?? [])
     return previewStaffNickname(
       nickname,
       parsedLevel,
       previewSpheres,
       isDeveloperLevel(parsedLevel) ? nicknameTag : null,
+      previewIsSenior,
+      previewSeniorSpheres,
     )
   }, [
     nickname,
@@ -159,6 +167,8 @@ export function StaffProfileModal({
     savedSpheres,
     canEditSpheres,
     member,
+    isSenior,
+    seniorSpheres,
   ])
 
   if (!open || !member) return null
@@ -194,6 +204,7 @@ export function StaffProfileModal({
         (showDevTag && nicknameTag.trim() !== savedNicknameTag.trim()))) ||
     (canEditAccessLevel && parseInt(accessLevel, 10) !== member.access_level) ||
     (canEditSpheres && !spheresEqual(spheres, savedSpheres)) ||
+    (canEditSpheres && (isSenior !== Boolean(member.is_senior) || !spheresEqual(seniorSpheres, member.senior_spheres ?? []))) ||
     (permissions.edit_discord && discordId.trim() !== (member.discord_id ?? '')) ||
     (permissions.edit_forum_account &&
       forumValidation.ok &&
@@ -246,6 +257,12 @@ export function StaffProfileModal({
       }
       if (canEditSpheres && !spheresEqual(spheres, savedSpheres)) {
         body.spheres = spheres
+      }
+      if (canEditSpheres && isSenior !== Boolean(member.is_senior)) {
+        body.is_senior = isSenior
+      }
+      if (canEditSpheres && !spheresEqual(seniorSpheres, member.senior_spheres ?? [])) {
+        body.senior_spheres = seniorSpheres
       }
       if (permissions.edit_nickname && nickOutOfSync) {
         appendNicknameResync(body)
@@ -497,6 +514,45 @@ export function StaffProfileModal({
               <p className="staff-profile-value">{formatSpheresDisplay(member.spheres) || member.sphere || '—'}</p>
             )}
           </div>
+
+          <div className="staff-profile-field">
+            <label className="staff-profile-label">Старший следящий</label>
+            {canEditSpheres ? (
+              <div className="flex gap-3 items-center">
+                <input
+                  id="staff-is-senior"
+                  type="checkbox"
+                  checked={isSenior}
+                  disabled={saving}
+                  onChange={(e) => setIsSenior(e.target.checked)}
+                />
+                <label htmlFor="staff-is-senior" className="text-sm opacity-80">Это старший следящий</label>
+              </div>
+            ) : (
+              <p className="staff-profile-value">{member.is_senior ? 'Да' : '—'}</p>
+            )}
+          </div>
+
+          {isSenior && (
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">Сферы старшего</span>
+              {canEditSpheres ? (
+                <SphereMultiSelect
+                  value={seniorSpheres}
+                  onChange={setSeniorSpheres}
+                  disabled={saving}
+                  accessLevel={parsedLevel}
+                  showHint={false}
+                  lockedSpheres={permissions.locked_spheres}
+                  grantableSpheres={
+                    permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
+                  }
+                />
+              ) : (
+                <p className="staff-profile-value">{formatSpheresDisplay(member.senior_spheres) || '—'}</p>
+              )}
+            </div>
+          )}
 
           {(permissions.edit_nickname ||
             canEditAccessLevel ||

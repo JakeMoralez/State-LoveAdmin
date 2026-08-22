@@ -263,6 +263,8 @@ async def list_staff(server_id: int) -> list[dict]:
                 "granted_by": access.granted_by if access else None,
                 "granted_at": access.granted_at.isoformat() if access and access.granted_at else None,
                 "note": panel_note,
+                "is_senior": bool(access and getattr(access, "is_senior", False)),
+                "senior_spheres": list(getattr(access, "senior_spheres", []) or []),
             }
         )
 
@@ -712,6 +714,8 @@ async def _sync_formatted_staff_nickname(
         access.access_level,
         spheres,
         custom_tag=resolved_tag,
+        is_senior=bool(access.is_senior) if access is not None else False,
+        senior_spheres=list(access.senior_spheres or []) if access is not None else None,
     )
     await _persist_member_nickname(vk_id, server_id, formatted)
 
@@ -742,11 +746,15 @@ async def assign_staff_member(
 
     normalized_spheres = validate_spheres(spheres, access_level)
     dev_tag = normalize_custom_tag(nickname_tag) if access_level >= AccessLevel.DEVELOPER else None
+    # refresh access object to include any new senior fields if present
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     formatted_nick = format_staff_nickname(
         nickname,
         access_level,
         normalized_spheres,
         custom_tag=dev_tag,
+        is_senior=bool(access.is_senior) if access is not None else False,
+        senior_spheres=list(access.senior_spheres or []) if access is not None else None,
     )
     await _persist_member_nickname(vk_id, server_id, formatted_nick)
     await _persist_staff_spheres(vk_id, server_id, normalized_spheres, granted_by=granted_by)
@@ -771,6 +779,9 @@ async def update_staff_member(
     nickname_tag_provided: bool = False,
     granted_at: datetime | None = None,
     granted_at_provided: bool = False,
+    is_senior: bool | None = None,
+    senior_spheres: list[str] | None = None,
+    **_extra: object,
 ) -> dict:
     from app.models.bot import User, UserServerAccess
     from app.models.panel import StaffNote
@@ -824,6 +835,20 @@ async def update_staff_member(
         panel_note.note = note.strip()
         panel_note.updated_by = granted_by
         await panel_note.save()
+
+    # Persist senior flags to access row when provided explicitly.
+    if is_senior is not None or senior_spheres is not None:
+        access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+        if access:
+            changed_fields = []
+            if is_senior is not None:
+                access.is_senior = bool(is_senior)
+                changed_fields.append("is_senior")
+            if senior_spheres is not None:
+                access.senior_spheres = list(senior_spheres or [])
+                changed_fields.append("senior_spheres")
+            if changed_fields:
+                await access.save(update_fields=changed_fields)
 
     if (
         nickname is not None

@@ -22,6 +22,31 @@ sudo -u "${APP_USER}" env HOME="${APP_DIR}" npm run build
 cd "${APP_DIR}/backend"
 sudo -u "${APP_USER}" ./venv/bin/pip install -r requirements.txt
 
+if [[ -f "${APP_DIR}/backend/0002_add_senior_fields_user_server_access.sql" ]]; then
+  if [[ -n "${BOT_DATABASE_URL:-}" ]] && [[ "${BOT_DATABASE_URL}" == postgres* ]]; then
+    echo "Applying senior sphere migration to PostgreSQL..."
+    DB_URL="${BOT_DATABASE_URL}"
+    if [[ "${DB_URL}" == postgresql://* ]]; then
+      DB_USER="$(printf '%s' "${DB_URL#postgresql://}" | cut -d: -f1)"
+      DB_HOST="$(printf '%s' "${DB_URL#postgresql://}" | cut -d@ -f2 | cut -d/ -f1 | cut -d: -f1)"
+      DB_PORT="$(printf '%s' "${DB_URL#postgresql://}" | cut -d@ -f2 | cut -d/ -f1 | cut -d: -f2)"
+      DB_NAME="$(printf '%s' "${DB_URL#postgresql://}" | cut -d/ -f2-)"
+    fi
+
+    if command -v psql >/dev/null 2>&1; then
+      if [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+        PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${DB_HOST:-127.0.0.1}" -p "${DB_PORT:-5432}" -U "${DB_USER:-postgres}" -d "${DB_NAME:-postgres}" -f "${APP_DIR}/backend/0002_add_senior_fields_user_server_access.sql"
+      else
+        psql -h "${DB_HOST:-127.0.0.1}" -p "${DB_PORT:-5432}" -U "${DB_USER:-postgres}" -d "${DB_NAME:-postgres}" -f "${APP_DIR}/backend/0002_add_senior_fields_user_server_access.sql"
+      fi
+    else
+      echo "psql not found; skipping migration automatically"
+    fi
+  else
+    echo "BOT_DATABASE_URL is not PostgreSQL, skipping SQL migration"
+  fi
+fi
+
 systemctl restart state-love-admin
 
 echo "Панель обновлена."

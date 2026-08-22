@@ -96,6 +96,9 @@ class UserServerAccess(Model):
     granted_at = fields.DatetimeField()  # NOT NULL в bot.db
     has_ca_access = fields.BooleanField(default=False)
     ca_auto_peer_id = fields.BigIntField(null=True)
+    # Старший следящий: флаг и выбранные сферы (JSON list of sphere keys)
+    is_senior = fields.BooleanField(default=False)
+    senior_spheres = fields.JSONField(default=list)
 
     class Meta:
         table = "user_server_access"

@@ -99,6 +99,8 @@ export function formatStaffNickname(
   accessLevel: number,
   spheres: string[],
   customTag?: string | null,
+  isSenior: boolean = false,
+  seniorSpheres?: string[] | null,
 ): string {
   const name = stripStaffNicknameTags(cleanName).trim()
   if (!name) return ''
@@ -114,8 +116,33 @@ export function formatStaffNickname(
     return rewriteLegacyNicknameTags(`[${levelTag}] ${name}`)
   }
 
-  const sphereTag = pickSphereNickTag(spheres, accessLevel)
-  const bracket = sphereTag ? `[${levelTag} ${sphereTag}]` : `[${levelTag}]`
+  const mainSphereTag = pickSphereNickTag(spheres, accessLevel)
+  const mainPart = mainSphereTag ? `${levelTag} ${mainSphereTag}` : `${levelTag}`
+
+  // Senior part
+  let seniorPart: string | null = null
+  if (isSenior && seniorSpheres && seniorSpheres.length) {
+    const sTag = pickSphereNickTag(seniorSpheres, accessLevel)
+    if (sTag) {
+      if (accessLevel <= 2) {
+        seniorPart = `Ст. След. ${sTag}`
+      } else {
+        seniorPart = `След. ${sTag}`
+      }
+    }
+  }
+
+  let bracket: string
+  if (seniorPart) {
+    if (accessLevel <= 2) {
+      bracket = `[${seniorPart} | ${mainPart}]`
+    } else {
+      bracket = `[${mainPart} | ${seniorPart}]`
+    }
+  } else {
+    bracket = `[${mainPart}]`
+  }
+
   return rewriteLegacyNicknameTags(`${bracket} ${name}`)
 }
 
@@ -133,11 +160,13 @@ export function previewStaffNickname(
   accessLevel: number,
   spheres: string[],
   customTag?: string | null,
+  isSenior: boolean = false,
+  seniorSpheres?: string[] | null,
 ): string {
   const clean = stripStaffNicknameTags(cleanName).trim()
   if (!clean) return ''
   if (nicknamePreviewNeedsSpheres(accessLevel) && !spheres.length) return ''
-  return formatStaffNickname(clean, accessLevel, spheres, customTag)
+  return formatStaffNickname(clean, accessLevel, spheres, customTag, isSenior, seniorSpheres)
 }
 
 /** Legacy-тег уровня/сферы — не кастомный тег разработчика. */

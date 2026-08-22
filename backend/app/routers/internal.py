@@ -30,6 +30,23 @@ class DiscordLinkBody(BaseModel):
 class StaffSpheresBody(BaseModel):
     spheres: list[str] | None = None
     grant_central_apparatus: bool | None = None
+    is_senior: bool | None = None
+    senior_spheres: list[str] | None = None
+
+
+@router.get("/staff-spheres")
+async def get_staff_spheres_list(
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+    from app.services.staff_spheres import ALL_SPHERE_KEYS, SPHERE_LABELS
+
+    return {
+        "spheres": [
+            {"key": key, "label": SPHERE_LABELS.get(key, key)}
+            for key in ALL_SPHERE_KEYS
+        ]
+    }
 
 
 class StaffAssignBody(BaseModel):
@@ -99,7 +116,22 @@ async def put_staff_spheres(
         from app.services.staff import _persist_staff_spheres
 
         await _persist_staff_spheres(vk_id, server_id, normalized)
-        return {"ok": True, "vk_id": vk_id, "spheres": normalized}
+        if body.is_senior is not None or body.senior_spheres is not None:
+            from app.services.staff import update_staff_member
+
+            senior_spheres = body.senior_spheres
+            if senior_spheres is not None:
+                try:
+                    senior_spheres = validate_spheres(senior_spheres)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+            await update_staff_member(
+                server_id,
+                vk_id,
+                is_senior=body.is_senior,
+                senior_spheres=senior_spheres,
+            )
+        return {"ok": True, "vk_id": vk_id, "spheres": normalized, "is_senior": body.is_senior, "senior_spheres": body.senior_spheres}
 
     if body.grant_central_apparatus is not None:
         spheres = await sync_spheres_from_bot(
@@ -109,7 +141,29 @@ async def put_staff_spheres(
         )
         return {"ok": True, "vk_id": vk_id, "spheres": spheres}
 
-    raise HTTPException(status_code=400, detail="Укажите spheres или grant_central_apparatus")
+    if body.is_senior is not None or body.senior_spheres is not None:
+        from app.services.staff import update_staff_member
+
+        senior_spheres = body.senior_spheres
+        if senior_spheres is not None:
+            try:
+                senior_spheres = validate_spheres(senior_spheres)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        await update_staff_member(
+            server_id,
+            vk_id,
+            is_senior=body.is_senior,
+            senior_spheres=senior_spheres,
+        )
+        return {
+            "ok": True,
+            "vk_id": vk_id,
+            "is_senior": body.is_senior,
+            "senior_spheres": senior_spheres,
+        }
+
+    raise HTTPException(status_code=400, detail="Укажите spheres, grant_central_apparatus, is_senior или senior_spheres")
 
 
 @router.post("/staff-assign")

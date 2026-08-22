@@ -18,7 +18,8 @@ _TAG_PREFIX_RE = re.compile(r"^[\[［]([^\］\]]+)[\]］]\s*")
 
 
 LEVEL_NICK_TAGS: dict[int, str] = {
-    AccessLevel.PGS: "ПГС",
+    # ПГС -> ПС (Проверяющий следящий) — обновлённый короткий тег
+    AccessLevel.PGS: "ПС",
     AccessLevel.SUPERVISOR: "След.",
     AccessLevel.ZGS: "ЗГС",
     AccessLevel.GS: "ГС",
@@ -138,21 +139,53 @@ def format_staff_nickname(
     spheres: list[str],
     *,
     custom_tag: str | None = None,
+    is_senior: bool = False,
+    senior_spheres: list[str] | None = None,
 ) -> str:
+    """Build nickname tag(s).
+
+    New behaviour: optionally include senior-following information.
+    - If is_senior and senior_spheres provided, a secondary part is appended using
+      either "Ст. След. {TAG}" or "След. {TAG}" depending on the primary role.
+    """
     name = strip_nickname_tags(clean_name).strip()
     if not name:
         raise ValueError("Укажите имя для никнейма")
 
+    # developer/custom tag handling unchanged
     if access_level >= AccessLevel.DEVELOPER:
         tag = normalize_custom_tag(custom_tag) or LEVEL_NICK_TAGS[AccessLevel.DEVELOPER]
         bracket = f"[{tag}]"
     else:
         level_tag = LEVEL_NICK_TAGS.get(access_level) or AccessLevel.title(access_level)
+
+        # sphere tag for the main role
+        main_sphere_tag = pick_sphere_nick_tag(spheres, access_level)
         if access_level >= AccessLevel.CURATOR:
-            bracket = f"[{level_tag}]"
+            main_part = f"{level_tag}"
         else:
-            sphere_tag = pick_sphere_nick_tag(spheres, access_level)
-            bracket = f"[{level_tag} {sphere_tag}]" if sphere_tag else f"[{level_tag}]"
+            main_part = f"{level_tag} {main_sphere_tag}" if main_sphere_tag else f"{level_tag}"
+
+        # senior part
+        senior_part = None
+        if is_senior and senior_spheres:
+            s_tag = pick_sphere_nick_tag(senior_spheres, access_level)
+            if s_tag:
+                # If primary role is low (<=SUPERVISOR), show senior as primary
+                if access_level <= AccessLevel.SUPERVISOR:
+                    senior_part = f"Ст. След. {s_tag}"
+                else:
+                    # For GS/ZGS and higher main roles show secondary as regular След.
+                    senior_part = f"След. {s_tag}"
+
+        if senior_part:
+            # decide order: if primary is supervisor or lower, show senior first
+            if access_level <= AccessLevel.SUPERVISOR:
+                bracket = f"[{senior_part} | {main_part}]"
+            else:
+                bracket = f"[{main_part} | {senior_part}]"
+        else:
+            bracket = f"[{main_part}]"
 
     result = f"{bracket} {name}"
     if len(result) > 64:

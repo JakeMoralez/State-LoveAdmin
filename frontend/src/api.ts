@@ -496,6 +496,9 @@ export interface StaffMember {
   discord_id?: string | null
   discord_username?: string | null
   discord_display_name?: string | null
+  // Senior-following fields
+  is_senior?: boolean
+  senior_spheres?: string[]
 }
 
 export interface StaffMemberPermissions {
@@ -535,6 +538,8 @@ export interface StaffMemberUpdateBody {
   access_level?: number
   has_ca_access?: boolean
   spheres?: string[]
+  is_senior?: boolean
+  senior_spheres?: string[]
   note?: string | null
   discord_id?: string | null
   forum_account?: string | null
