@@ -36,6 +36,9 @@ STRUCTURE_SPHERE_KEYS: tuple[str, ...] = (
 
 ALL_SPHERE_KEYS: tuple[str, ...] = MINISTRY_SPHERE_KEYS + STRUCTURE_SPHERE_KEYS + (SERVER,)
 
+# Короткие алиасы для подсказок (без англ. ключей).
+_SPHERE_HINT = "ца, мю, мо, мз, гос, нелег, сервер"
+
 # Legacy free-text → sphere keys (partial match)
 _LEGACY_TEXT_MAP: list[tuple[str, str]] = [
     ("центральный аппарат", CENTRAL_APPARATUS),
@@ -79,7 +82,7 @@ def effective_grantable_sphere_keys(actor_level: int, actor_spheres: list[str]) 
 def validate_spheres(spheres: list[str], access_level: int | None = None) -> list[str]:
     """Normalize and dedupe sphere keys; optional level guard."""
     if not spheres:
-        raise ValueError("Выберите хотя бы одну сферу")
+        raise ValueError(f"Укажите сферу: {_SPHERE_HINT}")
     seen: set[str] = set()
     result: list[str] = []
     for key in spheres:
@@ -87,12 +90,12 @@ def validate_spheres(spheres: list[str], access_level: int | None = None) -> lis
         if not k:
             continue
         if k not in SPHERE_LABELS:
-            raise ValueError(f"Неизвестная сфера: {k}")
+            raise ValueError(f"Неизвестная сфера. Укажите: {_SPHERE_HINT}")
         if k not in seen:
             seen.add(k)
             result.append(k)
     if not result:
-        raise ValueError("Выберите хотя бы одну сферу")
+        raise ValueError(f"Укажите сферу: {_SPHERE_HINT}")
     if access_level is not None:
         allowed = set(allowed_sphere_keys_for_level(access_level))
         bad = [k for k in result if k not in allowed]

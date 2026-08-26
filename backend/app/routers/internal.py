@@ -61,6 +61,15 @@ class StaffAssignBody(BaseModel):
     nickname_tag: str | None = None
 
 
+class StaffRevokeBody(BaseModel):
+    actor_vk_id: int
+
+
+class StaffSphereRemoveBody(BaseModel):
+    actor_vk_id: int
+    sphere: str
+
+
 @router.get("/discord-link")
 async def get_discord_link(
     vk_id: int,
@@ -269,6 +278,74 @@ async def put_staff_spheres(
         status_code=400,
         detail="Укажите spheres, grant_central_apparatus, is_senior или senior_spheres",
     )
+
+
+@router.post("/staff-revoke/{vk_id}")
+async def post_staff_revoke(
+    vk_id: int,
+    body: StaffRevokeBody,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+
+    from app.models.bot import AccessLevel
+    from app.services.access import get_access_level
+    from app.services.staff import revoke_staff_access
+    from app.services.staff_permissions import assert_can_revoke_staff
+
+    actor_level = await get_access_level(body.actor_vk_id, server_id)
+    target_level = await get_access_level(vk_id, server_id)
+
+    try:
+        assert_can_revoke_staff(
+            actor_vk_id=body.actor_vk_id,
+            actor_level=actor_level,
+            target_vk_id=vk_id,
+            target_level=target_level,
+        )
+        await revoke_staff_access(
+            server_id,
+            vk_id,
+            updated_by=body.actor_vk_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"ok": True, "vk_id": vk_id}
+
+
+@router.post("/staff-sphere-remove/{vk_id}")
+async def post_staff_sphere_remove(
+    vk_id: int,
+    body: StaffSphereRemoveBody,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    """Снять одну сферу после poolkick (старший в своей сфере или ЗГС+)."""
+    _check_secret(x_sled_secret)
+
+    from app.services.staff import remove_staff_sphere_on_poolkick
+    from app.services.staff_spheres import validate_spheres
+
+    try:
+        sphere = validate_spheres([body.sphere.strip()])[0]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        result = await remove_staff_sphere_on_poolkick(
+            server_id,
+            vk_id,
+            sphere=sphere,
+            actor_vk_id=body.actor_vk_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return {"ok": True, **result}
 
 
 @router.post("/staff-assign")

@@ -684,6 +684,78 @@ async def revoke_staff_access(
     invalidate_display_names(vk_id)
 
 
+async def remove_staff_sphere_on_poolkick(
+    server_id: int,
+    vk_id: int,
+    *,
+    sphere: str,
+    actor_vk_id: int,
+) -> dict:
+    """Снять одну сферу после poolkick (старший в сфере или ЗГС+)."""
+    from app.services.staff_spheres import effective_grantable_sphere_keys
+
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    if not access:
+        raise ValueError("Пользователь не в реестре следящих")
+
+    target_level = await get_access_level(vk_id, server_id)
+    if target_level < AccessLevel.PGS:
+        raise ValueError("У пользователя нет доступа следящего")
+
+    actor_level = await get_access_level(actor_vk_id, server_id)
+    if actor_vk_id != vk_id:
+        if target_level >= actor_level and actor_level < AccessLevel.DEVELOPER:
+            raise PermissionError(
+                "Нельзя менять сферы пользователя своего уровня или выше"
+            )
+
+    actor_access = await UserServerAccess.get_or_none(
+        user_id=actor_vk_id, server_id=server_id
+    )
+    actor_note = await StaffNote.get_or_none(vk_id=actor_vk_id, server_id=server_id)
+    actor_spheres = list(actor_note.spheres or []) if actor_note else []
+
+    allowed = False
+    if actor_level >= AccessLevel.ZGS:
+        grantable = effective_grantable_sphere_keys(actor_level, actor_spheres)
+        allowed = sphere in grantable
+    elif actor_access and getattr(actor_access, "is_senior", False):
+        senior = list(getattr(actor_access, "senior_spheres", []) or [])
+        allowed = sphere in senior
+
+    if not allowed:
+        raise PermissionError("Недостаточно прав для снятия этой сферы")
+
+    note = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    current = list(note.spheres or []) if note else []
+    if sphere not in current:
+        raise ValueError("У пользователя нет этой сферы")
+
+    new_spheres = [s for s in current if s != sphere]
+    if not new_spheres:
+        await revoke_staff_access(server_id, vk_id, updated_by=actor_vk_id)
+        return {"vk_id": vk_id, "full_revoke": True, "sphere": sphere}
+
+    is_senior = bool(getattr(access, "is_senior", False))
+    senior_spheres = list(getattr(access, "senior_spheres", []) or [])
+    new_senior = [s for s in senior_spheres if s != sphere]
+
+    await update_staff_member(
+        server_id,
+        vk_id,
+        spheres=new_spheres,
+        is_senior=bool(new_senior) if is_senior else None,
+        senior_spheres=new_senior if is_senior else None,
+        granted_by=actor_vk_id,
+    )
+    return {
+        "vk_id": vk_id,
+        "full_revoke": False,
+        "spheres": new_spheres,
+        "sphere": sphere,
+    }
+
+
 async def _sync_formatted_staff_nickname(
     vk_id: int,
     server_id: int,
