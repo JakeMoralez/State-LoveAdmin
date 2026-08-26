@@ -2,7 +2,7 @@ export const DEVELOPER_LEVEL = 11
 export const DEFAULT_DEVELOPER_TAG = 'Разработчик'
 
 const LEVEL_NICK_TAGS: Record<number, string> = {
-  1: 'ПГС',
+  1: 'ПС',
   2: 'След.',
   3: 'ЗГС',
   4: 'ГС',
@@ -42,6 +42,8 @@ export function rewriteLegacyNicknameTags(nickname: string): string {
     ['ЗГС Гос', 'ЗГС ГОС'],
     ['ГС Гос', 'ГС ГОС'],
     ['След.стр', 'След.'],
+    ['ПГС ', 'ПС '],
+    ['ПГС]', 'ПС]'],
   ]
   for (const [oldTag, newTag] of replacements) {
     text = text.replaceAll(`[${oldTag}]`, `[${newTag}]`)
@@ -94,6 +96,18 @@ function pickSphereNickTag(spheres: string[], accessLevel: number): string | nul
   return tags.length ? tags.join('&') : null
 }
 
+function ministrySphereNickTag(spheres: string[]): string | null {
+  const tags = MINISTRY_NICK_TAG_ORDER.filter((key) => spheres.includes(key)).map(
+    (key) => MINISTRY_NICK_TAGS[key],
+  )
+  return tags.length ? tags.join('&') : null
+}
+
+function spheresWithout(main: string[], extra: string[]): string[] {
+  const skip = new Set(extra)
+  return main.filter((key) => !skip.has(key))
+}
+
 export function formatStaffNickname(
   cleanName: string,
   accessLevel: number,
@@ -111,38 +125,28 @@ export function formatStaffNickname(
   }
 
   const levelTag = LEVEL_NICK_TAGS[accessLevel] ?? `Уровень ${accessLevel}`
-
   if (accessLevel >= 8) {
     return rewriteLegacyNicknameTags(`[${levelTag}] ${name}`)
   }
 
-  const mainSphereTag = pickSphereNickTag(spheres, accessLevel)
+  const extra = isSenior ? [...(seniorSpheres ?? [])] : []
+  const extraTag = extra.length ? ministrySphereNickTag(extra) : null
+  const leftover = spheresWithout(spheres, extra)
+
+  if (extraTag && accessLevel >= 2 && accessLevel < 3) {
+    const followTag = leftover.length ? pickSphereNickTag(leftover, 2) : null
+    const seniorPart = `Ст. След. ${extraTag}`
+    const bracket = followTag ? `[${seniorPart} | След. ${followTag}]` : `[${seniorPart}]`
+    return rewriteLegacyNicknameTags(`${bracket} ${name}`)
+  }
+
+  const mainKeys = extraTag && leftover.length ? leftover : spheres
+  const mainSphereTag = pickSphereNickTag(mainKeys, accessLevel)
   const mainPart = mainSphereTag ? `${levelTag} ${mainSphereTag}` : `${levelTag}`
-
-  // Senior part
-  let seniorPart: string | null = null
-  if (isSenior && seniorSpheres && seniorSpheres.length) {
-    const sTag = pickSphereNickTag(seniorSpheres, accessLevel)
-    if (sTag) {
-      if (accessLevel <= 2) {
-        seniorPart = `Ст. След. ${sTag}`
-      } else {
-        seniorPart = `След. ${sTag}`
-      }
-    }
+  let bracket = `[${mainPart}]`
+  if (extraTag && accessLevel >= 3 && extraTag !== mainSphereTag) {
+    bracket = `[${mainPart} | След. ${extraTag}]`
   }
-
-  let bracket: string
-  if (seniorPart) {
-    if (accessLevel <= 2) {
-      bracket = `[${seniorPart} | ${mainPart}]`
-    } else {
-      bracket = `[${mainPart} | ${seniorPart}]`
-    }
-  } else {
-    bracket = `[${mainPart}]`
-  }
-
   return rewriteLegacyNicknameTags(`${bracket} ${name}`)
 }
 
@@ -174,10 +178,10 @@ export function isLegacyStaffTag(tag: string): boolean {
   const t = tag.trim()
   if (!t) return true
   if (/^Уровень\s/i.test(t)) return true
-  const levelTags = ['ПГС', 'След.', 'След.стр', 'ЗГС', 'ГС', 'Куратор', 'ЗГА', 'ГА', 'Разработчик']
+  const levelTags = ['ПГС', 'ПС', 'След.', 'След.стр', 'ЗГС', 'ГС', 'Куратор', 'ЗГА', 'ГА', 'Разработчик']
   if (levelTags.includes(t)) return true
   // Составные теги уровня+сферы (в т.ч. старый След.стр Гос)
-  if (/^(ПГС|След\.|След\.стр|ЗГС|ГС)\s/.test(t)) return true
+  if (/^(ПГС|ПС|След\.|След\.стр|ЗГС|ГС|Ст\. След\.)\s/.test(t)) return true
   return false
 }
 

@@ -978,6 +978,8 @@ export interface AssignBody {
   judge_position?: string
   congress_role?: 'speaker' | 'vice'
   granted_at?: string | null
+  is_senior?: boolean
+  senior_spheres?: string[]
 }
 
 export interface AssignResult {

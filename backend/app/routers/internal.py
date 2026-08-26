@@ -113,25 +113,25 @@ async def put_staff_spheres(
             normalized = validate_spheres(body.spheres)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        from app.services.staff import _persist_staff_spheres
+        from app.services.staff import update_staff_member
 
-        await _persist_staff_spheres(vk_id, server_id, normalized)
-        if body.is_senior is not None or body.senior_spheres is not None:
-            from app.services.staff import update_staff_member
-
-            senior_spheres = body.senior_spheres
-            if senior_spheres is not None:
+        senior_spheres = body.senior_spheres
+        if senior_spheres is not None:
+            if senior_spheres:
                 try:
                     senior_spheres = validate_spheres(senior_spheres)
                 except ValueError as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
-            await update_staff_member(
-                server_id,
-                vk_id,
-                is_senior=body.is_senior,
-                senior_spheres=senior_spheres,
-            )
-        return {"ok": True, "vk_id": vk_id, "spheres": normalized, "is_senior": body.is_senior, "senior_spheres": body.senior_spheres}
+            else:
+                senior_spheres = []
+        await update_staff_member(
+            server_id,
+            vk_id,
+            spheres=normalized,
+            is_senior=body.is_senior,
+            senior_spheres=senior_spheres,
+        )
+        return {"ok": True, "vk_id": vk_id, "spheres": normalized, "is_senior": body.is_senior, "senior_spheres": senior_spheres}
 
     if body.grant_central_apparatus is not None:
         spheres = await sync_spheres_from_bot(
@@ -146,10 +146,13 @@ async def put_staff_spheres(
 
         senior_spheres = body.senior_spheres
         if senior_spheres is not None:
-            try:
-                senior_spheres = validate_spheres(senior_spheres)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            if senior_spheres:
+                try:
+                    senior_spheres = validate_spheres(senior_spheres)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+            else:
+                senior_spheres = []
         await update_staff_member(
             server_id,
             vk_id,

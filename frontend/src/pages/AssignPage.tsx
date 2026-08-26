@@ -65,6 +65,8 @@ export function AssignPage() {
   const [nickname, setNickname] = useState('')
   const [accessLevel, setAccessLevel] = useState('1')
   const [spheres, setSpheres] = useState<string[]>([])
+  const [isSenior, setIsSenior] = useState(false)
+  const [seniorSpheres, setSeniorSpheres] = useState<string[]>([])
   const [nicknameTag, setNicknameTag] = useState('')
   const [judgePosition, setJudgePosition] = useState<string>(JUDGE_POSITIONS[1])
   const [congressRole, setCongressRole] = useState<'speaker' | 'vice'>('speaker')
@@ -108,6 +110,10 @@ export function AssignPage() {
   useEffect(() => {
     if (roleType !== 'staff') return
     setSpheres((prev) => filterSpheresForLevel(prev, parsedLevel))
+    if (parsedLevel < 2 || parsedLevel >= 8) {
+      setIsSenior(false)
+      setSeniorSpheres([])
+    }
     if (isDeveloperLevel(parsedLevel)) setNicknameTag('')
   }, [parsedLevel, roleType])
 
@@ -140,8 +146,10 @@ export function AssignPage() {
       parsedLevel,
       spheres,
       isDeveloperLevel(parsedLevel) ? nicknameTag : null,
+      isSenior,
+      seniorSpheres,
     )
-  }, [nickname, nicknameTag, parsedLevel, spheres, roleType])
+  }, [nickname, nicknameTag, parsedLevel, spheres, roleType, isSenior, seniorSpheres])
 
   if (userLevel < 2) {
     return <Navigate to="/dashboard" replace />
@@ -154,6 +162,8 @@ export function AssignPage() {
     setNickname('')
     setAccessLevel('1')
     setSpheres([])
+    setIsSenior(false)
+    setSeniorSpheres([])
     setNicknameTag('')
     setAppointedAt(todayDateInputValue())
     setJudgePosition(JUDGE_POSITIONS[1])
@@ -171,7 +181,13 @@ export function AssignPage() {
   const forumError = forumTouched && !forumValidation.ok ? forumValidation.message : null
   const nickOk = roleType === 'staff' ? Boolean(stripStaffNicknameTags(nickname).trim()) : Boolean(nickname.trim())
 
-  const canSubmitStaff = vkOk && discordOk && forumOk && nickOk && spheres.length > 0
+  const canSubmitStaff =
+    vkOk &&
+    discordOk &&
+    forumOk &&
+    nickOk &&
+    spheres.length > 0 &&
+    (!isSenior || seniorSpheres.length > 0)
   const canSubmitJudge = vkOk && discordOk && forumOk && nickOk && judgePosition
   const canSubmitCongress = vkOk && discordOk && forumOk && nickOk && congressRole
 
@@ -223,6 +239,8 @@ export function AssignPage() {
             : nickname.trim(),
         access_level: roleType === 'staff' ? parsedLevel : undefined,
         spheres: roleType === 'staff' ? spheres : undefined,
+        is_senior: roleType === 'staff' ? isSenior : undefined,
+        senior_spheres: roleType === 'staff' && isSenior ? seniorSpheres : undefined,
         nickname_tag:
           roleType === 'staff' && isDeveloperLevel(parsedLevel)
             ? nicknameTag.trim() || null
@@ -419,6 +437,50 @@ export function AssignPage() {
                     grantableSpheres={grantableSphereIds}
                   />
                 </div>
+
+                {parsedLevel >= 2 && parsedLevel < 8 && (
+                  <>
+                    <div className="assign-field assign-field--full">
+                      <label className="assign-label">
+                        {parsedLevel <= 2 ? 'Старший следящий' : 'Совмещение: следящий'}
+                      </label>
+                      <label className="flex gap-3 items-center">
+                        <input
+                          type="checkbox"
+                          className="ui-checkbox"
+                          checked={isSenior}
+                          disabled={saving}
+                          onChange={(e) => {
+                            const on = e.target.checked
+                            setIsSenior(on)
+                            if (!on) setSeniorSpheres([])
+                          }}
+                        />
+                        <span className="ui-checkbox-box" />
+                        <span className="text-sm opacity-80">
+                          {parsedLevel <= 2
+                            ? 'Тег [Ст. След. Сфера], сфера старшего выбирается отдельно'
+                            : 'Тег [ГС/ЗГС СФЕРА | След. СФЕРА]'}
+                        </span>
+                      </label>
+                    </div>
+                    {isSenior && (
+                      <div className="assign-field assign-field--full assign-spheres">
+                        <span className="assign-label">
+                          {parsedLevel <= 2 ? 'Сфера старшего' : 'Доп. сфера следящего'}
+                        </span>
+                        <SphereMultiSelect
+                          value={seniorSpheres}
+                          onChange={setSeniorSpheres}
+                          disabled={saving}
+                          accessLevel={2}
+                          showHint={false}
+                          grantableSpheres={grantableSphereIds}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </section>
           )}

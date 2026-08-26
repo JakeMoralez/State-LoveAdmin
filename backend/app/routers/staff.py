@@ -743,27 +743,23 @@ async def patch_staff_member(
             raise HTTPException(status_code=400, detail="Укажите senior_spheres")
         if not perms["edit_spheres"]:
             raise HTTPException(status_code=403, detail="Недостаточно прав для смены сфер старшего")
-        # Validate using same mechanics as for обычных сфер
-        sphere_target_level = (
-            body.access_level
-            if "access_level" in fields_set and body.access_level is not None
-            else target_level
-        )
-        # Need current senior spheres from DB
         from app.models.bot import UserServerAccess as _UserServerAccess
 
         access_row = await _UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
         current_senior = list(access_row.senior_spheres or []) if access_row else []
-        kwargs["senior_spheres"] = assert_can_set_spheres(
-            actor_vk_id=user["vk_id"],
-            actor_level=actor_level,
-            actor_panel_role=user.get("panel_role") or "member",
-            actor_spheres=_actor_spheres(user),
-            target_current=current_senior,
-            requested=body.senior_spheres,
-            target_level=sphere_target_level,
-            dev_persona=dev_persona,
-        )
+        if not body.senior_spheres:
+            kwargs["senior_spheres"] = []
+        else:
+            kwargs["senior_spheres"] = assert_can_set_spheres(
+                actor_vk_id=user["vk_id"],
+                actor_level=actor_level,
+                actor_panel_role=user.get("panel_role") or "member",
+                actor_spheres=_actor_spheres(user),
+                target_current=current_senior,
+                requested=body.senior_spheres,
+                target_level=AccessLevel.SUPERVISOR,
+                dev_persona=dev_persona,
+            )
 
     if "note" in fields_set:
         if not perms["edit_sphere"]:

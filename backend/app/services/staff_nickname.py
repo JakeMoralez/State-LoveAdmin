@@ -18,7 +18,6 @@ _TAG_PREFIX_RE = re.compile(r"^[\[［]([^\］\]]+)[\]］]\s*")
 
 
 LEVEL_NICK_TAGS: dict[int, str] = {
-    # ПГС -> ПС (Проверяющий следящий) — обновлённый короткий тег
     AccessLevel.PGS: "ПС",
     AccessLevel.SUPERVISOR: "След.",
     AccessLevel.ZGS: "ЗГС",
@@ -103,6 +102,8 @@ def rewrite_legacy_nickname_tags(nickname: str) -> str:
         ("ЗГС Гос", "ЗГС ГОС"),
         ("ГС Гос", "ГС ГОС"),
         ("След.стр", "След."),
+        ("ПГС ", "ПС "),
+        ("ПГС]", "ПС]"),
     )
     for old, new in replacements:
         text = text.replace(f"[{old}]", f"[{new}]")
@@ -133,6 +134,17 @@ def pick_sphere_nick_tag(spheres: list[str], access_level: int) -> str | None:
     return "&".join(tags) if tags else None
 
 
+def ministry_sphere_nick_tag(spheres: list[str] | None) -> str | None:
+    """Тег министерств для Ст. След. / совмещения следящего (ЦА, МЮ, МО, МЗ)."""
+    tags = [MINISTRY_NICK_TAGS[key] for key in MINISTRY_NICK_TAG_ORDER if key in (spheres or [])]
+    return "&".join(tags) if tags else None
+
+
+def _spheres_without(main: list[str], extra: list[str]) -> list[str]:
+    skip = set(extra)
+    return [key for key in main if key not in skip]
+
+
 def format_staff_nickname(
     clean_name: str,
     access_level: int,
@@ -142,50 +154,41 @@ def format_staff_nickname(
     is_senior: bool = False,
     senior_spheres: list[str] | None = None,
 ) -> str:
-    """Build nickname tag(s).
-
-    New behaviour: optionally include senior-following information.
-    - If is_senior and senior_spheres provided, a secondary part is appended using
-      either "Ст. След. {TAG}" or "След. {TAG}" depending on the primary role.
-    """
+    """Тег ника: [ПС ЦА], [Ст. След. МЮ | След. ЦА], [ГС ЦА | След. МЮ]."""
     name = strip_nickname_tags(clean_name).strip()
     if not name:
         raise ValueError("Укажите имя для никнейма")
 
-    # developer/custom tag handling unchanged
     if access_level >= AccessLevel.DEVELOPER:
         tag = normalize_custom_tag(custom_tag) or LEVEL_NICK_TAGS[AccessLevel.DEVELOPER]
         bracket = f"[{tag}]"
     else:
         level_tag = LEVEL_NICK_TAGS.get(access_level) or AccessLevel.title(access_level)
+        extra = list(senior_spheres or []) if is_senior else []
+        extra_tag = ministry_sphere_nick_tag(extra) if extra else None
+        leftover = _spheres_without(list(spheres or []), extra)
 
-        # sphere tag for the main role
-        main_sphere_tag = pick_sphere_nick_tag(spheres, access_level)
         if access_level >= AccessLevel.CURATOR:
-            main_part = f"{level_tag}"
-        else:
-            main_part = f"{level_tag} {main_sphere_tag}" if main_sphere_tag else f"{level_tag}"
-
-        # senior part
-        senior_part = None
-        if is_senior and senior_spheres:
-            s_tag = pick_sphere_nick_tag(senior_spheres, access_level)
-            if s_tag:
-                # If primary role is low (<=SUPERVISOR), show senior as primary
-                if access_level <= AccessLevel.SUPERVISOR:
-                    senior_part = f"Ст. След. {s_tag}"
-                else:
-                    # For GS/ZGS and higher main roles show secondary as regular След.
-                    senior_part = f"След. {s_tag}"
-
-        if senior_part:
-            # decide order: if primary is supervisor or lower, show senior first
-            if access_level <= AccessLevel.SUPERVISOR:
-                bracket = f"[{senior_part} | {main_part}]"
+            bracket = f"[{level_tag}]"
+        elif (
+            extra_tag
+            and AccessLevel.SUPERVISOR <= access_level < AccessLevel.ZGS
+        ):
+            follow = leftover or []
+            follow_tag = pick_sphere_nick_tag(follow, AccessLevel.SUPERVISOR)
+            senior_part = f"Ст. След. {extra_tag}"
+            if follow_tag:
+                bracket = f"[{senior_part} | След. {follow_tag}]"
             else:
-                bracket = f"[{main_part} | {senior_part}]"
+                bracket = f"[{senior_part}]"
         else:
-            bracket = f"[{main_part}]"
+            main_keys = leftover if extra_tag and leftover else list(spheres or [])
+            main_sphere_tag = pick_sphere_nick_tag(main_keys, access_level)
+            main_part = f"{level_tag} {main_sphere_tag}" if main_sphere_tag else level_tag
+            if extra_tag and access_level >= AccessLevel.ZGS and extra_tag != main_sphere_tag:
+                bracket = f"[{main_part} | След. {extra_tag}]"
+            else:
+                bracket = f"[{main_part}]"
 
     result = f"{bracket} {name}"
     if len(result) > 64:

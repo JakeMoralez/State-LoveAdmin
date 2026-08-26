@@ -207,6 +207,8 @@ async def assign_staff_with_profile(
     discord_id: str | None = None,
     granted_by: int | None = None,
     granted_at: datetime | None = None,
+    is_senior: bool = False,
+    senior_spheres: list[str] | None = None,
 ) -> dict:
     await _apply_forum_account(vk_id, forum_account)
     row = await assign_staff_member(
@@ -218,6 +220,8 @@ async def assign_staff_with_profile(
         granted_by=granted_by,
         nickname_tag=nickname_tag,
         granted_at=granted_at,
+        is_senior=is_senior,
+        senior_spheres=senior_spheres,
     )
     await _link_discord(vk_id, discord_id, granted_by)
     return {

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_SERVER_ID
+from app.models.bot import AccessLevel
 from app.services.auth import require_ca_user
 from app.services.discord_oauth import normalize_discord_id
 from app.services.activity_log import staff_assign_detail
@@ -64,6 +65,8 @@ class AssignBody(BaseModel):
     judge_position: str | None = None
     congress_role: Literal["speaker", "vice"] | None = None
     granted_at: str | None = None
+    is_senior: bool | None = None
+    senior_spheres: list[str] | None = None
 
 
 @router.get("/options")
@@ -142,6 +145,24 @@ async def post_assign(
                 target_level=body.access_level,
                 dev_persona=dev_persona,
             )
+            if body.is_senior and not body.senior_spheres:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Для старшего следящего / совмещения укажите сферу",
+                )
+            extra_spheres: list[str] | None = None
+            extra_senior = bool(body.is_senior)
+            if extra_senior:
+                extra_spheres = assert_can_set_spheres(
+                    actor_vk_id=user["vk_id"],
+                    actor_level=actor_level,
+                    actor_panel_role=user.get("panel_role") or "member",
+                    actor_spheres=list(user.get("spheres") or []),
+                    target_current=[],
+                    requested=body.senior_spheres or [],
+                    target_level=AccessLevel.SUPERVISOR,
+                    dev_persona=dev_persona,
+                )
             result = await assign_staff_with_profile(
                 server_id,
                 vk_id,
@@ -153,6 +174,8 @@ async def post_assign(
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
                 granted_at=appointed,
+                is_senior=extra_senior,
+                senior_spheres=extra_spheres,
             )
         elif body.role_type == "judge":
             if actor_level < ASSIGN_ROLE_MIN_LEVEL:

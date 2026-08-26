@@ -254,7 +254,11 @@ async def list_staff(server_id: int) -> list[dict]:
                 "username": user.username,
                 "access_level": eff_level,
                 "access_level_name": AccessLevel.title(eff_level),
-                "access_role_title": role_title(eff_level),
+                "access_role_title": (
+                    "Старший следящий"
+                    if access and getattr(access, "is_senior", False) and eff_level == AccessLevel.SUPERVISOR
+                    else role_title(eff_level)
+                ),
                 "sphere": derive_sphere_from_spheres(spheres),
                 "spheres": spheres,
                 "badges": format_badges(access, user, spheres),
@@ -730,6 +734,8 @@ async def assign_staff_member(
     granted_by: int | None = None,
     nickname_tag: str | None = None,
     granted_at: datetime | None = None,
+    is_senior: bool = False,
+    senior_spheres: list[str] | None = None,
 ) -> dict:
     if access_level < AccessLevel.PGS:
         raise ValueError("Уровень доступа должен быть не ниже ПГС (1)")
@@ -742,6 +748,8 @@ async def assign_staff_member(
         access_level=access_level,
         granted_by=granted_by,
         granted_at=appointed,
+        is_senior=bool(is_senior),
+        senior_spheres=list(senior_spheres or []),
     )
 
     normalized_spheres = validate_spheres(spheres, access_level)
@@ -753,8 +761,8 @@ async def assign_staff_member(
         access_level,
         normalized_spheres,
         custom_tag=dev_tag,
-        is_senior=bool(access.is_senior) if access is not None else False,
-        senior_spheres=list(access.senior_spheres or []) if access is not None else None,
+        is_senior=bool(is_senior),
+        senior_spheres=list(senior_spheres or []) if is_senior else None,
     )
     await _persist_member_nickname(vk_id, server_id, formatted_nick)
     await _persist_staff_spheres(vk_id, server_id, normalized_spheres, granted_by=granted_by)
@@ -856,6 +864,8 @@ async def update_staff_member(
         or spheres is not None
         or has_ca_access is not None
         or nickname_tag_provided
+        or is_senior is not None
+        or senior_spheres is not None
     ):
         access = await UserServerAccess.get(user_id=vk_id, server_id=server_id)
         promoted_to_dev = (
