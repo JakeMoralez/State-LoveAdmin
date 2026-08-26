@@ -873,16 +873,25 @@ async def update_staff_member(
             and access_level >= AccessLevel.DEVELOPER
             and old_level < AccessLevel.DEVELOPER
         )
-        await _sync_formatted_staff_nickname(
-            vk_id,
-            server_id,
-            access,
-            user,
-            clean_name=nickname,
-            custom_tag=nickname_tag,
-            custom_tag_provided=nickname_tag_provided,
-            preserve_dev_tag=not promoted_to_dev,
-        )
+        try:
+            await _sync_formatted_staff_nickname(
+                vk_id,
+                server_id,
+                access,
+                user,
+                clean_name=nickname,
+                custom_tag=nickname_tag,
+                custom_tag_provided=nickname_tag_provided,
+                preserve_dev_tag=not promoted_to_dev,
+            )
+        except ValueError as exc:
+            # Сферы уже сохранены — не откатываем из‑за ника
+            logger.warning(
+                "staff nick sync skipped vk=%s server=%s: %s",
+                vk_id,
+                server_id,
+                exc,
+            )
 
     row = await get_staff_member(server_id, vk_id)
     if not row:

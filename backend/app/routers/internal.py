@@ -28,6 +28,7 @@ class DiscordLinkBody(BaseModel):
 
 
 class StaffSpheresBody(BaseModel):
+    actor_vk_id: int | None = None
     spheres: list[str] | None = None
     grant_central_apparatus: bool | None = None
     is_senior: bool | None = None
@@ -108,12 +109,82 @@ async def put_staff_spheres(
 ):
     _check_secret(x_sled_secret)
 
+    async def _assert_actor_can_edit_spheres(
+        *,
+        requested: list[str] | None = None,
+        senior_requested: list[str] | None = None,
+    ) -> list[str] | None:
+        """Require actor_vk_id; hierarchy + grantable spheres. Returns normalized main spheres."""
+        from app.models.bot import AccessLevel
+        from app.services.access import get_access_level
+        from app.services.staff_permissions import assert_can_set_spheres
+        from app.services.staff_spheres import effective_grantable_sphere_keys
+
+        if body.actor_vk_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Укажите actor_vk_id",
+            )
+
+        actor_level = await get_access_level(body.actor_vk_id, server_id)
+        target_level = await get_access_level(vk_id, server_id)
+        if actor_level < AccessLevel.ZGS and body.actor_vk_id != vk_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Нужен уровень ЗГС для смены сфер другому",
+            )
+        if (
+            body.actor_vk_id != vk_id
+            and actor_level < AccessLevel.DEVELOPER
+            and target_level >= actor_level
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Нельзя менять сферы пользователя своего уровня или выше",
+            )
+
+        actor_note = await StaffNote.get_or_none(
+            vk_id=body.actor_vk_id, server_id=server_id
+        )
+        target_note = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+        actor_spheres = list(actor_note.spheres or []) if actor_note else []
+        target_current = list(target_note.spheres or []) if target_note else []
+
+        normalized: list[str] | None = None
+        if requested is not None:
+            normalized = assert_can_set_spheres(
+                actor_vk_id=body.actor_vk_id,
+                actor_level=actor_level,
+                actor_panel_role="",
+                actor_spheres=actor_spheres,
+                target_current=target_current,
+                requested=requested,
+                target_level=target_level,
+            )
+
+        if senior_requested:
+            if actor_level < AccessLevel.DEVELOPER:
+                grantable = set(
+                    effective_grantable_sphere_keys(actor_level, actor_spheres)
+                )
+                bad = [s for s in senior_requested if s not in grantable]
+                if bad:
+                    from app.services.staff_spheres import format_spheres_display
+
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "Старшие сферы можно ставить только из своих: "
+                            f"{format_spheres_display(bad)}"
+                        ),
+                    )
+        return normalized
+
     if body.spheres is not None:
         try:
             normalized = validate_spheres(body.spheres)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        from app.services.staff import update_staff_member
 
         senior_spheres = body.senior_spheres
         if senior_spheres is not None:
@@ -124,21 +195,43 @@ async def put_staff_spheres(
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
             else:
                 senior_spheres = []
-        await update_staff_member(
-            server_id,
-            vk_id,
-            spheres=normalized,
-            is_senior=body.is_senior,
-            senior_spheres=senior_spheres,
+
+        normalized = await _assert_actor_can_edit_spheres(
+            requested=normalized,
+            senior_requested=senior_spheres,
         )
-        return {"ok": True, "vk_id": vk_id, "spheres": normalized, "is_senior": body.is_senior, "senior_spheres": senior_spheres}
+        assert normalized is not None
+
+        from app.services.staff import update_staff_member
+
+        try:
+            await update_staff_member(
+                server_id,
+                vk_id,
+                spheres=normalized,
+                is_senior=body.is_senior,
+                senior_spheres=senior_spheres,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "vk_id": vk_id,
+            "spheres": normalized,
+            "is_senior": body.is_senior,
+            "senior_spheres": senior_spheres,
+        }
 
     if body.grant_central_apparatus is not None:
-        spheres = await sync_spheres_from_bot(
-            server_id,
-            vk_id,
-            grant_central_apparatus=body.grant_central_apparatus,
-        )
+        # Системный sync бота (вход/выход след. ЦА) — без actor hierarchy.
+        try:
+            spheres = await sync_spheres_from_bot(
+                server_id,
+                vk_id,
+                grant_central_apparatus=body.grant_central_apparatus,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"ok": True, "vk_id": vk_id, "spheres": spheres}
 
     if body.is_senior is not None or body.senior_spheres is not None:
@@ -153,12 +246,18 @@ async def put_staff_spheres(
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
             else:
                 senior_spheres = []
-        await update_staff_member(
-            server_id,
-            vk_id,
-            is_senior=body.is_senior,
-            senior_spheres=senior_spheres,
-        )
+
+        await _assert_actor_can_edit_spheres(senior_requested=senior_spheres)
+
+        try:
+            await update_staff_member(
+                server_id,
+                vk_id,
+                is_senior=body.is_senior,
+                senior_spheres=senior_spheres,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "ok": True,
             "vk_id": vk_id,
@@ -166,7 +265,10 @@ async def put_staff_spheres(
             "senior_spheres": senior_spheres,
         }
 
-    raise HTTPException(status_code=400, detail="Укажите spheres, grant_central_apparatus, is_senior или senior_spheres")
+    raise HTTPException(
+        status_code=400,
+        detail="Укажите spheres, grant_central_apparatus, is_senior или senior_spheres",
+    )
 
 
 @router.post("/staff-assign")
