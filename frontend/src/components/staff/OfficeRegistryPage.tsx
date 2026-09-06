@@ -303,9 +303,14 @@ export function OfficeRegistryPage({
                     )}
                     <span className="staff-badges">{badge}</span>
                   </div>
-                  <div className="staff-col-position staff-col-readonly">{memberPosition(m) || '—'}</div>
+                  <div className="staff-col-position staff-col-readonly" title={memberPosition(m) || '—'}>
+                    {memberPosition(m) || '—'}
+                  </div>
                   {sphereFilter ? (
-                    <div className="staff-col-sphere staff-col-readonly">
+                    <div
+                      className="staff-col-sphere staff-col-readonly"
+                      title={rowSphere ? formatSpheresDisplay([rowSphere]) : '—'}
+                    >
                       {rowSphere ? formatSpheresDisplay([rowSphere]) : '—'}
                     </div>
                   ) : null}

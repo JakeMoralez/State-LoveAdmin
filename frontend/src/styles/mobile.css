@@ -370,6 +370,35 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     padding: 0;
   }
 
+  /* Search + actions only: keep one row, don't stretch a lone button to 50%. */
+  .page-toolbar-row:has(> .page-toolbar-search-slot + .page-toolbar-actions),
+  .case-list-toolbar.page-toolbar-row {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .page-toolbar-row:has(> .page-toolbar-search-slot + .page-toolbar-actions) .page-toolbar-search-slot,
+  .case-list-toolbar .page-toolbar-search-slot {
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+  }
+
+  .page-toolbar-row:has(> .page-toolbar-search-slot + .page-toolbar-actions) .page-toolbar-actions,
+  .case-list-toolbar .page-toolbar-actions {
+    display: flex;
+    width: auto;
+    margin-left: 0;
+    grid-template-columns: none;
+  }
+
+  .page-toolbar-row:has(> .page-toolbar-search-slot + .page-toolbar-actions) .page-toolbar-actions .btn,
+  .case-list-toolbar .page-toolbar-actions .btn {
+    width: auto;
+  }
+
   .page-toolbar-search-slot,
   .qb-toolbar-panel-search {
     flex: 0 0 auto;

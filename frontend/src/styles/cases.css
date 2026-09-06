@@ -1,5 +1,38 @@
 /* ── Dev loot cases: list, edit, spin presentation ── */
 
+.case-list-toolbar.page-toolbar-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.case-list-toolbar .page-toolbar-search-slot {
+  flex: 1 1 14rem;
+  width: auto;
+  min-width: 0;
+  max-width: 28rem;
+}
+
+.case-list-toolbar .page-toolbar-search {
+  height: 2.375rem;
+  min-height: 2.375rem;
+}
+
+.case-list-toolbar .page-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: 0;
+}
+
+.case-list-toolbar .page-toolbar-actions .btn {
+  width: auto;
+  height: 2.375rem;
+  min-height: 2.375rem;
+}
+
 .case-list {
   display: grid;
   gap: 0.75rem;

@@ -123,10 +123,10 @@ export function LootCasesPage() {
         </form>
       </ModalViewport>
 
-      <PageToolbarRow>
+      <PageToolbarRow className="case-list-toolbar">
         <PageSearch variant="row" value={q} onChange={setQ} placeholder="Поиск кейсов…" />
         <PageToolbarActions>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={load} disabled={loading}>
+          <button type="button" className="btn btn-secondary btn-sm shrink-0" onClick={load} disabled={loading}>
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
             Обновить
           </button>

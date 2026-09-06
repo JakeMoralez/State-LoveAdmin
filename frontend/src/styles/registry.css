@@ -16,6 +16,8 @@
 }
 
 .staff-registry-toolbar.page-toolbar-row {
+  display: flex;
+  flex-direction: row;
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.5rem;
@@ -39,16 +41,49 @@
   max-width: 16rem;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 900px) {
   .staff-registry-toolbar.page-toolbar-row {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex-wrap: unset;
+    align-items: stretch;
+    gap: 0.5rem 0.625rem;
+  }
+
+  .staff-registry-toolbar .page-toolbar-search-slot {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
   }
 
   .staff-registry-filter,
   .staff-registry-filter--sphere {
-    flex: 1 1 calc(50% - 0.25rem);
-    width: auto;
+    flex: none;
+    width: 100%;
     max-width: none;
+  }
+
+  /* Search + one filter: keep a single row */
+  .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter)) {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter))
+    .page-toolbar-search-slot {
+    grid-column: auto;
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter))
+    .staff-registry-filter {
+    flex: 0 0 14rem;
+    width: 14rem;
+    max-width: 16rem;
   }
 }
 
@@ -245,8 +280,50 @@
   object-fit: cover;
 }
 
-/* Mobile / tablet card layout (≤1023px — matches drawer nav) */
-@media (max-width: 1023px) {
+/* Tablet: keep real columns, just tighter tracks */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .staff-registry-head,
+  .staff-registry-row {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1.5fr) minmax(7.25rem, 0.95fr) minmax(6.5rem, 0.85fr);
+    grid-template-rows: auto;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .leaders-registry-head,
+  .leaders-registry-row {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1.5fr) minmax(8rem, 1fr);
+    grid-template-rows: auto;
+  }
+
+  .leaders-registry--spheres .leaders-registry-head,
+  .leaders-registry--spheres .leaders-registry-row {
+    grid-template-columns: 2.25rem minmax(0, 1.4fr) minmax(7rem, 0.85fr) minmax(7.5rem, 1fr);
+  }
+
+  .leaders-registry .staff-registry-head .staff-col-position,
+  .leaders-registry .staff-registry-head .staff-col-sphere,
+  .staff-registry-head .staff-col-role,
+  .staff-registry-head .staff-col-sphere {
+    display: inline-flex;
+  }
+
+  .leaders-registry .staff-col-position::before,
+  .leaders-registry .staff-col-sphere::before,
+  .staff-col-role::before,
+  .staff-col-sphere::before {
+    content: none;
+  }
+
+  .dev-leadership-head,
+  .dev-leadership-row {
+    grid-template-columns: 2.25rem minmax(0, 1fr) 7.5rem;
+  }
+}
+
+/* Phone card layout */
+@media (max-width: 639px) {
   .staff-registry-head,
   .staff-registry-row {
     grid-template-columns: 36px 1fr;

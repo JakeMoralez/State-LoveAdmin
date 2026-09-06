@@ -3,7 +3,7 @@
 .dev-settings-system {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .dev-settings-chat-head {
@@ -36,46 +36,221 @@
 }
 
 .dev-settings-block {
-  padding: 16px 18px;
+  padding: 20px 22px 18px;
+}
+
+.dev-settings-block-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
 }
 
 .dev-settings-block-title {
-  margin: 0 0 10px;
-  font-size: 15px;
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.dev-settings-block-head .dev-settings-block-title {
+  margin: 0;
+}
+
+.dev-settings-hint {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.dev-settings-block--factions,
+.dev-settings-list--sphere,
+.dev-settings-list-head {
+  --faction-tag: 8.75rem;
+  --faction-sphere: minmax(16rem, 22rem);
+  --faction-action: 2.25rem;
+  --faction-gap: 12px;
+  --faction-row-gap: 14px;
+}
+
+.dev-settings-list-head {
+  display: grid;
+  grid-template-columns: var(--faction-tag) var(--faction-sphere) var(--faction-action);
+  gap: 10px var(--faction-gap);
+  margin-bottom: 8px;
+  padding: 0 2px;
+  color: rgb(255 255 255 / 0.38);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .dev-settings-list {
-  margin: 0 0 12px;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .dev-settings-list li {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
-.dev-settings-list--pair input:first-child,
-.dev-settings-list--sphere input:first-child,
-.dev-settings-list--triple input:first-child {
+.dev-settings-list--pair input:first-child {
   width: 140px;
   flex: 0 0 140px;
 }
 
-.dev-settings-list--sphere .select,
-.dev-settings-list--triple .select {
-  flex: 1 1 12rem;
-  min-width: 10rem;
+.dev-settings-block--tags,
+.dev-settings-list--triple,
+.dev-settings-list-head--triple {
+  --tag-col: 11.25rem;
+  --label-col: minmax(9rem, 1fr);
+  --sphere-col: minmax(16.5rem, 22rem);
+  --action-col: 2.25rem;
+  --tag-gap: 12px;
+}
+
+.dev-settings-list-head--triple {
+  grid-template-columns: var(--tag-col) var(--label-col) var(--sphere-col) var(--action-col);
+}
+
+.dev-settings-list--triple {
+  gap: 14px;
+}
+
+.dev-settings-list--triple li {
+  display: grid;
+  grid-template-columns: var(--tag-col) var(--label-col) var(--sphere-col) var(--action-col);
+  gap: 10px var(--tag-gap);
+  align-items: center;
+}
+
+.dev-settings-list--triple input:first-child {
+  width: 100%;
+  min-width: 0;
+  font-family: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.dev-settings-list--triple input:nth-child(2) {
+  width: 100%;
+  min-width: 0;
+}
+
+.dev-settings-list--triple .select-root {
+  min-width: 0;
+}
+
+.dev-settings-list--triple .btn-icon {
+  width: 2.25rem;
+  height: 2.375rem;
+  min-height: 2.375rem;
+}
+
+.dev-settings-list--sphere {
+  gap: var(--faction-row-gap, 14px);
+}
+
+.dev-settings-list--sphere li {
+  display: grid;
+  grid-template-columns: var(--faction-tag) var(--faction-sphere) var(--faction-action);
+  gap: 10px var(--faction-gap);
+}
+
+.dev-settings-list--sphere input:first-child {
+  width: 100%;
+  min-width: 0;
+  font-family: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.dev-settings-list--sphere .select-root {
+  min-width: 0;
+}
+
+.dev-settings-list--sphere .btn-icon {
+  width: 2.25rem;
+  height: 2.375rem;
+  min-height: 2.375rem;
 }
 
 .dev-settings-add {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.dev-settings-add--sphere {
+  display: grid;
+  grid-template-columns: var(--faction-tag) auto;
+  justify-content: start;
+  gap: var(--faction-gap);
+}
+
+.dev-settings-add--sphere .control {
+  width: 100%;
+  min-width: 0;
+  font-family: ui-monospace, 'Cascadia Code', 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+
+@media (max-width: 640px) {
+  .dev-settings-list-head--triple {
+    display: none;
+  }
+
+  .dev-settings-list--triple li {
+    grid-template-columns: minmax(0, 1fr) var(--action-col);
+  }
+
+  .dev-settings-list--triple input:first-child,
+  .dev-settings-list--triple input:nth-child(2),
+  .dev-settings-list--triple .select-root {
+    grid-column: 1;
+  }
+
+  .dev-settings-list--triple .btn-icon {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    align-self: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .dev-settings-list-head:not(.dev-settings-list-head--triple) {
+    display: none;
+  }
+
+  .dev-settings-add--sphere {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dev-settings-list--sphere li {
+    grid-template-columns: minmax(0, 1fr) var(--faction-action);
+  }
+
+  .dev-settings-list--sphere input:first-child {
+    grid-column: 1;
+  }
+
+  .dev-settings-list--sphere .select-root {
+    grid-column: 1;
+  }
+
+  .dev-settings-list--sphere .btn-icon {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
 }
 
 .dev-settings-dl {

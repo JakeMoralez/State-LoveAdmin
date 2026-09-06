@@ -50,6 +50,20 @@ function formatError(e: unknown): string {
   return 'Не удалось загрузить'
 }
 
+function normalizeDevChat(chat: DevChat): DevChat {
+  if (chat.chat_kind !== 'sled_ca') return chat
+  return {
+    ...chat,
+    chat_kind: 'staff',
+    sphere: chat.sphere || 'central_apparatus',
+    kind_label: 'Следящие · Центральный аппарат',
+  }
+}
+
+function visibleChatKinds(kinds: DevChatKind[]): DevChatKind[] {
+  return kinds.filter((item) => item.id !== 'sled_ca')
+}
+
 function ChatEditor({
   chat,
   kinds,
@@ -262,15 +276,23 @@ function FactionListEditor({
     onChange({ values, tagSpheres: { ...tagSpheres, [tag]: sphere } })
   }
   return (
-    <section className="dev-settings-block glass-card">
-      <h3 className="dev-settings-block-title">{title}</h3>
-      {hint ? <p className="dev-settings-hint">{hint}</p> : null}
+    <section className="dev-settings-block dev-settings-block--factions glass-card">
+      <header className="dev-settings-block-head">
+        <h3 className="dev-settings-block-title">{title}</h3>
+        {hint ? <p className="dev-settings-hint">{hint}</p> : null}
+      </header>
+      <div className="dev-settings-list-head" aria-hidden="true">
+        <span>Тег</span>
+        <span>Сфера</span>
+        <span />
+      </div>
       <ul className="dev-settings-list dev-settings-list--sphere">
         {values.map((item, index) => (
           <li key={`${item}-${index}`}>
             <input
-              className="control"
+              className="control control-md"
               value={item}
+              aria-label={`Тег фракции ${index + 1}`}
               onChange={(e) => setTag(index, e.target.value)}
             />
             <Select
@@ -281,8 +303,8 @@ function FactionListEditor({
             />
             <button
               type="button"
-              className="btn-icon"
-              aria-label="Удалить"
+              className="btn-icon btn-icon--danger"
+              aria-label={`Удалить ${item || 'фракцию'}`}
               onClick={() => {
                 const nextSpheres = { ...tagSpheres }
                 delete nextSpheres[item]
@@ -297,11 +319,12 @@ function FactionListEditor({
           </li>
         ))}
       </ul>
-      <div className="dev-settings-add">
+      <div className="dev-settings-add dev-settings-add--sphere">
         <input
-          className="control w-full"
+          className="control control-md"
           value={draft}
           placeholder={placeholder}
+          aria-label="Новый тег фракции"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key !== 'Enter') return
@@ -357,15 +380,24 @@ function TagListEditor({
   }) => void
 }) {
   return (
-    <section className="dev-settings-block glass-card">
-      <h3 className="dev-settings-block-title">{title}</h3>
+    <section className="dev-settings-block dev-settings-block--tags glass-card">
+      <header className="dev-settings-block-head">
+        <h3 className="dev-settings-block-title">{title}</h3>
+      </header>
+      <div className="dev-settings-list-head dev-settings-list-head--triple" aria-hidden="true">
+        <span>Тег</span>
+        <span>Подпись</span>
+        <span>Сфера</span>
+        <span />
+      </div>
       <ul className="dev-settings-list dev-settings-list--triple">
         {items.map((item, index) => (
           <li key={`${item.value}-${index}`}>
             <input
-              className="control"
+              className="control control-md"
               value={item.value}
               placeholder="Тег"
+              aria-label={`Тег ${index + 1}`}
               onChange={(e) => {
                 const next = [...items]
                 const prev = item.value
@@ -379,9 +411,10 @@ function TagListEditor({
               }}
             />
             <input
-              className="control w-full"
+              className="control control-md"
               value={item.label}
               placeholder="Подпись"
+              aria-label={`Подпись ${index + 1}`}
               onChange={(e) => {
                 const next = [...items]
                 next[index] = { ...item, label: e.target.value }
@@ -401,8 +434,8 @@ function TagListEditor({
             />
             <button
               type="button"
-              className="btn-icon"
-              aria-label="Удалить"
+              className="btn-icon btn-icon--danger"
+              aria-label={`Удалить ${item.label || item.value || 'запись'}`}
               onClick={() => {
                 const nextSpheres = { ...tagSpheres }
                 delete nextSpheres[item.value]
@@ -417,14 +450,16 @@ function TagListEditor({
           </li>
         ))}
       </ul>
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm"
-        onClick={() => onChange({ items: [...items, { value: '', label: '' }], tagSpheres })}
-      >
-        <Plus size={15} />
-        Добавить
-      </button>
+      <div className="dev-settings-add">
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => onChange({ items: [...items, { value: '', label: '' }], tagSpheres })}
+        >
+          <Plus size={15} />
+          Добавить
+        </button>
+      </div>
     </section>
   )
 }
@@ -444,8 +479,8 @@ export function DevSettingsPage() {
 
   const loadChats = async () => {
     const data = await api.devChats()
-    setChats(data.chats)
-    setKinds(data.kinds)
+    setChats(data.chats.map(normalizeDevChat))
+    setKinds(visibleChatKinds(data.kinds))
   }
 
   const load = async () => {
@@ -563,7 +598,9 @@ export function DevSettingsPage() {
                     api
                       .updateDevChat(chat.peer_id, body)
                       .then((updated) => {
-                        setChats((prev) => prev.map((row) => (row.peer_id === updated.peer_id ? updated : row)))
+                        setChats((prev) =>
+                          prev.map((row) => (row.peer_id === updated.peer_id ? normalizeDevChat(updated) : row)),
+                        )
                         setNotice('Беседа сохранена')
                       })
                       .catch((e) => setError(formatError(e)))

@@ -286,8 +286,12 @@ export function StaffPage() {
                       <span className="staff-badges">{m.badges.join(' ')}</span>
                     )}
                   </div>
-                  <div className="staff-col-role">{m.access_role_title || m.access_level_name}</div>
-                  <div className="staff-col-sphere">{m.sphere || '—'}</div>
+                  <div className="staff-col-role" title={m.access_role_title || m.access_level_name}>
+                    {m.access_role_title || m.access_level_name}
+                  </div>
+                  <div className="staff-col-sphere" title={m.sphere || '—'}>
+                    {m.sphere || '—'}
+                  </div>
                 </div>
               ))}
             </div>
