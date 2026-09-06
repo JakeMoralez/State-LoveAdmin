@@ -13,16 +13,15 @@ import {
 import { Link } from 'react-router-dom'
 import { api, ApiError, type ActivityLogItem, type DashboardSummary, type ProfileUpdateBody } from '../../api'
 import { useAuth } from '../../context/AuthContext'
-import { localizeActivityMessage } from '../../lib/activityLabels'
 import { looksLikeDiscordId } from '../../lib/discordId'
 import { forumMemberUrl, parseForumMemberUrl } from '../../lib/forumAccount'
+import { ActivityTable, ActivityToolbar } from '../activity/ActivityTable'
 import { formatSpheresDisplay } from '../../lib/spheres'
 import { PageHeader } from '../PageHeader'
 import { Checkbox } from '../ui/Checkbox'
 import { ForumAccountField } from '../ui/ForumAccountField'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
-const FEED_LIMIT = 20
 const JOURNAL_MIN_LEVEL = 2
 const ACCESS_HISTORY_ACTIONS = 'staff_assign,staff_update,staff_revoke'
 
@@ -83,17 +82,6 @@ function formatGrantedAt(iso: string): string {
   return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function cabinetActivityText(item: ActivityLogItem, subjectVkId: number): string {
-  let msg = item.message
-  if (item.target_vk_id === subjectVkId && item.target_name) {
-    const needle = ` ${item.target_name} `
-    if (msg.includes(needle)) {
-      msg = msg.replace(needle, ' ')
-    }
-  }
-  return localizeActivityMessage(msg, item.action)
-}
-
 function discordLabel(profile: ProfileViewData): string | null {
   const name = profile.discord_display_name || profile.discord_username
   if (name && profile.discord_id) return `${name} · ${profile.discord_id}`
@@ -115,10 +103,13 @@ export function ProfileView({
 }) {
   const { user, refresh } = useAuth()
   const [copied, setCopied] = useState(false)
-  const [feed, setFeed] = useState<ActivityLogItem[] | null>(null)
+  const [feed, setFeed] = useState<ActivityLogItem[]>([])
   const [feedTotal, setFeedTotal] = useState(0)
   const [feedOffset, setFeedOffset] = useState(0)
-  const [feedLoadingMore, setFeedLoadingMore] = useState(false)
+  const [feedPageSize, setFeedPageSize] = useState(10)
+  const [feedQ, setFeedQ] = useState('')
+  const [feedReload, setFeedReload] = useState(0)
+  const [feedLoading, setFeedLoading] = useState(true)
   const [history, setHistory] = useState<ActivityLogItem[]>([])
   const [feedError, setFeedError] = useState<string | null>(null)
   const [feedForbidden, setFeedForbidden] = useState(false)
@@ -142,18 +133,26 @@ export function ProfileView({
   const [notifyAssign, setNotifyAssign] = useState(true)
 
   useEffect(() => {
-    let cancelled = false
-    setFeed(null)
     setFeedOffset(0)
+    setFeedQ('')
+  }, [profile.vk_id])
+
+  useEffect(() => {
+    let cancelled = false
+    setFeedLoading(true)
     setFeedError(null)
     setFeedForbidden(false)
     api
-      .activityLog({ vk_id: profile.vk_id, limit: FEED_LIMIT, offset: 0 })
+      .activityLog({
+        vk_id: profile.vk_id,
+        q: feedQ || undefined,
+        limit: feedPageSize,
+        offset: feedOffset,
+      })
       .then((res) => {
         if (cancelled) return
         setFeed(res.items)
         setFeedTotal(res.total)
-        setFeedOffset(res.items.length)
       })
       .catch((e: unknown) => {
         if (cancelled) return
@@ -165,6 +164,16 @@ export function ProfileView({
         setFeed([])
         setFeedError(e instanceof Error ? e.message : 'Не удалось загрузить журнал')
       })
+      .finally(() => {
+        if (!cancelled) setFeedLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [feedOffset, feedPageSize, feedQ, feedReload, profile.vk_id])
+
+  useEffect(() => {
+    let cancelled = false
     api
       .activityLog({
         vk_id: profile.vk_id,
@@ -202,29 +211,11 @@ export function ProfileView({
 
   useEffect(() => {
     setDiscordId(profile.discord_id ?? '')
-    setForumAccount(forumMemberUrl(profile.username, profile.vk_id) || profile.username || '')
+    setForumAccount(forumMemberUrl(profile.username, profile.vk_id))
     setNotifyTasks(profile.notify_tasks !== false)
     setNotifyAssign(profile.notify_assign !== false)
     setSaveError(null)
   }, [profile])
-
-  const loadMoreFeed = async () => {
-    setFeedLoadingMore(true)
-    try {
-      const res = await api.activityLog({
-        vk_id: profile.vk_id,
-        limit: FEED_LIMIT,
-        offset: feedOffset,
-      })
-      setFeed((prev) => [...(prev ?? []), ...res.items])
-      setFeedTotal(res.total)
-      setFeedOffset((prev) => prev + res.items.length)
-    } catch {
-      /* keep current feed */
-    } finally {
-      setFeedLoadingMore(false)
-    }
-  }
 
   const saveOwnProfile = async () => {
     const forumRaw = forumAccount.trim()
@@ -492,56 +483,41 @@ export function ProfileView({
           )}
         </aside>
 
-        <section className="glass-card lk-feed">
-          <div className="lk-feed-head">
-            <div>
-              <h3 className="profile-section-title lk-feed-title">Последние действия</h3>
-              {feedTotal > 0 && (
-                <p className="lk-feed-count">
-                  {feedTotal} {feedTotal === 1 ? 'запись' : feedTotal < 5 ? 'записи' : 'записей'}
-                </p>
-              )}
-            </div>
-            {canOpenJournal && (
-              <Link to="/activity" className="lk-feed-all">
-                Все записи
-              </Link>
-            )}
-          </div>
+        <section className="activity-table-card lk-feed" aria-label="Последние действия">
+          <ActivityToolbar
+            q={feedQ}
+            onQuery={(value) => {
+              setFeedQ(value)
+              setFeedOffset(0)
+            }}
+            pageSize={feedPageSize}
+            onPageSize={(value) => {
+              setFeedPageSize(value)
+              setFeedOffset(0)
+            }}
+            loading={feedLoading}
+            onRefresh={() => setFeedReload((n) => n + 1)}
+          />
 
-          {feed === null ? (
-            <p className="lk-feed-empty">Загрузка журнала…</p>
-          ) : feedForbidden ? (
+          {feedForbidden ? (
             <p className="lk-feed-empty">Журнал по этому аккаунту доступен с уровня Следящий.</p>
           ) : feedError ? (
             <p className="lk-feed-empty">{feedError}</p>
-          ) : feed.length === 0 ? (
-            <p className="lk-feed-empty">
-              Пока нет записей. Назначения, смены должности и правки карточки появятся здесь.
-            </p>
           ) : (
-            <>
-            <ol className="lk-feed-list">
-              {feed.map((item, index) => (
-                <li key={item.id} className="lk-feed-item">
-                  <p className="lk-feed-text">{cabinetActivityText(item, profile.vk_id)}</p>
-                  <p className="lk-feed-meta">
-                    {index + 1} | {formatCabinetStamp(item.created_at)}
-                  </p>
-                </li>
-              ))}
-            </ol>
-            {feed.length < feedTotal && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm lk-feed-more"
-                disabled={feedLoadingMore}
-                onClick={() => void loadMoreFeed()}
-              >
-                {feedLoadingMore ? 'Загрузка…' : 'Ещё записи'}
-              </button>
-            )}
-            </>
+            <ActivityTable
+              items={feed}
+              loading={feedLoading}
+              empty={
+                feedQ
+                  ? 'Ничего не найдено. Измените поиск.'
+                  : 'Пока нет записей. Назначения, смены должности и правки карточки появятся здесь.'
+              }
+              total={feedTotal}
+              offset={feedOffset}
+              pageSize={feedPageSize}
+              onPage={(page) => setFeedOffset((page - 1) * feedPageSize)}
+              pagerLabel="Страницы действий профиля"
+            />
           )}
         </section>
       </div>

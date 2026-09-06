@@ -16,6 +16,7 @@ interface ForumAccountFieldProps {
   disabled?: boolean
   readOnly?: boolean
   readOnlyMemberId?: string | null
+  vkId?: number | null
   error?: string | null
   hint?: string | null
   placeholder?: string
@@ -31,11 +32,12 @@ export function ForumAccountField({
   disabled,
   readOnly,
   readOnlyMemberId,
+  vkId,
   error,
   hint = null,
   placeholder = FORUM_MEMBER_URL_EXAMPLE,
 }: ForumAccountFieldProps) {
-  const readOnlyUrl = readOnlyMemberId ? forumMemberUrl(readOnlyMemberId) : ''
+  const readOnlyUrl = readOnlyMemberId ? forumMemberUrl(readOnlyMemberId, vkId) : ''
 
   return (
     <div className="forum-field">

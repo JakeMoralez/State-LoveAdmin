@@ -98,7 +98,7 @@ export function StaffProfileModal({
     setSeniorSpheres(loadedSenior)
     setIsSenior(Boolean(member.is_senior) && loadedSenior.length > 0)
     setDiscordId(member.discord_id ?? '')
-    setForumAccount(forumMemberUrl(member.username, member.vk_id) || member.username || '')
+    setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
     setAppointedAt(isoToDateInput(member.granted_at) || todayDateInputValue())
     setError(null)
@@ -387,6 +387,7 @@ export function StaffProfileModal({
               disabled={saving}
               readOnly={!permissions.edit_forum_account}
               readOnlyMemberId={member.username}
+              vkId={member.vk_id}
               error={forumError}
             />
           </div>
