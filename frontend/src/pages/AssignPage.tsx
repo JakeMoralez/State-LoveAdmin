@@ -14,6 +14,13 @@ import {
   previewStaffNickname,
   stripStaffNicknameTags,
 } from '../lib/staffNickname'
+import {
+  extractLeadershipOrgTag,
+  looksLikeRpName,
+  orgFieldLabel,
+  orgOptionsForRole,
+  previewLeadershipNickname,
+} from '../lib/leaderNickname'
 import { ForumAccountField } from '../components/ui/ForumAccountField'
 import { Select } from '../components/ui/Select'
 import { DatePicker } from '../components/ui/DatePicker'
@@ -25,9 +32,15 @@ import { cn } from '../lib/utils'
 
 const ROLE_TYPE_OPTIONS = [
   { value: 'staff', label: 'Следящий' },
+  { value: 'leader', label: 'Лидер' },
+  { value: 'deputy', label: 'Зам' },
+  { value: 'minister', label: 'Министр' },
+  { value: 'advisor', label: 'Советник' },
   { value: 'judge', label: 'Судья' },
   { value: 'congress', label: 'Конгресс' },
 ] as const
+
+const LEADERSHIP_TYPES = new Set(['leader', 'deputy', 'minister', 'advisor'])
 
 const CONGRESS_ROLE_OPTIONS = [
   { value: 'speaker', label: 'Спикер конгресса' },
@@ -41,7 +54,17 @@ function formatError(e: unknown): string {
 }
 
 function parseRoleType(raw: string | null): AssignRoleType {
-  if (raw === 'judge' || raw === 'congress' || raw === 'staff') return raw
+  if (
+    raw === 'judge' ||
+    raw === 'congress' ||
+    raw === 'staff' ||
+    raw === 'leader' ||
+    raw === 'deputy' ||
+    raw === 'minister' ||
+    raw === 'advisor'
+  ) {
+    return raw
+  }
   return 'staff'
 }
 
@@ -70,9 +93,15 @@ export function AssignPage() {
   const [seniorSpheres, setSeniorSpheres] = useState<string[]>([])
   const [nicknameTag, setNicknameTag] = useState('')
   const [judgePosition, setJudgePosition] = useState<string>(JUDGE_POSITIONS[1])
+  const [orgTag, setOrgTag] = useState('')
   const [congressRole, setCongressRole] = useState<'speaker' | 'vice'>('speaker')
   const [appointedAt, setAppointedAt] = useState(todayDateInputValue())
   const [judgePositions, setJudgePositions] = useState<string[]>([...JUDGE_POSITIONS])
+  const [orgCatalog, setOrgCatalog] = useState<{
+    factions?: string[]
+    ministers?: { value: string; label: string }[]
+    advisors?: { value: string; label: string }[]
+  }>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -85,8 +114,9 @@ export function AssignPage() {
 
   const roleTypeOptions = useMemo(() => {
     if (userLevel >= 3) return [...ROLE_TYPE_OPTIONS]
-    return ROLE_TYPE_OPTIONS.filter((o) => o.value === 'judge' || o.value === 'congress')
+    return ROLE_TYPE_OPTIONS.filter((o) => o.value !== 'staff')
   }, [userLevel])
+  const isLeadership = LEADERSHIP_TYPES.has(roleType)
   const parsedLevel = parseInt(accessLevel, 10)
 
   useEffect(() => {
@@ -94,6 +124,15 @@ export function AssignPage() {
       .assignOptions()
       .then((res) => {
         if (res.judge_positions.length) setJudgePositions(res.judge_positions)
+        const asItems = (raw?: { value: string; label: string }[] | string[]) =>
+          (raw ?? []).map((item) =>
+            typeof item === 'string' ? { value: item, label: item } : item,
+          )
+        setOrgCatalog({
+          factions: res.factions,
+          ministers: asItems(res.minister_tags),
+          advisors: asItems(res.advisor_tags),
+        })
       })
       .catch(() => {
         /* local fallback */
@@ -122,8 +161,11 @@ export function AssignPage() {
         setRoleType('staff')
         setVkInput(String(m.vk_id))
         setVkTouched(true)
-        const nick = stripStaffNicknameTags(m.bot_nickname || m.nickname || '').trim()
+        const rawNick = m.bot_nickname || m.nickname || ''
+        const nick = stripStaffNicknameTags(rawNick).trim()
         if (nick) setNickname(nick)
+        const parsedOrg = extractLeadershipOrgTag(rawNick)
+        if (parsedOrg) setOrgTag(parsedOrg)
         if (m.discord_id) {
           setDiscordId(m.discord_id)
           setDiscordTouched(true)
@@ -183,17 +225,27 @@ export function AssignPage() {
     [unrestrictedSphereAssign, userLevel, actorSphereIds],
   )
 
+  const orgOptions = useMemo(() => orgOptionsForRole(roleType, orgCatalog), [roleType, orgCatalog])
+
+  useEffect(() => {
+    if (!isLeadership) return
+    if (orgTag && !orgOptions.some((o) => o.value === orgTag)) setOrgTag('')
+  }, [isLeadership, orgOptions, orgTag])
+
   const nicknamePreview = useMemo(() => {
-    if (roleType !== 'staff') return ''
-    return previewStaffNickname(
-      nickname,
-      parsedLevel,
-      spheres,
-      isDeveloperLevel(parsedLevel) ? nicknameTag : null,
-      isSenior,
-      seniorSpheres,
-    )
-  }, [nickname, nicknameTag, parsedLevel, spheres, roleType, isSenior, seniorSpheres])
+    if (roleType === 'staff') {
+      return previewStaffNickname(
+        nickname,
+        parsedLevel,
+        spheres,
+        isDeveloperLevel(parsedLevel) ? nicknameTag : null,
+        isSenior,
+        seniorSpheres,
+      )
+    }
+    if (isLeadership) return previewLeadershipNickname(roleType, nickname, orgTag)
+    return ''
+  }, [nickname, nicknameTag, parsedLevel, spheres, roleType, isSenior, seniorSpheres, isLeadership, orgTag])
 
   if (userLevel < 2) {
     return <Navigate to="/dashboard" replace />
@@ -211,6 +263,7 @@ export function AssignPage() {
     setNicknameTag('')
     setAppointedAt(todayDateInputValue())
     setJudgePosition(JUDGE_POSITIONS[1])
+    setOrgTag('')
     setCongressRole('speaker')
     setForumTouched(false)
     setVkTouched(false)
@@ -219,11 +272,21 @@ export function AssignPage() {
   }
 
   const vkOk = looksLikeVkInput(vkInput)
+  const discordFilled = Boolean(discordId.trim())
   const discordOk = looksLikeDiscordId(discordId)
+  const discordFieldOk = isLeadership ? !discordFilled || discordOk : discordOk
   const forumValidation = useMemo(() => parseForumMemberUrl(forumAccount), [forumAccount])
+  const forumFilled = Boolean(forumAccount.trim())
   const forumOk = forumValidation.ok
-  const forumError = forumTouched && !forumValidation.ok ? forumValidation.message : null
-  const nickOk = roleType === 'staff' ? Boolean(stripStaffNicknameTags(nickname).trim()) : Boolean(nickname.trim())
+  const forumFieldOk = isLeadership ? !forumFilled || forumOk : forumOk
+  const forumError =
+    forumTouched && !forumFieldOk && !forumValidation.ok ? forumValidation.message : null
+  const nickOk = isLeadership
+    ? looksLikeRpName(nickname)
+    : roleType === 'staff'
+      ? Boolean(stripStaffNicknameTags(nickname).trim())
+      : Boolean(nickname.trim())
+  const orgOk = !isLeadership || Boolean(orgTag)
 
   const canSubmitStaff =
     vkOk &&
@@ -234,36 +297,49 @@ export function AssignPage() {
     (!isSenior || seniorSpheres.length > 0)
   const canSubmitJudge = vkOk && discordOk && forumOk && nickOk && judgePosition
   const canSubmitCongress = vkOk && discordOk && forumOk && nickOk && congressRole
+  const canSubmitLeadership = vkOk && nickOk && orgOk
 
   const canSubmit =
     roleType === 'staff'
       ? Boolean(canSubmitStaff)
       : roleType === 'judge'
         ? Boolean(canSubmitJudge)
-        : Boolean(canSubmitCongress)
+        : roleType === 'congress'
+          ? Boolean(canSubmitCongress)
+          : Boolean(canSubmitLeadership)
 
   const handleSubmit = async () => {
-    setForumTouched(true)
     setVkTouched(true)
-    setDiscordTouched(true)
+    if (!isLeadership || discordFilled) setDiscordTouched(true)
+    if (!isLeadership || forumFilled) setForumTouched(true)
     setError(null)
 
     if (!nickOk) {
-      setError('Укажите никнейм')
+      setError(isLeadership ? 'Ник: латиница, одно подчёркивание. Например Kyo_Parker' : 'Укажите никнейм')
+      return
+    }
+    if (isLeadership && !orgTag) {
+      setError(roleType === 'minister' ? 'Выберите министерство' : roleType === 'advisor' ? 'Выберите тег советника' : 'Выберите фракцию')
       return
     }
     if (!looksLikeVkInput(vkInput)) {
       setError('Укажите VK ID или ссылку на профиль')
       return
     }
-    if (!looksLikeDiscordId(discordId)) {
+    if (!isLeadership && !discordOk) {
       setError('Укажите корректный Discord ID (17–20 цифр)')
       return
     }
-    const forumCheck = parseForumMemberUrl(forumAccount)
-    if (!forumCheck.ok) {
-      setError(forumCheck.message)
+    if (isLeadership && discordFilled && !discordOk) {
+      setError('Укажите корректный Discord ID (17–20 цифр) или оставьте поле пустым')
       return
+    }
+    if (!isLeadership || forumFilled) {
+      const forumCheck = parseForumMemberUrl(forumAccount)
+      if (!forumCheck.ok) {
+        setError(forumCheck.message)
+        return
+      }
     }
     if (roleType === 'staff' && spheres.length === 0) {
       setError('Выберите хотя бы одну сферу')
@@ -276,11 +352,12 @@ export function AssignPage() {
         role_type: roleType,
         vk_id: vkInput.trim(),
         discord_id: discordId.trim(),
-        forum_account: forumAccountForApi(forumAccount),
+        forum_account: forumFilled ? forumAccountForApi(forumAccount) : '',
         nickname:
-          roleType === 'staff'
+          roleType === 'staff' || isLeadership
             ? stripStaffNicknameTags(nickname).trim()
             : nickname.trim(),
+        org_tag: isLeadership ? orgTag : undefined,
         access_level: roleType === 'staff' ? parsedLevel : undefined,
         spheres: roleType === 'staff' ? spheres : undefined,
         is_senior: roleType === 'staff' ? isSenior : undefined,
@@ -298,6 +375,10 @@ export function AssignPage() {
         staff: 'назначен следящим',
         judge: 'назначен судьёй',
         congress: 'назначен в конгресс',
+        leader: 'назначен лидером',
+        deputy: 'назначен замом',
+        minister: 'назначен министром',
+        advisor: 'назначен советником',
       }
       setSuccess(`${res.nickname} ${labels[res.role_type]}`)
       resetForm()
@@ -338,6 +419,24 @@ export function AssignPage() {
                   disabled={saving}
                 />
               </div>
+              {isLeadership && (
+                <div className="assign-field assign-field--full">
+                  <label className="assign-label">{orgFieldLabel(roleType)}</label>
+                  <Select
+                    value={orgTag}
+                    onChange={setOrgTag}
+                    options={orgOptions}
+                    placeholder={
+                      roleType === 'minister'
+                        ? 'Выберите министерство'
+                        : roleType === 'advisor'
+                          ? 'Выберите тег'
+                          : 'LSPD, FBI, GOV…'
+                    }
+                    disabled={saving}
+                  />
+                </div>
+              )}
             </div>
           </section>
 
@@ -355,7 +454,7 @@ export function AssignPage() {
                   type="text"
                   className={cn('control w-full', nickOk && nickname.trim() && 'assign-control--valid')}
                   value={nickname}
-                  placeholder="Имя Фамилия"
+                  placeholder={isLeadership ? 'Kyo_Parker' : 'Имя Фамилия'}
                   disabled={saving}
                   onChange={(e) => setNickname(e.target.value)}
                 />
@@ -372,7 +471,7 @@ export function AssignPage() {
               </div>
             </div>
 
-            {roleType === 'staff' && nicknamePreview ? (
+            {(roleType === 'staff' || isLeadership) && nicknamePreview ? (
               <div className="assign-preview">
                 <span className="assign-preview-label">В реестре</span>
                 <span className="assign-preview-value">{nicknamePreview}</span>
@@ -403,7 +502,7 @@ export function AssignPage() {
 
               <div className="assign-field">
                 <label className="assign-label" htmlFor="assign-discord">
-                  ID Discord
+                  {isLeadership ? 'ID Discord · необязательно' : 'ID Discord'}
                   <button
                     type="button"
                     className="assign-label-hint"
@@ -417,7 +516,7 @@ export function AssignPage() {
                   id="assign-discord"
                   type="text"
                   inputMode="numeric"
-                  className={cn('control w-full', fieldState(discordTouched, discordOk))}
+                  className={cn('control w-full', fieldState(discordTouched, discordFieldOk))}
                   value={discordId}
                   placeholder="18–20 цифр"
                   disabled={saving}
@@ -429,6 +528,7 @@ export function AssignPage() {
               <div className="assign-field assign-field--full">
                 <ForumAccountField
                   id="assign-forum"
+                  label={isLeadership ? 'Аккаунт на форуме · необязательно' : 'Аккаунт на форуме'}
                   value={forumAccount}
                   onChange={setForumAccount}
                   onBlur={() => setForumTouched(true)}

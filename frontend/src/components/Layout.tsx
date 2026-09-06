@@ -7,12 +7,15 @@ import {
   FolderKanban,
   Gavel,
   Gift,
+  Scale,
+  Shield,
   History,
   KeyRound,
   LayoutDashboard,
   Library,
   LogOut,
   Menu,
+  Settings,
   TextQuote,
   Users,
   UserPlus,
@@ -53,7 +56,9 @@ const navCategories: NavCategory[] = [
   {
     title: 'Команда',
     items: [
+      { to: '/leaders', label: 'Руководители', icon: Shield },
       { to: '/staff', label: 'Следящие', icon: Users },
+      { to: '/judges', label: 'Судьи', icon: Scale },
       { to: '/assign', label: 'Назначить', icon: UserPlus, minAccessLevel: 2 },
       { to: '/activity', label: 'Журнал', icon: History, minAccessLevel: 2 },
     ],
@@ -297,6 +302,11 @@ function LayoutShell() {
                   <div className="sidebar-nav-category">Разработка</div>
                   <div className="sidebar-nav-divider" aria-hidden />
                   <div className="sidebar-nav-items">
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/dev/settings', label: 'Настройки', icon: Settings }}
+                    />
                     <SidebarNavLink
                       collapsed={sidebarCollapsed}
                       onNavigate={closeMobile}

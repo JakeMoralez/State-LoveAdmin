@@ -22,6 +22,7 @@ import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TasksToolbar, type TaskFilters } from '../components/tasks/TasksToolbar'
 import { useAuth } from '../context/AuthContext'
 import { COMPACT_QUERY, matchesMediaQuery } from '../hooks/useMediaQuery'
+import { TasksLoadingSkeleton } from '../components/ui/LoadingState'
 import { cn, isOverdue } from '../lib/utils'
 
 const KANBAN_STATUSES = ['todo', 'in_progress', 'done']
@@ -297,7 +298,7 @@ export function TasksWorkspace({
       )}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <TasksLoadingSkeleton view={filters.view} />
       ) : filters.view === 'list' ? (
         <div className="list-stack">
           {listTasks.length === 0 ? (

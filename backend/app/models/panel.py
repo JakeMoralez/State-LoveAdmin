@@ -345,3 +345,13 @@ class LootCasePrize(Model):
     class Meta:
         table = "loot_case_prizes"
 
+
+class PanelCatalog(Model):
+    id = fields.IntField(pk=True)
+    data = fields.JSONField(default=dict)
+    updated_by = fields.BigIntField(null=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "panel_catalog"
+

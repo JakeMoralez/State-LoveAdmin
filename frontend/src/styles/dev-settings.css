@@ -1,0 +1,121 @@
+.dev-settings-chats,
+.dev-settings-catalog,
+.dev-settings-system {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dev-settings-chat-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dev-settings-chat-title {
+  font-weight: 600;
+}
+
+.dev-settings-chat-meta,
+.dev-settings-chat-toggle,
+.dev-settings-hint {
+  color: rgb(255 255 255 / 0.45);
+  font-size: 13px;
+}
+
+.dev-settings-chat-edit {
+  padding: 0 16px 16px;
+}
+
+.dev-settings-block {
+  padding: 16px 18px;
+}
+
+.dev-settings-block-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.dev-settings-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dev-settings-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dev-settings-list--pair input:first-child {
+  width: 140px;
+  flex: 0 0 140px;
+}
+
+.dev-settings-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dev-settings-dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.dev-settings-dl div {
+  display: grid;
+  gap: 2px;
+}
+
+.dev-settings-dl dt {
+  color: rgb(255 255 255 / 0.4);
+  font-size: 12px;
+}
+
+.dev-settings-dl dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.dev-settings-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 99px;
+  background: #c45c5c;
+}
+
+.dev-settings-dot--ok {
+  background: #6fbf7a;
+}
+
+.dev-settings-links {
+  display: grid;
+  gap: 8px;
+}
+
+.dev-settings-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(255 255 255 / 0.75);
+}
+
+.dev-settings-link:hover {
+  color: #fff;
+}

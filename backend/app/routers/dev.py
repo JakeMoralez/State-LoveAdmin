@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from app.config import DEFAULT_SERVER_ID
+from app.config import (
+    BOT_DATABASE_URL,
+    DEFAULT_SERVER_ID,
+    SLED_INTERNAL_URL,
+    is_postgres_url,
+    is_sqlite_url,
+    sqlite_file_path,
+)
 from app.models.panel import DevErrorLog
 from app.services.auth import get_session_payload, require_ca_user
+from app.services.audit import log_audit
 from app.services.dev_access import can_view_dev_panel
+from app.services.dev_catalog import get_catalog, save_catalog
 from app.services.display_names import resolve_display_names, resolve_vk_photos
 from app.services.error_log import record_error
+from app.services.sled_client import fetch_dev_chats, patch_dev_chat, ping_bot
 from app.services.staff import (
     list_leadership_candidates,
+    list_staff,
     remove_ca_leader,
     set_ca_leader,
     update_ca_leader_faction,
@@ -180,3 +193,96 @@ async def patch_leadership_flag(
         await remove_ca_leader(server_id, vk_id)
 
     return {"ok": True, "is_leader": body.is_leader}
+
+
+class CatalogUpdate(BaseModel):
+    factions: list[str] | None = None
+    ministers: list[dict] | None = None
+    advisors: list[dict] | None = None
+    judge_positions: list[str] | None = None
+
+
+class ChatSettingsUpdate(BaseModel):
+    chat_kind: str | None = None
+    sphere: str | None = None
+    kick_on_leave: str | None = None
+    kick_on_rejoin: str | None = None
+    auto_mute_on_join: str | None = None
+
+
+@router.get("/system")
+async def get_dev_system(_user: dict = Depends(require_dev_user)):
+    bot_db_exists: bool | None = None
+    bot_db_label = BOT_DATABASE_URL
+    if is_sqlite_url(BOT_DATABASE_URL):
+        bot_db = sqlite_file_path(BOT_DATABASE_URL)
+        bot_db_label = bot_db or BOT_DATABASE_URL
+        bot_db_exists = bool(bot_db and not bot_db.startswith(":") and Path(bot_db).exists())
+    elif is_postgres_url(BOT_DATABASE_URL):
+        bot_db_label = "postgresql"
+        bot_db_exists = True
+    try:
+        staff_count = len(await list_staff(DEFAULT_SERVER_ID))
+    except Exception:
+        staff_count = -1
+    bot_ok, bot_error = await ping_bot()
+    return {
+        "server_id": DEFAULT_SERVER_ID,
+        "bot_db": bot_db_label,
+        "bot_db_exists": bot_db_exists,
+        "staff_count": staff_count,
+        "sled_url": SLED_INTERNAL_URL,
+        "bot_ok": bot_ok,
+        "bot_error": bot_error,
+    }
+
+
+@router.get("/catalog")
+async def get_dev_catalog(_user: dict = Depends(require_dev_user)):
+    return await get_catalog()
+
+
+@router.put("/catalog")
+async def put_dev_catalog(body: CatalogUpdate, user: dict = Depends(require_dev_user)):
+    payload = {key: value for key, value in body.model_dump().items() if value is not None}
+    current = await get_catalog()
+    current.update(payload)
+    saved = await save_catalog(current, updated_by=user["vk_id"])
+    await log_audit(user["vk_id"], "dev_catalog_update", "catalog", 1, {"keys": list(payload)})
+    return saved
+
+
+@router.get("/chats")
+async def get_dev_chats(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    _user: dict = Depends(require_dev_user),
+):
+    data, error = await fetch_dev_chats(server_id)
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    return data
+
+
+@router.patch("/chats/{peer_id}")
+async def patch_dev_chat_settings(
+    peer_id: int,
+    body: ChatSettingsUpdate,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_dev_user),
+):
+    payload = body.model_dump(exclude_unset=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="Нет полей для обновления")
+    payload["server_id"] = server_id
+    payload["updated_by"] = user["vk_id"]
+    data, error = await patch_dev_chat(peer_id, payload)
+    if error:
+        raise HTTPException(status_code=400 if "Недопустимый" in error or "Укажите" in error else 502, detail=error)
+    await log_audit(
+        user["vk_id"],
+        "dev_chat_update",
+        "chat",
+        peer_id,
+        {"peer_id": peer_id, **{k: v for k, v in payload.items() if k != "updated_by"}},
+    )
+    return data

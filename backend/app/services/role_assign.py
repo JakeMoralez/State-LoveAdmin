@@ -11,10 +11,19 @@ from app.models.panel import StaffNote
 from app.services.bot_users import ensure_bot_user, ensure_server_access
 from app.services.display_names import invalidate_display_names
 from app.services.discord_links import set_discord_link
+from app.services.leader_nickname import format_leadership_nickname, validate_org_tag
 from app.services.staff import _persist_member_nickname, assign_staff_member
 
-RoleType = Literal["staff", "judge", "congress"]
+RoleType = Literal["staff", "judge", "congress", "leader", "deputy", "minister", "advisor"]
 CongressRole = Literal["speaker", "vice"]
+LeadershipRole = Literal["leader", "deputy", "minister", "advisor"]
+
+LEADERSHIP_POSITIONS: dict[LeadershipRole, str] = {
+    "leader": "Лидер",
+    "deputy": "Зам",
+    "minister": "Министр",
+    "advisor": "Советник",
+}
 
 JUDGE_POSITIONS: tuple[str, ...] = (
     "Председатель верховного суда",
@@ -27,11 +36,12 @@ CONGRESS_ROLES: dict[CongressRole, str] = {
 }
 
 
-def validate_judge_position(position: str) -> str:
+def validate_judge_position(position: str, allowed: tuple[str, ...] | None = None) -> str:
     cleaned = (position or "").strip()
-    if cleaned not in JUDGE_POSITIONS:
-        allowed = ", ".join(f"«{p}»" for p in JUDGE_POSITIONS)
-        raise ValueError(f"Должность должна быть одной из: {allowed}")
+    pool = allowed or JUDGE_POSITIONS
+    if cleaned not in pool:
+        shown = ", ".join(f"«{p}»" for p in pool)
+        raise ValueError(f"Должность должна быть одной из: {shown}")
     return cleaned
 
 
@@ -50,10 +60,12 @@ FORUM_MEMBER_URL_RE = re.compile(
 )
 
 
-def normalize_forum_account(raw: str) -> str:
+def normalize_forum_account(raw: str, *, required: bool = True) -> str:
     cleaned = (raw or "").strip()
     if not cleaned:
-        raise ValueError("Укажите ссылку или ID профиля на форуме")
+        if required:
+            raise ValueError("Укажите ссылку или ID профиля на форуме")
+        return ""
     match = FORUM_MEMBER_URL_RE.match(cleaned)
     if match:
         return match.group(1)
@@ -105,7 +117,9 @@ async def assign_judge(
     granted_by: int | None = None,
     granted_at: datetime | None = None,
 ) -> dict:
-    position_clean = validate_judge_position(position)
+    from app.services.dev_catalog import get_judge_positions
+
+    position_clean = validate_judge_position(position, await get_judge_positions())
     nick = (nickname or "").strip()
     if not nick:
         raise ValueError("Укажите никнейм")
@@ -230,4 +244,70 @@ async def assign_staff_with_profile(
         "nickname": row.get("bot_nickname") or row.get("nickname") or nickname.strip(),
         "forum_account": normalize_forum_account(forum_account),
         "access_level": access_level,
+    }
+
+
+async def assign_leadership(
+    server_id: int,
+    vk_id: int,
+    *,
+    role_type: str,
+    nickname: str,
+    org_tag: str,
+    forum_account: str = "",
+    discord_id: str | None = None,
+    granted_by: int | None = None,
+    granted_at: datetime | None = None,
+) -> dict:
+    if role_type not in LEADERSHIP_POSITIONS:
+        raise ValueError("Укажите должность: Лидер, Зам, Министр или Советник.")
+    from app.services.dev_catalog import get_org_tag_lists
+
+    position = LEADERSHIP_POSITIONS[role_type]  # type: ignore[index]
+    factions, ministers, advisors = await get_org_tag_lists()
+    tag = validate_org_tag(
+        role_type,
+        org_tag,
+        factions=factions,
+        ministers=ministers,
+        advisors=advisors,
+    )
+    nick = format_leadership_nickname(
+        role_type,
+        nickname,
+        tag,
+        factions=factions,
+        ministers=ministers,
+        advisors=advisors,
+    )
+
+    forum = ""
+    if (forum_account or "").strip():
+        forum = await _apply_forum_account(vk_id, forum_account)
+    else:
+        await ensure_bot_user(vk_id, username=str(vk_id))
+
+    await ensure_server_access(vk_id, server_id, granted_by=granted_by)
+    appointed = granted_at or datetime.now(UTC)
+    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
+        is_leader=True,
+        granted_by=granted_by,
+        granted_at=appointed,
+    )
+    await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+    await StaffNote.filter(vk_id=vk_id, server_id=server_id).update(
+        leader_position=position,
+        updated_by=granted_by,
+        updated_at=datetime.now(UTC),
+    )
+    await _persist_member_nickname(vk_id, server_id, nick)
+    invalidate_display_names(vk_id)
+    await _link_discord(vk_id, discord_id, granted_by)
+    return {
+        "role_type": role_type,
+        "vk_id": vk_id,
+        "nickname": nick,
+        "forum_account": forum,
+        "position": position,
+        "org_tag": tag,
     }

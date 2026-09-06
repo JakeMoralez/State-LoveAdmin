@@ -115,3 +115,14 @@ class RoleChat(Model):
     class Meta:
         table = "role_chats"
         app = "bot"
+
+
+class ChatPeerSettings(Model):
+    peer_id = fields.BigIntField(pk=True)
+    chat_kind = fields.CharField(max_length=32, default="general")
+    sphere = fields.CharField(max_length=64, null=True)
+    server_id = fields.IntField(null=True)
+
+    class Meta:
+        table = "chat_peer_settings"
+        app = "bot"

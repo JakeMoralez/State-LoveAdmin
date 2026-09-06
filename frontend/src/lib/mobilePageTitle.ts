@@ -2,7 +2,8 @@ const ROUTE_TITLES: Record<string, string> = {
   '/dashboard': 'Сводка',
   '/access': 'Доступы',
   '/staff': 'Следящие',
-  '/leaders': 'Руководство',
+  '/leaders': 'Руководители',
+  '/judges': 'Судьи',
   '/tasks': 'Задачи',
   '/checklist': 'Чеклист',
   '/question-banks': 'Банки вопросов',
@@ -13,6 +14,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/projects': 'Проекты',
   '/profile': 'Кабинет',
   '/dev': 'Лог ошибок',
+  '/dev/settings': 'Настройки',
   '/dev/leadership': 'Флаги руководства',
   '/dev/cases': 'Кейсы',
 }
@@ -20,6 +22,7 @@ const ROUTE_TITLES: Record<string, string> = {
 export function getMobilePageTitle(pathname: string): string {
   if (pathname.startsWith('/staff/')) return 'Следящий'
   if (pathname.startsWith('/leaders/')) return 'Профиль'
+  if (pathname.startsWith('/judges/')) return 'Судья'
   if (pathname.startsWith('/projects/')) return 'Проект'
   if (pathname.includes('/question-banks/') && pathname.endsWith('/review')) return 'Проверка'
   if (pathname.startsWith('/question-banks/')) return 'Банк вопросов'

@@ -31,6 +31,8 @@ class StaffSpheresBody(BaseModel):
     actor_vk_id: int | None = None
     spheres: list[str] | None = None
     grant_central_apparatus: bool | None = None
+    grant_sphere: str | None = None
+    revoke_sphere: str | None = None
     is_senior: bool | None = None
     senior_spheres: list[str] | None = None
 
@@ -238,6 +240,21 @@ async def put_staff_spheres(
                 server_id,
                 vk_id,
                 grant_central_apparatus=body.grant_central_apparatus,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "vk_id": vk_id, "spheres": spheres}
+
+    if body.grant_sphere or body.revoke_sphere:
+        from app.services.staff import sync_sphere_from_bot
+
+        key = (body.grant_sphere or body.revoke_sphere or "").strip()
+        try:
+            spheres = await sync_sphere_from_bot(
+                server_id,
+                vk_id,
+                key,
+                grant=bool(body.grant_sphere),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

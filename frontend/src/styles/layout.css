@@ -41,11 +41,7 @@ body {
   to { opacity: 1; }
 }
 
-.page-loading {
-  animation: sl-fade-in var(--motion-base) var(--ease) both;
-  color: var(--sl-text-muted);
-  padding: var(--space-6) 0;
-}
+/* .page-loading — see styles/loading.css */
 
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -28,6 +28,14 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
   },
   {
     section: 'Разработка',
+    page: 'Настройки',
+    path: '/dev/settings',
+    portal: 'Разработчик (11)',
+    sphere: '—',
+    actions: 'Беседы, справочники назначения, статус бота',
+  },
+  {
+    section: 'Разработка',
     page: 'Флаги руководства',
     path: '/dev/leadership',
     portal: 'Разработчик (11)',
@@ -52,8 +60,16 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
   },
   {
     section: 'Команда',
-    page: 'Руководство',
+    page: 'Руководители',
     path: '/leaders',
+    portal: 'ПГС (1+)',
+    sphere: '—',
+    actions: 'Просмотр — ПГС (1+); правка — Следящий (2+), не свой профиль',
+  },
+  {
+    section: 'Команда',
+    page: 'Судьи',
+    path: '/judges',
     portal: 'ПГС (1+)',
     sphere: '—',
     actions: 'Просмотр — ПГС (1+); правка — Следящий (2+), не свой профиль',

@@ -26,9 +26,13 @@ from app.services.staff import (
     parse_appointment_date,
     clear_ca_leader_nickname,
     get_ca_leader,
+    get_judge_member,
     get_leadership_peer_id,
     get_staff_member,
     list_ca_leaders,
+    list_inactive_judges,
+    list_inactive_leaders,
+    list_judges,
     list_former_staff,
     list_staff,
     revoke_ca_leader_full,
@@ -279,6 +283,86 @@ async def get_ca_leaders(
         "members": rows,
         "warning": warning,
     }
+
+
+async def _office_list_payload(
+    server_id: int,
+    q: str,
+    rows: list[dict],
+    warning: str | None,
+    *,
+    peer_id: int | None = None,
+) -> dict:
+    if q:
+        ql = q.lower()
+        rows = [
+            r
+            for r in rows
+            if ql in r["nickname"].lower()
+            or ql in str(r["vk_id"])
+            or (r.get("position") and ql in r["position"].lower())
+            or (r.get("note") and ql in r["note"].lower())
+            or (r.get("faction") and ql in r["faction"].lower())
+        ]
+    vk_ids = {r["vk_id"] for r in rows}
+    names = await resolve_display_names(vk_ids, server_id)
+    photos = await resolve_vk_photos(vk_ids)
+    for r in rows:
+        r["display_name"] = r.get("bot_nickname") or names.get(r["vk_id"], r["nickname"])
+        r["avatar_url"] = photos.get(r["vk_id"])
+    return {
+        "server_id": server_id,
+        "peer_id": peer_id,
+        "total": len(rows),
+        "members": rows,
+        "warning": warning,
+    }
+
+
+@router.get("/leaders/inactive")
+async def get_inactive_leaders(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    q: str = Query(""),
+    user: dict = Depends(require_ca_user),
+):
+    rows, warning = await list_inactive_leaders(server_id)
+    return await _office_list_payload(server_id, q, rows, warning)
+
+
+@router.get("/judges")
+async def get_judges(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    q: str = Query(""),
+    user: dict = Depends(require_ca_user),
+):
+    rows, warning = await list_judges(server_id)
+    return await _office_list_payload(server_id, q, rows, warning)
+
+
+@router.get("/judges/inactive")
+async def get_inactive_judges_route(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    q: str = Query(""),
+    user: dict = Depends(require_ca_user),
+):
+    rows, warning = await list_inactive_judges(server_id)
+    return await _office_list_payload(server_id, q, rows, warning)
+
+
+@router.get("/judges/{vk_id}")
+async def get_judge_one(
+    vk_id: int,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_ca_user),
+):
+    row = await get_judge_member(server_id, vk_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=messages.NOT_FOUND_JUDGE)
+    row = await _enrich_staff_row(row, server_id)
+    actor_level = await _actor_access_level(user, server_id)
+    row["server_id"] = server_id
+    row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
+    return row
 
 
 def _leader_edit_permissions(user: dict, level: int, target_vk_id: int) -> dict:

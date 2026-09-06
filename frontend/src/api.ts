@@ -114,13 +114,22 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-  leaders: (params?: { q?: string }) => {
+  leaders: (params?: { q?: string; inactive?: boolean }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
     const s = q.toString()
-    return request<LeadersResponse>(`/staff/leaders${s ? `?${s}` : ''}`)
+    const path = params?.inactive ? '/staff/leaders/inactive' : '/staff/leaders'
+    return request<LeadersResponse>(`${path}${s ? `?${s}` : ''}`)
   },
   leaderMember: (vkId: number) => request<LeaderMemberDetail>(`/staff/leaders/${vkId}`),
+  judges: (params?: { q?: string; inactive?: boolean }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    const s = q.toString()
+    const path = params?.inactive ? '/staff/judges/inactive' : '/staff/judges'
+    return request<LeadersResponse>(`${path}${s ? `?${s}` : ''}`)
+  },
+  judgeMember: (vkId: number) => request<LeaderMemberDetail>(`/staff/judges/${vkId}`),
   updateLeader: (vkId: number, body: LeaderMemberUpdateBody) =>
     request<LeaderMemberUpdateResponse>(`/staff/leaders/${vkId}`, {
       method: 'PATCH',
@@ -136,6 +145,19 @@ export const api = {
     request<{ ok: boolean; is_leader: boolean }>(`/dev/leadership/${vkId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
+    }),
+  devSystem: () => request<DevSystemInfo>('/dev/system'),
+  devCatalog: () => request<DevCatalog>('/dev/catalog'),
+  saveDevCatalog: (body: DevCatalog) =>
+    request<DevCatalog>('/dev/catalog', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  devChats: () => request<DevChatsResponse>('/dev/chats'),
+  updateDevChat: (peerId: number, body: DevChatUpdate) =>
+    request<DevChat>(`/dev/chats/${peerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
     }),
   staffExportUrl: () => `${API}/staff/export.csv`,
   updateStaffNote: (vkId: number, note: string) =>
@@ -1001,12 +1023,80 @@ export interface JudgeForumValidateThreadResult {
   required_forum_url: string
 }
 
-export type AssignRoleType = 'staff' | 'judge' | 'congress'
+export type AssignRoleType =
+  | 'staff'
+  | 'judge'
+  | 'congress'
+  | 'leader'
+  | 'deputy'
+  | 'minister'
+  | 'advisor'
 
 export interface AssignOptionsResponse {
   role_types: { id: AssignRoleType; label: string }[]
   judge_positions: string[]
   congress_roles: { id: 'speaker' | 'vice'; label: string }[]
+  leadership_positions?: { id: AssignRoleType; label: string }[]
+  factions?: string[]
+  minister_tags?: CatalogTagItem[] | string[]
+  advisor_tags?: CatalogTagItem[] | string[]
+}
+
+export interface CatalogTagItem {
+  value: string
+  label: string
+}
+
+export interface DevCatalog {
+  factions: string[]
+  ministers: CatalogTagItem[]
+  advisors: CatalogTagItem[]
+  judge_positions: string[]
+}
+
+export interface DevSystemInfo {
+  server_id: number
+  bot_db: string
+  bot_db_exists: boolean | null
+  staff_count: number
+  sled_url: string
+  bot_ok: boolean
+  bot_error?: string | null
+}
+
+export interface DevChatKind {
+  id: string
+  label: string
+  needs_sphere: boolean
+  spheres: { id: string; label: string }[]
+}
+
+export interface DevChat {
+  peer_id: number
+  title: string
+  alias?: string | null
+  chat_kind: string
+  kind_label: string
+  sphere?: string | null
+  kick_on_leave: string
+  kick_on_rejoin: string
+  auto_mute_on_join: string
+  member_count?: number | null
+  updated_at?: string | null
+}
+
+export interface DevChatsResponse {
+  server_id: number
+  kinds: DevChatKind[]
+  chats: DevChat[]
+}
+
+export interface DevChatUpdate {
+  chat_kind?: string
+  sphere?: string | null
+  kick_on_leave?: string
+  kick_on_rejoin?: string
+  auto_mute_on_join?: string
 }
 
 export interface AssignBody {
@@ -1019,6 +1109,7 @@ export interface AssignBody {
   spheres?: string[]
   nickname_tag?: string | null
   judge_position?: string
+  org_tag?: string
   congress_role?: 'speaker' | 'vice'
   granted_at?: string | null
   is_senior?: boolean
@@ -1031,6 +1122,7 @@ export interface AssignResult {
   nickname: string
   forum_account: string
   position?: string
+  org_tag?: string
   access_level?: number
   congress_role?: 'speaker' | 'vice'
 }

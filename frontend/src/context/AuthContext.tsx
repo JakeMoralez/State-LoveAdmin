@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { api, ApiError, type UserProfile } from '../api'
+import { LoadingState } from '../components/ui/LoadingState'
 
 interface AuthState {
   user: UserProfile | null
@@ -66,8 +67,8 @@ export function RequireAuth() {
   const { user, loading } = useAuth()
   if (loading) {
     return (
-      <div className="min-h-full flex items-center justify-center text-white/40 animate-fade-in">
-        Загрузка…
+      <div className="min-h-full flex items-center justify-center">
+        <LoadingState />
       </div>
     )
   }

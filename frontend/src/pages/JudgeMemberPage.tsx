@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { effectiveLeaderPermissions } from '../lib/leaderPermissions'
 import { staffLabel } from '../lib/staff'
 
-export function LeaderMemberPage() {
+export function JudgeMemberPage() {
   const { user } = useAuth()
   const { vkId } = useParams()
   const navigate = useNavigate()
@@ -22,7 +22,7 @@ export function LeaderMemberPage() {
     setLoading(true)
     setError(null)
     api
-      .leaderMember(parsedId)
+      .judgeMember(parsedId)
       .then(setMember)
       .catch((e: unknown) => {
         setMember(null)
@@ -38,27 +38,21 @@ export function LeaderMemberPage() {
   if (!Number.isFinite(parsedId)) {
     return <div className="text-white/50">Некорректный ID</div>
   }
-
   if (loading) {
-    return <div className="text-white/50 animate-fade-in">Загрузка профиля…</div>
+    return <div className="page-loading">Загрузка…</div>
   }
-
   if (error || !member) {
     return (
       <div>
         <p className="text-white/50">{error || 'Не найден'}</p>
-        <button type="button" className="btn btn-secondary mt-4" onClick={() => navigate('/leaders')}>
+        <button type="button" className="btn btn-secondary mt-4" onClick={() => navigate('/judges')}>
           К реестру
         </button>
       </div>
     )
   }
 
-  const perms = effectiveLeaderPermissions(
-    member,
-    user?.access_level ?? 0,
-    user?.vk_id ?? 0,
-  )
+  const perms = effectiveLeaderPermissions(member, user?.access_level ?? 0, user?.vk_id ?? 0)
   const canOpenSettings = perms.manage_registry || perms.edit_discord
 
   return (
@@ -77,24 +71,26 @@ export function LeaderMemberPage() {
           username: member.username,
           avatar_url: member.avatar_url,
           access_level: 0,
-          access_level_name: 'Руководители',
-          access_role_title: member.position || 'Руководители',
+          access_level_name: 'Судья',
+          access_role_title: member.position || 'Судья',
           has_ca_access: false,
           server_id: member.server_id ?? 30,
-          badges: member.badges?.length ? member.badges : ['🛡'],
+          badges: member.badges?.length ? member.badges : ['⚖'],
           discord_id: member.discord_id,
           discord_username: member.discord_username,
           discord_display_name: member.discord_display_name,
           sphere: member.note || undefined,
         }}
-        backTo={{ label: 'Руководители', href: '/leaders' }}
+        backTo={{ label: 'Судьи', href: '/judges' }}
       />
-
       <LeaderProfileModal
         member={member}
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onSaved={load}
+        onSaved={(result) => {
+          if (result?.removed) navigate('/judges')
+          else load()
+        }}
       />
     </>
   )

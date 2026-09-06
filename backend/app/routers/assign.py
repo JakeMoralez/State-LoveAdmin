@@ -15,11 +15,13 @@ from app.services import messages
 from app.services.discord_oauth import normalize_discord_id
 from app.services.activity_log import staff_assign_detail
 from app.services.audit import log_audit
+from app.services.dev_catalog import get_catalog
 from app.services.role_assign import (
     CONGRESS_ROLES,
-    JUDGE_POSITIONS,
+    LEADERSHIP_POSITIONS,
     assign_congress,
     assign_judge,
+    assign_leadership,
     assign_staff_with_profile,
     normalize_forum_account,
 )
@@ -48,6 +50,10 @@ def require_assign_user(user: dict = Depends(require_ca_user)) -> dict:
 
 def _role_types_for_level(level: int) -> list[dict]:
     types = [
+        {"id": "leader", "label": "Лидер"},
+        {"id": "deputy", "label": "Зам"},
+        {"id": "minister", "label": "Министр"},
+        {"id": "advisor", "label": "Советник"},
         {"id": "judge", "label": "Судья"},
         {"id": "congress", "label": "Конгресс"},
     ]
@@ -56,8 +62,11 @@ def _role_types_for_level(level: int) -> list[dict]:
     return types
 
 
+LEADERSHIP_TYPES = frozenset(LEADERSHIP_POSITIONS)
+
+
 class AssignBody(BaseModel):
-    role_type: Literal["staff", "judge", "congress"]
+    role_type: Literal["staff", "judge", "congress", "leader", "deputy", "minister", "advisor"]
     vk_id: str = Field(min_length=1)
     discord_id: str = ""
     forum_account: str = ""
@@ -66,6 +75,7 @@ class AssignBody(BaseModel):
     spheres: list[str] | None = None
     nickname_tag: str | None = None
     judge_position: str | None = None
+    org_tag: str | None = None
     congress_role: Literal["speaker", "vice"] | None = None
     granted_at: str | None = None
     is_senior: bool | None = None
@@ -75,12 +85,19 @@ class AssignBody(BaseModel):
 @router.get("/options")
 async def assign_options(user: dict = Depends(require_assign_user)):
     level = int(user.get("access_level") or 0)
+    catalog = await get_catalog()
     return {
         "role_types": _role_types_for_level(level),
-        "judge_positions": list(JUDGE_POSITIONS),
+        "judge_positions": list(catalog["judge_positions"]),
+        "leadership_positions": [
+            {"id": key, "label": label} for key, label in LEADERSHIP_POSITIONS.items()
+        ],
         "congress_roles": [
             {"id": role_id, "label": label} for role_id, label in CONGRESS_ROLES.items()
         ],
+        "factions": list(catalog["factions"]),
+        "minister_tags": list(catalog["ministers"]),
+        "advisor_tags": list(catalog["advisors"]),
     }
 
 
@@ -116,12 +133,14 @@ async def post_assign(
     discord_raw = discord_raw or existing_discord or None
     nickname = (body.nickname or "").strip() or existing_nick
     forum_account = (body.forum_account or "").strip() or existing_forum
+    leadership = body.role_type in LEADERSHIP_TYPES
     if not nickname:
         raise HTTPException(status_code=400, detail=messages.NICKNAME_REQUIRED)
-    if not forum_account:
-        raise HTTPException(status_code=400, detail=messages.FORUM_REQUIRED)
-    if not discord_raw:
-        raise HTTPException(status_code=400, detail=messages.DISCORD_REQUIRED)
+    if not leadership:
+        if not forum_account:
+            raise HTTPException(status_code=400, detail=messages.FORUM_REQUIRED)
+        if not discord_raw:
+            raise HTTPException(status_code=400, detail=messages.DISCORD_REQUIRED)
 
     actor_level = int(user.get("access_level") or 0)
     dev_persona = bool(user.get("dev_persona"))
@@ -221,7 +240,7 @@ async def post_assign(
                 granted_by=user["vk_id"],
                 granted_at=appointed,
             )
-        else:
+        elif body.role_type == "congress":
             if actor_level < ASSIGN_ROLE_MIN_LEVEL:
                 raise HTTPException(
                     status_code=403,
@@ -239,6 +258,27 @@ async def post_assign(
                 granted_by=user["vk_id"],
                 granted_at=appointed,
             )
+        elif body.role_type in LEADERSHIP_TYPES:
+            if actor_level < ASSIGN_ROLE_MIN_LEVEL:
+                raise HTTPException(
+                    status_code=403,
+                    detail=messages.ASSIGN_NEED_SUPERVISOR,
+                )
+            if not (body.org_tag or "").strip():
+                raise HTTPException(status_code=400, detail=messages.LEADER_ORG_REQUIRED)
+            result = await assign_leadership(
+                server_id,
+                vk_id,
+                role_type=body.role_type,
+                nickname=nickname,
+                org_tag=body.org_tag or "",
+                forum_account=forum_account,
+                discord_id=discord_raw,
+                granted_by=user["vk_id"],
+                granted_at=appointed,
+            )
+        else:
+            raise HTTPException(status_code=400, detail=messages.VALIDATION_GENERIC)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -267,7 +307,7 @@ async def post_assign(
                 "position": (body.judge_position or "").strip(),
             },
         )
-    else:
+    elif body.role_type == "congress":
         await log_audit(
             user["vk_id"],
             "congress_assign",
@@ -279,19 +319,36 @@ async def post_assign(
                 "position": CONGRESS_ROLES.get(body.congress_role or "", body.congress_role or ""),
             },
         )
+    else:
+        await log_audit(
+            user["vk_id"],
+            "leader_assign",
+            "staff",
+            vk_id,
+            {
+                "target_vk_id": vk_id,
+                "nickname": result.get("nickname", nickname),
+                "position": LEADERSHIP_POSITIONS.get(body.role_type, body.role_type),
+                "org_tag": result.get("org_tag"),
+            },
+        )
 
     actor_name = (user.get("bot_nickname") or user.get("nickname") or str(user["vk_id"]))
     role_label = {
         "staff": "следящим",
         "judge": "судьёй",
         "congress": "в конгресс",
+        "leader": "лидером",
+        "deputy": "замом",
+        "minister": "министром",
+        "advisor": "советником",
     }.get(body.role_type, "в штат")
     from app.services.vk_notify import notify_assignment
 
     await notify_assignment(
         vk_id,
         f"👤 Вас назначили {role_label}",
-        [f"Ник: {nickname}", f"Назначил: {actor_name}"],
+        [f"Ник: {result.get('nickname') or nickname}", f"Назначил: {actor_name}"],
     )
 
     return result

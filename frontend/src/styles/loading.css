@@ -1,0 +1,196 @@
+/**
+ * Loading states — spinner, skeletons, page-level placeholders
+ */
+
+@keyframes sl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes sl-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.sl-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 12rem;
+  padding: var(--space-8) var(--space-4);
+  color: var(--sl-text-muted);
+  font-size: 0.8125rem;
+  animation: sl-fade-in var(--motion-base) var(--ease) both;
+}
+
+.sl-loading--compact {
+  min-height: 6rem;
+  padding: var(--space-4);
+}
+
+.sl-loading-spinner {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid rgba(201, 162, 39, 0.18);
+  border-top-color: var(--accent-gold, #c9a227);
+  border-radius: 50%;
+  animation: sl-spin 0.75s linear infinite;
+}
+
+.sl-loading-label {
+  letter-spacing: 0.01em;
+}
+
+.sl-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.035) 0%,
+    rgba(201, 162, 39, 0.1) 45%,
+    rgba(255, 255, 255, 0.035) 90%
+  );
+  background-size: 200% 100%;
+  animation: sl-shimmer 1.6s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Generic page loading — works with plain "Загрузка…" text in markup */
+.page-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-height: 12rem;
+  padding: var(--space-8) var(--space-4);
+  color: var(--sl-text-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+  animation: sl-fade-in var(--motion-base) var(--ease) both;
+}
+
+.page-loading::before {
+  content: '';
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid rgba(201, 162, 39, 0.18);
+  border-top-color: var(--accent-gold, #c9a227);
+  border-radius: 50%;
+  animation: sl-spin 0.75s linear infinite;
+}
+
+.page-loading.m-0 {
+  min-height: 8rem;
+}
+
+.login-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 8rem;
+  color: var(--sl-text-muted);
+  font-size: 0.875rem;
+}
+
+.login-loading::before {
+  content: '';
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid rgba(201, 162, 39, 0.18);
+  border-top-color: var(--accent-gold, #c9a227);
+  border-radius: 50%;
+  animation: sl-spin 0.75s linear infinite;
+}
+
+/* Tasks page skeletons */
+.tasks-loading--list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 14rem;
+  animation: sl-fade-in var(--motion-base) var(--ease) both;
+}
+
+.tasks-loading-list-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+}
+
+.tasks-loading-list-title {
+  height: 0.875rem;
+  width: min(18rem, 72%);
+}
+
+.tasks-loading-list-meta {
+  height: 0.625rem;
+  width: min(10rem, 42%);
+}
+
+.tasks-loading--kanban {
+  animation: sl-fade-in var(--motion-base) var(--ease) both;
+}
+
+.tasks-loading-column {
+  border: 1px solid var(--sl-border);
+  background: rgba(255, 255, 255, 0.015);
+  padding: var(--space-2) var(--space-2) var(--space-3);
+}
+
+.tasks-loading-col-title {
+  height: 0.75rem;
+  width: 5.5rem;
+}
+
+.tasks-loading-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+}
+
+.tasks-loading-card-line {
+  height: 0.625rem;
+  width: 88%;
+}
+
+.tasks-loading-card-line--wide {
+  height: 0.75rem;
+  width: 96%;
+}
+
+.tasks-loading-card-line--short {
+  width: 42%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sl-loading-spinner,
+  .page-loading::before,
+  .login-loading::before,
+  .sl-skeleton {
+    animation: none !important;
+  }
+
+  .sl-skeleton {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}

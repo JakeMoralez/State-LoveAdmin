@@ -14,6 +14,7 @@ import { QuestionBankDetailPage } from './pages/QuestionBankDetailPage'
 import { QuestionBankReviewPage } from './pages/QuestionBankReviewPage'
 import { QuestionBanksPage } from './pages/QuestionBanksPage'
 import { DevPage } from './pages/DevPage'
+import { DevSettingsPage } from './pages/DevSettingsPage'
 import { DevLeadershipPage } from './pages/DevLeadershipPage'
 import { LootCasesPage } from './pages/LootCasesPage'
 import { LootCaseEditPage } from './pages/LootCaseEditPage'
@@ -27,6 +28,8 @@ import { StaffPage } from './pages/StaffPage'
 import { StaffMemberPage } from './pages/StaffMemberPage'
 import { LeadersPage } from './pages/LeadersPage'
 import { LeaderMemberPage } from './pages/LeaderMemberPage'
+import { JudgesPage } from './pages/JudgesPage'
+import { JudgeMemberPage } from './pages/JudgeMemberPage'
 import { TasksPage } from './pages/TasksPage'
 
 function AppRoutes() {
@@ -43,6 +46,8 @@ function AppRoutes() {
           <Route path="/staff/:vkId" element={<StaffMemberPage />} />
           <Route path="/leaders" element={<LeadersPage />} />
           <Route path="/leaders/:vkId" element={<LeaderMemberPage />} />
+          <Route path="/judges" element={<JudgesPage />} />
+          <Route path="/judges/:vkId" element={<JudgeMemberPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TasksPage />} />
           <Route path="/checklist" element={<ChecklistPage />} />
@@ -59,6 +64,7 @@ function AppRoutes() {
           <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/dev" element={<DevPage />} />
+          <Route path="/dev/settings" element={<DevSettingsPage />} />
           <Route path="/dev/leadership" element={<DevLeadershipPage />} />
           <Route path="/dev/cases" element={<LootCasesPage />} />
           <Route path="/dev/cases/:id" element={<LootCaseEditPage />} />

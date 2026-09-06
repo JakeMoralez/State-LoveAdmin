@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime, time, timedelta, timezone
 
 from tortoise.expressions import Q
 
-from app.models.bot import AccessLevel, RoleChat, User, UserServerAccess
+from app.models.bot import AccessLevel, ChatPeerSettings, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
 from app.services.bot_users import ensure_bot_user, ensure_server_access
@@ -45,6 +45,9 @@ def parse_appointment_date(raw: str | None) -> datetime:
     return datetime.combine(parsed, time.min, tzinfo=MSK)
 
 LEADER_ROLE = "leader"
+JUDGE_ROLE = "judge"
+LEADER_CHAT_KIND = "leader"
+JUDGE_CHAT_KIND = "judge"
 
 
 def _leader_nick_fields(bot_nickname: str | None, vk_id: int) -> dict[str, str | None]:
@@ -374,12 +377,84 @@ def leader_registry_fields(
 
 
 async def get_leadership_peer_id(server_id: int) -> int | None:
+    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
     from app.config import CA_LEADERSHIP_PEER_ID
 
     if CA_LEADERSHIP_PEER_ID:
         return CA_LEADERSHIP_PEER_ID
-    chat = await RoleChat.get_or_none(server_id=server_id, role=LEADER_ROLE)
-    return chat.peer_id if chat else None
+    return peers[0] if peers else None
+
+
+async def list_role_kind_peers(server_id: int, role: str, kind: str) -> list[int]:
+    peers: set[int] = set()
+    for row in await RoleChat.filter(server_id=server_id, role=role):
+        peers.add(int(row.peer_id))
+    try:
+        for row in await ChatPeerSettings.filter(chat_kind=kind):
+            if row.server_id is None or int(row.server_id) == int(server_id):
+                peers.add(int(row.peer_id))
+    except Exception:
+        logger.debug("chat_peer_settings.chat_kind ещё недоступен")
+    return sorted(peers)
+
+
+async def collect_peer_members(peer_ids: list[int]) -> tuple[set[int], str | None]:
+    from app.services.sled_client import fetch_chat_members
+
+    members: set[int] = set()
+    warnings: list[str] = []
+    for peer_id in peer_ids:
+        ids, err = await fetch_chat_members(peer_id)
+        members.update(ids)
+        if err:
+            warnings.append(err)
+    warning = warnings[0] if warnings and not members else (warnings[0] if warnings else None)
+    return members, warning
+
+
+async def _build_office_row(
+    server_id: int,
+    vk_id: int,
+    *,
+    in_chat: bool,
+    notes: dict[tuple[int, int], StaffNote],
+) -> dict | None:
+    user = await User.get_or_none(vk_id=vk_id)
+    access = await UserServerAccess.get_or_none(
+        user_id=vk_id, server_id=server_id
+    ).prefetch_related("user")
+    if access:
+        user = access.user
+    if user is None:
+        user, _ = await ensure_bot_user(vk_id)
+        access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+
+    level = await get_access_level(vk_id, server_id)
+    if is_supervisor(level, access) and not (access and access.is_judge and not access.is_leader):
+        if not (access and access.is_judge):
+            return None
+
+    panel = notes.get((vk_id, server_id))
+    if panel is None:
+        panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    user_note = (user.note or "").strip() if user else ""
+    position, note = leader_registry_fields(panel, user_note)
+    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    nick_fields = _leader_nick_fields(bot_nickname, vk_id)
+    return {
+        "vk_id": vk_id,
+        "bot_nickname": nick_fields["bot_nickname"],
+        "nickname": nick_fields["nickname"],
+        "display_name": nick_fields["display_name"],
+        "username": user.username if user else None,
+        "position": position,
+        "note": note,
+        "faction": position,
+        "is_leader_flag": bool(access and access.is_leader),
+        "is_judge": bool(access and access.is_judge),
+        "in_chat": in_chat,
+        "badges": format_badges(access, user) if user else [],
+    }
 
 
 async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
@@ -387,75 +462,106 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
         (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
+    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
+    member_ids, warning = await collect_peer_members(peers)
+    result: list[dict] = []
+    for vk_id in member_ids:
+        row = await _build_office_row(server_id, vk_id, in_chat=True, notes=notes)
+        if row:
+            result.append(row)
+    result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
+    return result, warning
 
-    rows = await UserServerAccess.filter(
-        server_id=server_id,
-    ).filter(Q(is_leader=True) | Q(is_judge=True)).prefetch_related("user")
+
+async def list_inactive_leaders(server_id: int) -> tuple[list[dict], str | None]:
+    notes = {
+        (n.vk_id, n.server_id): n
+        for n in await StaffNote.filter(server_id=server_id)
+    }
+    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
+    member_ids, warning = await collect_peer_members(peers)
+
+    candidates: set[int] = set()
+    for access in await UserServerAccess.filter(server_id=server_id, is_leader=True):
+        candidates.add(int(access.user_id))
+    for note in notes.values():
+        if (note.leader_position or "").strip():
+            candidates.add(int(note.vk_id))
 
     result: list[dict] = []
-    for access in rows:
-        user = access.user
-        vk_id = user.vk_id
-        level = await get_access_level(vk_id, server_id)
-        if is_supervisor(level, access) and not access.is_judge:
+    for vk_id in candidates:
+        if vk_id in member_ids:
             continue
-
-        bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
-        nick_fields = _leader_nick_fields(bot_nickname, vk_id)
-        panel = notes.get((vk_id, server_id))
-        user_note = (user.note or "").strip()
-        position, note = leader_registry_fields(panel, user_note)
-
-        result.append(
-            {
-                "vk_id": vk_id,
-                "bot_nickname": nick_fields["bot_nickname"],
-                "nickname": nick_fields["nickname"],
-                "display_name": nick_fields["display_name"],
-                "username": user.username,
-                "position": position,
-                "note": note,
-                "faction": position,
-                "is_leader_flag": True,
-            }
-        )
-
+        row = await _build_office_row(server_id, vk_id, in_chat=False, notes=notes)
+        if row:
+            result.append(row)
     result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
-    return result, None
+    return result, warning
+
+
+async def list_judges(server_id: int) -> tuple[list[dict], str | None]:
+    notes = {
+        (n.vk_id, n.server_id): n
+        for n in await StaffNote.filter(server_id=server_id)
+    }
+    peers = await list_role_kind_peers(server_id, JUDGE_ROLE, JUDGE_CHAT_KIND)
+    member_ids, warning = await collect_peer_members(peers)
+    result: list[dict] = []
+    for vk_id in member_ids:
+        row = await _build_office_row(server_id, vk_id, in_chat=True, notes=notes)
+        if row:
+            result.append(row)
+    result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
+    return result, warning
+
+
+async def list_inactive_judges(server_id: int) -> tuple[list[dict], str | None]:
+    notes = {
+        (n.vk_id, n.server_id): n
+        for n in await StaffNote.filter(server_id=server_id)
+    }
+    peers = await list_role_kind_peers(server_id, JUDGE_ROLE, JUDGE_CHAT_KIND)
+    member_ids, warning = await collect_peer_members(peers)
+    result: list[dict] = []
+    for access in await UserServerAccess.filter(
+        server_id=server_id, is_judge=True
+    ).prefetch_related("user"):
+        if int(access.user_id) in member_ids:
+            continue
+        row = await _build_office_row(
+            server_id, int(access.user_id), in_chat=False, notes=notes
+        )
+        if row:
+            result.append(row)
+    result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
+    return result, warning
 
 
 async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
+    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
+    members, _ = await collect_peer_members(peers)
     access = await UserServerAccess.get_or_none(
-        user_id=vk_id,
-        server_id=server_id,
+        user_id=vk_id, server_id=server_id
     ).prefetch_related("user")
-    if not _in_leadership_registry(access):
+    note = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    in_chat = vk_id in members
+    flagged = bool(access and access.is_leader) or bool(
+        note and (note.leader_position or "").strip()
+    )
+    if not in_chat and not flagged and not (access and access.is_judge):
         return None
+    notes = {(note.vk_id, note.server_id): note} if note else {}
+    return await _build_office_row(server_id, vk_id, in_chat=in_chat, notes=notes)
 
-    user = access.user
-    level = await get_access_level(vk_id, server_id)
-    if is_supervisor(level, access) and not access.is_judge:
+
+async def get_judge_member(server_id: int, vk_id: int) -> dict | None:
+    peers = await list_role_kind_peers(server_id, JUDGE_ROLE, JUDGE_CHAT_KIND)
+    members, _ = await collect_peer_members(peers)
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    in_chat = vk_id in members
+    if not in_chat and not (access and access.is_judge):
         return None
-
-    panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
-    user_note = (user.note or "").strip()
-    position, note = leader_registry_fields(panel, user_note)
-    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
-    nick_fields = _leader_nick_fields(bot_nickname, vk_id)
-
-    return {
-        "vk_id": vk_id,
-        "bot_nickname": nick_fields["bot_nickname"],
-        "nickname": nick_fields["nickname"],
-        "display_name": nick_fields["display_name"],
-        "username": user.username,
-        "position": position,
-        "note": note,
-        "faction": position,
-        "is_leader_flag": True,
-        "is_judge": bool(access.is_judge),
-        "badges": format_badges(access, user),
-    }
+    return await _build_office_row(server_id, vk_id, in_chat=in_chat, notes={})
 
 
 def parse_vk_id(raw: str) -> int | None:
@@ -508,6 +614,7 @@ async def set_ca_leader(
     position_clean = (position if position is not None else faction).strip()
 
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=updated_by)
+    level = await get_access_level(vk_id, server_id)
     if is_supervisor(level, access):
         raise ValueError("Пользователь уже в реестре следящих — лидером не назначается")
 
@@ -1071,4 +1178,29 @@ async def sync_spheres_from_bot(
                 await sync_ca_access_from_spheres(access, [])
             return []
 
+    return await _persist_staff_spheres(vk_id, server_id, current, granted_by=updated_by)
+
+
+async def sync_sphere_from_bot(
+    server_id: int,
+    vk_id: int,
+    sphere: str,
+    *,
+    grant: bool,
+    updated_by: int | None = None,
+) -> list[str]:
+    """Системный sync бота: добавить/снять одну сферу без проверки актора."""
+    from app.services.staff_spheres import ALL_SPHERE_KEYS
+
+    key = (sphere or "").strip()
+    if key not in ALL_SPHERE_KEYS:
+        raise ValueError("Неизвестная сфера")
+
+    panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
+    current = list(panel.spheres or [])
+    if grant:
+        if key not in current:
+            current.append(key)
+    else:
+        current = [s for s in current if s != key]
     return await _persist_staff_spheres(vk_id, server_id, current, granted_by=updated_by)
