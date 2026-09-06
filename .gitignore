@@ -8,3 +8,6 @@ venv/
 .venv/
 *.pyc
 .DS_Store
+
+# Third-party Cursor skills (installed from alirezarezvani/claude-skills) — not committed
+.cursor/skills/
