@@ -143,6 +143,26 @@ const POSITION_TO_ROLE: Record<string, string> = {
   Советник: 'advisor',
 }
 
+export function formatOfficeNickname(
+  position: string,
+  name: string,
+  orgTag = '',
+): string {
+  const clean = cleanLeadershipName(name)
+  if (!clean) return ''
+  const role = leadershipRoleFromPosition(position)
+  if (role) return formatLeadershipNickname(role, clean, orgTag)
+  if (position === 'Спикер конгресса') return `[Speaker] ${clean}`
+  if (position === 'Вице-спикер конгресса') return `[Vice-Speaker] ${clean}`
+  if (
+    position === 'Председатель верховного суда' ||
+    position === 'Судья Верховного суда'
+  ) {
+    return `[Judge] ${clean}`
+  }
+  return clean
+}
+
 export function leadershipRoleFromPosition(position: string): string | null {
   return POSITION_TO_ROLE[position.trim()] ?? null
 }

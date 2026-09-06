@@ -491,10 +491,22 @@ async def patch_ca_leader(
         if not perms["edit_position"]:
             raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
         pos = (body.position or "").strip()
-        if access and access.is_judge:
-            from app.services.role_assign import validate_judge_position
+        from app.services.role_assign import CONGRESS_ROLES, JUDGE_POSITIONS, LEADERSHIP_POSITIONS
 
-            pos = validate_judge_position(pos)
+        allowed = {
+            *LEADERSHIP_POSITIONS.values(),
+            *JUDGE_POSITIONS,
+            *CONGRESS_ROLES.values(),
+        }
+        if pos and pos not in allowed and pos not in {"Зам", "Зам."}:
+            from app.services.dev_catalog import get_judge_positions
+
+            extra = set(await get_judge_positions())
+            if pos not in extra:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Укажите должность: лидер, судья или конгресс",
+                )
         meta_kwargs["position"] = pos
         changed = True
 

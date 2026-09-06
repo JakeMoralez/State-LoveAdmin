@@ -8,11 +8,15 @@ import {
   parseForumMemberUrl,
 } from '../../lib/forumAccount'
 import { JUDGE_POSITIONS } from '../../lib/judgePositions'
-import { LEADER_POSITIONS, normalizeLeaderPosition } from '../../lib/leaderPositions'
+import {
+  CONGRESS_POSITIONS,
+  LEADER_POSITIONS,
+  normalizeLeaderPosition,
+} from '../../lib/leaderPositions'
 import {
   cleanLeadershipName,
   extractLeadershipOrgTag,
-  formatLeadershipNickname,
+  formatOfficeNickname,
   inferLeadershipFromNickname,
   leadershipRoleFromPosition,
   looksLikeRpName,
@@ -61,22 +65,26 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     [member],
   )
 
-  const judgePositionOptions = useMemo(
-    () => JUDGE_POSITIONS.map((p) => ({ value: p, label: p })),
-    [],
-  )
-  const leaderPositionOptions = useMemo(
-    () => LEADER_POSITIONS.map((p) => ({ value: p, label: p })),
-    [],
-  )
+  const officePositionOptions = useMemo(() => {
+    const options = [
+      { value: '', label: 'Не указана' },
+      ...LEADER_POSITIONS.map((p) => ({ value: p, label: p })),
+      ...JUDGE_POSITIONS.map((p) => ({ value: p, label: p })),
+      ...CONGRESS_POSITIONS.map((p) => ({ value: p, label: p })),
+    ]
+    const current = normalizeLeaderPosition(member?.position)
+    if (current && !options.some((o) => o.value === current)) {
+      options.push({ value: current, label: current })
+    }
+    return options
+  }, [member?.position])
 
   useEffect(() => {
     if (!member) return
-    const judge = member.is_judge === true || (member.badges ?? []).includes('⚖')
     const rawNick = memberNickname(member)
     const inferred = inferLeadershipFromNickname(rawNick)
-    setNickname(judge ? rawNick : cleanLeadershipName(rawNick))
-    setOrgTag(judge ? '' : member.org_tag || inferred.orgTag || extractLeadershipOrgTag(rawNick))
+    setNickname(cleanLeadershipName(rawNick) || rawNick)
+    setOrgTag(member.org_tag || inferred.orgTag || extractLeadershipOrgTag(rawNick))
     setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
     setPosition(normalizeLeaderPosition(member.position) || inferred.position || '')
@@ -98,14 +106,11 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     member.is_judge === true || (member.badges ?? []).includes('⚖')
 
   const savedNickname = memberNickname(member)
-  const leadershipRole = !isJudge ? leadershipRoleFromPosition(position) : null
+  const leadershipRole = leadershipRoleFromPosition(position)
   const orgOptions = leadershipRole ? orgOptionsForRole(leadershipRole) : []
-  const composedNick =
-    leadershipRole && orgTag
-      ? formatLeadershipNickname(leadershipRole, nickname, orgTag)
-      : nickname.trim()
+  const composedNick = formatOfficeNickname(position, nickname, orgTag) || nickname.trim()
   const nickPreview =
-    leadershipRole && orgTag ? previewLeadershipNickname(leadershipRole, nickname, orgTag) : ''
+    leadershipRole && orgTag ? previewLeadershipNickname(leadershipRole, nickname, orgTag) : composedNick
 
   const forumValidation = parseForumMemberUrl(forumAccount)
   const forumOptionalOk = !forumAccount.trim() || forumValidation.ok
@@ -120,7 +125,9 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     (canEditRegistry && note.trim() !== (member.note ?? '').trim()) ||
     (perms.edit_discord && discordId.trim() !== (member.discord_id ?? ''))
 
-  const nickValid = isJudge || !leadershipRole || (looksLikeRpName(nickname) && Boolean(orgTag))
+  const nickValid =
+    !position ||
+    (looksLikeRpName(nickname) && (!leadershipRole || Boolean(orgTag)))
   const canSave =
     hasChanges &&
     nickValid &&
@@ -152,7 +159,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     try {
       const body: Record<string, unknown> = {}
       if (nickChanged) {
-        if (leadershipRole && !looksLikeRpName(nickname)) {
+        if (position && !looksLikeRpName(nickname)) {
           setError('Ник: латиница, одно подчёркивание. Например Kyo_Parker')
           setSaving(false)
           return
@@ -321,42 +328,31 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
               <label className="staff-profile-label" htmlFor="leader-position">
                 Должность
               </label>
-              {isJudge ? (
-                <Select
-                  value={position}
-                  options={judgePositionOptions}
-                  disabled={saving}
-                  onChange={setPosition}
-                />
-              ) : (
-                <>
+              <Select
+                value={position}
+                options={officePositionOptions}
+                disabled={saving}
+                onChange={(next) => {
+                  setPosition(next)
+                  const nextRole = leadershipRoleFromPosition(next)
+                  const nextOrgs = nextRole ? orgOptionsForRole(nextRole) : []
+                  if (orgTag && !nextOrgs.some((o) => o.value === orgTag)) setOrgTag('')
+                }}
+              />
+              {leadershipRole ? (
+                <div className="mt-3">
+                  <label className="staff-profile-label" htmlFor="leader-org">
+                    {orgFieldLabel(leadershipRole)}
+                  </label>
                   <Select
-                    value={position}
-                    options={[{ value: '', label: 'Не указана' }, ...leaderPositionOptions]}
+                    value={orgTag}
+                    options={orgOptions}
+                    placeholder={orgFieldLabel(leadershipRole)}
                     disabled={saving}
-                    onChange={(next) => {
-                      setPosition(next)
-                      const nextRole = leadershipRoleFromPosition(next)
-                      const nextOrgs = nextRole ? orgOptionsForRole(nextRole) : []
-                      if (orgTag && !nextOrgs.some((o) => o.value === orgTag)) setOrgTag('')
-                    }}
+                    onChange={setOrgTag}
                   />
-                  {leadershipRole ? (
-                    <div className="mt-3">
-                      <label className="staff-profile-label" htmlFor="leader-org">
-                        {orgFieldLabel(leadershipRole)}
-                      </label>
-                      <Select
-                        value={orgTag}
-                        options={orgOptions}
-                        placeholder={orgFieldLabel(leadershipRole)}
-                        disabled={saving}
-                        onChange={setOrgTag}
-                      />
-                    </div>
-                  ) : null}
-                </>
-              )}
+                </div>
+              ) : null}
             </div>
           )}
 
