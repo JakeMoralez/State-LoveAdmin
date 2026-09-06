@@ -21,6 +21,7 @@ from app.services.role_assign import (
     assign_congress,
     assign_judge,
     assign_staff_with_profile,
+    normalize_forum_account,
 )
 from app.services.staff import parse_appointment_date
 from app.services.vk_resolve import resolve_vk_id_input
@@ -99,6 +100,13 @@ async def post_assign(
     link = await DiscordLink.get_or_none(vk_id=vk_id)
     existing_nick = (access.nickname or "").strip() if access else ""
     existing_forum = (bot_user.username or "").strip() if bot_user else ""
+    try:
+        if existing_forum:
+            existing_forum = normalize_forum_account(existing_forum)
+        else:
+            existing_forum = ""
+    except ValueError:
+        existing_forum = ""
     existing_discord = (link.discord_id or "").strip() if link else ""
 
     try:

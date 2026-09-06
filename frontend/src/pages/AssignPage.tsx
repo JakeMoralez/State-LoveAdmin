@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { grantableAccessLevelOptions } from '../lib/accessLevels'
 import { JUDGE_POSITIONS, looksLikeVkInput } from '../lib/judgePositions'
 import { looksLikeDiscordId } from '../lib/discordId'
-import { forumAccountForApi, parseForumMemberUrl } from '../lib/forumAccount'
+import { forumAccountForApi, forumMemberUrl, parseForumMemberUrl } from '../lib/forumAccount'
 import {
   DEFAULT_DEVELOPER_TAG,
   isDeveloperLevel,
@@ -128,9 +128,13 @@ export function AssignPage() {
           setDiscordId(m.discord_id)
           setDiscordTouched(true)
         }
-        if (m.username) {
-          setForumAccount(m.username)
+        const forum = forumMemberUrl(m.username, m.vk_id)
+        if (forum) {
+          setForumAccount(forum)
           setForumTouched(true)
+        } else {
+          setForumAccount('')
+          setForumTouched(false)
         }
         setRestoreLocked(true)
       })
@@ -428,7 +432,7 @@ export function AssignPage() {
                   value={forumAccount}
                   onChange={setForumAccount}
                   onBlur={() => setForumTouched(true)}
-                  disabled={saving || (restoreLocked && Boolean(forumAccount))}
+                  disabled={saving || (restoreLocked && forumValidation.ok)}
                   error={forumError}
                   placeholder="ID или ссылка на профиль"
                   labelClassName="assign-label"
