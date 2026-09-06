@@ -6,9 +6,12 @@ export const ACTIVITY_VERBS: Record<string, string> = {
   staff_revoke: 'снял доступ следящего',
   judge_assign: 'назначил судьёй',
   congress_assign: 'назначил в конгресс',
+  leader_assign: 'назначил в руководство',
   leader_update: 'изменил карточку руководства',
   leader_remove: 'убрал из реестра руководства',
   leader_clear_nickname: 'очистил ник в реестре руководства',
+  dev_catalog_update: 'обновил справочник',
+  dev_chat_update: 'обновил настройки беседы',
   qb_bank_create: 'создал банк вопросов',
   qb_bank_update: 'изменил банк вопросов',
   qb_bank_delete: 'удалил банк вопросов',
@@ -59,6 +62,8 @@ export function activityVerb(action: string, fallback?: string | null): string {
   const key = keys[0] || ''
   if (key.startsWith('qb_item_')) return 'изменил вопрос в банке'
   if (key.startsWith('loot_case_')) return 'изменил кейс'
+  if (key.startsWith('leader_')) return 'изменил карточку руководства'
+  if (key.startsWith('dev_')) return 'обновил настройки'
   const label = (fallback || action || '').trim()
   if (label && /[а-яё]/i.test(label)) return label
   return 'выполнил действие'

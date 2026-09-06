@@ -423,13 +423,48 @@ async def collect_peer_members(peer_ids: list[int]) -> tuple[set[int], str | Non
 
     members: set[int] = set()
     warnings: list[str] = []
+    failed = False
     for peer_id in peer_ids:
         ids, err = await fetch_chat_members(peer_id)
-        members.update(ids)
         if err:
             warnings.append(err)
-    warning = warnings[0] if warnings and not members else (warnings[0] if warnings else None)
+            failed = True
+            continue
+        members.update(ids)
+    if failed and not members:
+        return members, warnings[0]
+    warning = warnings[0] if warnings else None
     return members, warning
+
+
+async def sync_leaders_to_chats(
+    server_id: int,
+    *,
+    member_ids: set[int],
+    fetch_ok: bool,
+) -> None:
+    """Реестр = беседы. Лишний is_leader / должность вне чатов снимается."""
+    if not fetch_ok:
+        return
+
+    extras = [
+        int(row.user_id)
+        for row in await UserServerAccess.filter(server_id=server_id, is_leader=True)
+        if int(row.user_id) not in member_ids
+    ]
+    if extras:
+        await UserServerAccess.filter(
+            server_id=server_id, user_id__in=extras
+        ).update(is_leader=False)
+
+    for note in await StaffNote.filter(server_id=server_id):
+        if int(note.vk_id) in member_ids:
+            continue
+        if not (note.leader_position or "").strip() and not (note.leader_note or "").strip():
+            continue
+        note.leader_position = ""
+        note.leader_note = ""
+        await note.save(update_fields=["leader_position", "leader_note", "updated_at"])
 
 
 async def _build_office_row(
@@ -483,13 +518,18 @@ async def _build_office_row(
 async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
     from app.services.dev_catalog import get_tag_spheres
 
+    sphere_map = await get_tag_spheres()
+    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
+    member_ids, warning = await collect_peer_members(peers)
+    await sync_leaders_to_chats(
+        server_id,
+        member_ids=member_ids,
+        fetch_ok=bool(peers) and warning is None,
+    )
     notes = {
         (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
-    sphere_map = await get_tag_spheres()
-    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
-    member_ids, warning = await collect_peer_members(peers)
     result: list[dict] = []
     for vk_id in member_ids:
         row = await _build_office_row(
@@ -504,13 +544,18 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
 async def list_inactive_leaders(server_id: int) -> tuple[list[dict], str | None]:
     from app.services.dev_catalog import get_tag_spheres
 
+    sphere_map = await get_tag_spheres()
+    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
+    member_ids, warning = await collect_peer_members(peers)
+    await sync_leaders_to_chats(
+        server_id,
+        member_ids=member_ids,
+        fetch_ok=bool(peers) and warning is None,
+    )
     notes = {
         (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
-    sphere_map = await get_tag_spheres()
-    peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
-    member_ids, warning = await collect_peer_members(peers)
 
     candidates: set[int] = set()
     for access in await UserServerAccess.filter(server_id=server_id, is_leader=True):

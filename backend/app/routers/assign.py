@@ -323,7 +323,7 @@ async def post_assign(
         await log_audit(
             user["vk_id"],
             "leader_assign",
-            "staff",
+            "leader",
             vk_id,
             {
                 "target_vk_id": vk_id,

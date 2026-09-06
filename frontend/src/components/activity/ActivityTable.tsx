@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import type { ActivityLogItem } from '../../api'
 import { activityVerb } from '../../lib/activityLabels'
 import { parseStaffNick } from '../../lib/staff'
+import { rewriteLegacyNicknameTags } from '../../lib/staffNickname'
 import { cn } from '../../lib/utils'
 import { Select } from '../ui/Select'
 
@@ -101,17 +102,41 @@ export function formatActivityDetail(detail: Record<string, unknown>, action: st
   if (action === 'loot_case_prize_bulk' && detail.count != null) {
     return `${detail.count}`
   }
+  if (action === 'dev_catalog_update' && Array.isArray(detail.keys)) {
+    const labels: Record<string, string> = {
+      factions: 'фракции',
+      ministers: 'министры',
+      advisors: 'советники',
+      judge_positions: 'должности судей',
+      tag_spheres: 'сферы тегов',
+    }
+    const parts = detail.keys
+      .map((key) => labels[String(key)] || String(key))
+      .filter(Boolean)
+    if (parts.length) return parts.join(', ')
+  }
+  if (action === 'dev_chat_update') {
+    const bits: string[] = []
+    if (detail.peer_id != null) bits.push(`#${detail.peer_id}`)
+    if (typeof detail.chat_kind === 'string' && detail.chat_kind.trim()) {
+      bits.push(detail.chat_kind.trim())
+    }
+    if (bits.length) return bits.join(', ')
+  }
   const title = detail.title
   if (typeof title === 'string' && title.trim()) return `«${title.trim()}»`
   const comment = detail.comment
   if (typeof comment === 'string' && comment.trim()) return comment.trim()
   const position = detail.position
-  if (typeof position === 'string' && position.trim()) return position.trim()
+  if (typeof position === 'string' && position.trim()) {
+    const org = typeof detail.org_tag === 'string' ? detail.org_tag.trim() : ''
+    return org ? `${position.trim()} [${org}]` : position.trim()
+  }
   return null
 }
 
 function ActivityNick({ label, to }: { label: string; to?: string | null }) {
-  const { name } = parseStaffNick(label)
+  const { name } = parseStaffNick(rewriteLegacyNicknameTags(label))
   const inner = <span className="activity-nick-name">{name.replaceAll(' ', '_')}</span>
   if (!to) return inner
   return (

@@ -31,9 +31,13 @@ ACTION_MESSAGES: dict[str, str] = {
     "judge_assign": "назначил судьёй",
     "congress_assign": "назначил в конгресс",
     # Руководство
+    "leader_assign": "назначил в руководство",
     "leader_update": "изменил карточку руководства",
     "leader_remove": "убрал из реестра руководства",
     "leader_clear_nickname": "очистил ник в реестре руководства",
+    # Настройки
+    "dev_catalog_update": "обновил справочник",
+    "dev_chat_update": "обновил настройки беседы",
     # Банки вопросов
     "qb_bank_create": "создал банк вопросов",
     "qb_bank_update": "изменил банк вопросов",
@@ -81,13 +85,50 @@ def action_label(action: str) -> str:
         return "изменил вопрос в банке"
     if action.startswith("loot_case_"):
         return "изменил кейс"
+    if action.startswith("leader_"):
+        return "изменил карточку руководства"
+    if action.startswith("dev_"):
+        return "обновил настройки"
     return "выполнил действие"
 
 
-def _name(names: dict[int, str], vk_id: int | None) -> str:
+CATALOG_KEY_LABELS = {
+    "factions": "фракции",
+    "ministers": "министры",
+    "advisors": "советники",
+    "judge_positions": "должности судей",
+    "tag_spheres": "сферы тегов",
+}
+
+
+def _catalog_key_labels(keys) -> list[str]:
+    if not isinstance(keys, list):
+        return []
+    out: list[str] = []
+    for key in keys:
+        raw = str(key).strip()
+        if not raw:
+            continue
+        out.append(CATALOG_KEY_LABELS.get(raw, raw))
+    return out
+
+
+def _clean_nick(raw: str | None) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return ""
+    from app.services.staff_nickname import rewrite_legacy_nickname_tags
+
+    return rewrite_legacy_nickname_tags(text)
+
+
+def _name(names: dict[int, str], vk_id: int | None, stored: str | None = None) -> str:
+    cleaned = _clean_nick(stored)
+    if cleaned:
+        return cleaned
     if vk_id is None:
         return "—"
-    return names.get(int(vk_id), f"id{vk_id}")
+    return _clean_nick(names.get(int(vk_id))) or names.get(int(vk_id), f"id{vk_id}")
 
 
 def _detail_suffix(action: str, detail: dict | None) -> str:
@@ -124,9 +165,25 @@ def _detail_suffix(action: str, detail: dict | None) -> str:
             bits.append("заметка")
         return f": {', '.join(bits)}" if bits else ""
 
-    if action in ("judge_assign", "congress_assign", "leader_update"):
+    if action in ("judge_assign", "congress_assign", "leader_update", "leader_assign"):
         position = (detail.get("position") or "").strip()
-        return f" — {position}" if position else ""
+        org = (detail.get("org_tag") or "").strip()
+        extra = " ".join(p for p in (position, f"[{org}]" if org else "") if p)
+        return f" — {extra}" if extra else ""
+
+    if action == "dev_catalog_update":
+        labels = _catalog_key_labels(detail.get("keys"))
+        return f" ({', '.join(labels)})" if labels else ""
+
+    if action == "dev_chat_update":
+        bits: list[str] = []
+        peer = detail.get("peer_id")
+        if peer is not None:
+            bits.append(f"#{peer}")
+        kind = (detail.get("chat_kind") or "").strip()
+        if kind:
+            bits.append(kind)
+        return f" ({', '.join(bits)})" if bits else ""
 
     if action == "staff_revoke":
         return ""
@@ -247,8 +304,13 @@ async def serialize_activity_row(row: PanelAuditLog, names: dict[int, str]) -> d
         except (TypeError, ValueError):
             target_vk_id = None
 
+    stored_nick = None
+    if isinstance(detail, dict):
+        stored_nick = detail.get("target_nickname") or detail.get("nickname")
     actor_name = _name(names, row.actor_vk_id)
-    target_name = _name(names, int(target_vk_id)) if target_vk_id is not None else None
+    target_name = (
+        _name(names, int(target_vk_id), stored_nick) if target_vk_id is not None else None
+    )
 
     return {
         "id": row.id,

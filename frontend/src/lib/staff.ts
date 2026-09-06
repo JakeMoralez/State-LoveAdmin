@@ -10,11 +10,12 @@ export function staffLabel(m: {
   return rewriteLegacyNicknameTags(raw)
 }
 
-/** Parse "[TAG] Name" from staff display label */
+/** Parse "[TAG] Name" / "[TAG]_Name" from staff or leader display label */
 export function parseStaffNick(label: string): { tag: string | null; name: string } {
-  const match = label.match(/^(\[[^\]]+\])\s*(.+)$/)
+  const match = label.match(/^[\[［]([^］\]]+)[\]］][\s_]*(.+)$/)
   if (match) {
-    return { tag: match[1], name: match[2].trim() || label }
+    const name = match[2].replace(/^_+/, '').trim()
+    return { tag: `[${match[1]}]`, name: name || label }
   }
   return { tag: null, name: label }
 }
