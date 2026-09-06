@@ -10,6 +10,7 @@ from app.models.bot import AccessLevel
 from app.models.panel import QuestionBank, QuestionBankItem
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
+from app.services import messages
 from app.services.sphere_work import resolve_work_sphere, resolve_work_spheres, work_item_sphere_filter
 from app.services.question_banks import (
     CONTRIBUTOR_VISIBILITY_LABELS,
@@ -91,14 +92,14 @@ def _normalize_contributor_visibility(value: str) -> str:
 async def _get_bank(bank_id: int, server_id: int = DEFAULT_SERVER_ID) -> QuestionBank:
     bank = await QuestionBank.get_or_none(id=bank_id, server_id=server_id)
     if not bank:
-        raise HTTPException(status_code=404, detail="Банк не найден")
+        raise HTTPException(status_code=404, detail=messages.BANK_NOT_FOUND)
     return bank
 
 
 async def _get_item(bank_id: int, item_id: int) -> QuestionBankItem:
     item = await QuestionBankItem.get_or_none(id=item_id, bank_id=bank_id)
     if not item:
-        raise HTTPException(status_code=404, detail="Вопрос не найден")
+        raise HTTPException(status_code=404, detail=messages.QUESTION_NOT_FOUND)
     return item
 
 
@@ -136,7 +137,7 @@ async def question_bank_meta(user: dict = Depends(require_ca_user)):
 async def pending_review(user: dict = Depends(require_ca_user)):
     perms = bank_permissions(user)
     if not perms["can_review"]:
-        raise HTTPException(status_code=403, detail="Очередь проверки доступна ГС/ЗГС+")
+        raise HTTPException(status_code=403, detail=messages.REVIEW_QUEUE_FORBIDDEN)
 
     items = (
         await QuestionBankItem.filter(server_id=DEFAULT_SERVER_ID, status="pending")
@@ -217,7 +218,7 @@ async def get_bank(
     resolve_work_sphere(user, getattr(bank, "sphere", None))
     perms = bank_permissions(user, bank)
     if not bank.is_active and not perms["can_manage"]:
-        raise HTTPException(status_code=404, detail="Банк не найден")
+        raise HTTPException(status_code=404, detail=messages.BANK_NOT_FOUND)
 
     qs = QuestionBankItem.filter(bank_id=bank.id)
     filt = item_filter_for_user(user, bank)
@@ -311,15 +312,15 @@ async def update_question(
     bank = await _get_bank(bank_id)
     item = await _get_item(bank_id, item_id)
     if not can_view_item(user, item, bank):
-        raise HTTPException(status_code=404, detail="Вопрос не найден")
+        raise HTTPException(status_code=404, detail=messages.QUESTION_NOT_FOUND)
     if not can_edit_item(user, item, bank):
-        raise HTTPException(status_code=403, detail="Нельзя редактировать этот вопрос")
+        raise HTTPException(status_code=403, detail=messages.QUESTION_EDIT_FORBIDDEN)
 
     updates = _item_patch_dict(body)
     if not updates:
         return await serialize_item(item)
     if "text" in updates and not (updates["text"] or "").strip():
-        raise HTTPException(status_code=400, detail="Текст вопроса обязателен")
+        raise HTTPException(status_code=400, detail=messages.QUESTION_TEXT_REQUIRED)
 
     if item.status == "rejected":
         item.status = "draft"
@@ -338,7 +339,7 @@ async def delete_question(
     bank = await _get_bank(bank_id)
     item = await _get_item(bank_id, item_id)
     if not can_delete_item(user, item, bank):
-        raise HTTPException(status_code=403, detail="Нельзя удалить этот вопрос")
+        raise HTTPException(status_code=403, detail=messages.QUESTION_DELETE_FORBIDDEN)
     await item.delete()
     await log_audit(user["vk_id"], "qb_item_delete", "question_bank_item", item_id, {"bank_id": bank_id})
     return {"ok": True}
@@ -386,6 +387,6 @@ async def question_history(
     bank = await _get_bank(bank_id)
     item = await _get_item(bank_id, item_id)
     if not can_view_item(user, item, bank):
-        raise HTTPException(status_code=404, detail="Вопрос не найден")
+        raise HTTPException(status_code=404, detail=messages.QUESTION_NOT_FOUND)
     events = await item_history(item.id, bank.server_id)
     return {"events": events}

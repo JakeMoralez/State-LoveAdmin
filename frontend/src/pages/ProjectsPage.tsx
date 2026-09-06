@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader'
 import { SphereBadge, SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
 import { useAuth } from '../context/AuthContext'
 import { ModalViewport } from '../components/ui/ModalViewport'
+import { Alert } from '../components/ui/Alert'
 
 export function ProjectsPage() {
   const { user } = useAuth()
@@ -119,9 +120,7 @@ export function ProjectsPage() {
                 onChange={(e) => setDescription(e.target.value)}
               />
               {formError && (
-                <p className="text-red-400/90 text-sm m-0" role="alert">
-                  {formError}
-                </p>
+                <Alert>{formError}</Alert>
               )}
               <div className="flex gap-2 justify-end pt-1">
                 <button
@@ -157,15 +156,7 @@ export function ProjectsPage() {
           </div>
 
           {projects.length === 0 && (
-            <div className="page-empty-state">
-              <p className="m-0">Нет проектов в выбранных сферах.</p>
-              {canCreate && (
-                <button type="button" className="btn-primary btn-sm mt-3" onClick={openCreate}>
-                  <Plus size={16} />
-                  Создать проект
-                </button>
-              )}
-            </div>
+            <div className="staff-registry-empty">Нет проектов в выбранных сферах</div>
           )}
         </>
       )}

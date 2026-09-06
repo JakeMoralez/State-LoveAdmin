@@ -3,12 +3,12 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { BrandLogo } from '../components/BrandLogo'
 import { DiscordIcon } from '../components/DiscordIcon'
-import { LoginMarquee } from '../components/LoginMarquee'
 import { Select } from '../components/ui/Select'
 import { SphereMultiSelect, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
 import { filterSpheresForLevel, sphereOptionsForLevel } from '../lib/spheres'
 import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLevels'
+import { Alert } from '../components/ui/Alert'
 
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
@@ -23,7 +23,7 @@ const LOGIN_ERRORS: Record<string, string> = {
 function formatAuthError(message: string): string {
   const m = message.toLowerCase()
   if (m.includes('bad gateway') || m.includes('502')) {
-    return 'Сервер API недоступен (502). Перезапустите backend на :8012.'
+    return 'Сервер API недоступен (502). Перезапустите backend на :8013.'
   }
   if (m.includes('failed to fetch') || m.includes('network')) {
     return 'Нет связи с API. Проверьте, что backend запущен.'
@@ -134,8 +134,6 @@ export function LoginPage() {
   if (loading) {
     return (
       <div className="login-shell">
-        <LoginMarquee />
-        <div className="login-vignette" aria-hidden />
         <div className="login-loading">Загрузка…</div>
       </div>
     )
@@ -150,113 +148,93 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
-      <LoginMarquee />
-      <div className="login-vignette" aria-hidden />
-
       <div className="login-card">
-        <div className="login-card-grid">
-          <section className="login-panel">
-            <div className="login-auth-card">
-              <header className="login-auth-head">
-                <BrandLogo size="xl" plain className="login-emblem" />
+        <div className="login-auth-card">
+          <header className="login-auth-head">
+            <BrandLogo size="lg" plain />
+            <p className="login-brand">State Love</p>
+            <h1 className="login-auth-title">Вход на портал</h1>
+            {devMode && <span className="login-auth-badge login-auth-badge--dev">Dev</span>}
+          </header>
+
+          {showError && <Alert>{showError}</Alert>}
+
+          {devMode && (
+            <div className="login-dev-fields">
+              <div className="login-dev-grid">
                 <div>
-                  <p className="login-brand">State Love</p>
-                  <h1 className="login-auth-title">Портал следящих государственных структур</h1>
+                  <label className="login-field-label">Уровень</label>
+                  <Select value={accessLevel} onChange={setAccessLevel} options={levelOptions} />
                 </div>
-                {devMode && <span className="login-auth-badge login-auth-badge--dev">Dev</span>}
-              </header>
-
-              {showError && (
-                <p className="login-error" role="alert">
-                  {showError}
-                </p>
-              )}
-
-              {devMode && (
-                <div className="login-dev-fields">
-                  <div className="login-dev-grid">
-                    <div>
-                      <label className="login-field-label">Уровень</label>
-                      <Select value={accessLevel} onChange={setAccessLevel} options={levelOptions} />
-                    </div>
-                    <div>
-                      <label className="login-field-label">VK ID</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={devVkId}
-                        onChange={(e) => setDevVkId(e.target.value)}
-                        placeholder={defaultDevVkId ? String(defaultDevVkId) : 'Ваш VK ID'}
-                        required={!defaultDevVkId}
-                        className="control w-full"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="login-field-label">{sphereFieldLabel(parsedLevel)}</label>
-                    <SphereMultiSelect
-                      accessLevel={parsedLevel}
-                      value={devSpheres}
-                      onChange={setDevSpheres}
-                      disabled={busy}
-                    />
-                  </div>
-                  <p className="login-dev-hint">
-                    {!defaultDevVkId
-                      ? 'DEV_VK_ID не задан в .env — укажите VK ID в поле выше.'
-                      : 'Уровень и сферы из формы попадут в сессию для теста.'}
-                  </p>
+                <div>
+                  <label className="login-field-label">VK ID</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={devVkId}
+                    onChange={(e) => setDevVkId(e.target.value)}
+                    placeholder={defaultDevVkId ? String(defaultDevVkId) : 'Ваш VK ID'}
+                    required={!defaultDevVkId}
+                    className="control w-full"
+                  />
                 </div>
-              )}
-
-              {showDiscord && (
-                <div className="login-primary-action">
-                  <button
-                    type="button"
-                    onClick={handleDiscordLogin}
-                    disabled={busy || !canLogin}
-                    className={`btn w-full ${devMode ? 'btn-gold' : 'btn-discord'}`}
-                  >
-                    {!devMode && <DiscordIcon size={18} className="login-btn-icon" />}
-                    {busy ? 'Вход…' : devMode ? 'Войти' : 'Войти через Discord'}
-                  </button>
-                </div>
-              )}
-
-              {showBotAlt && (
-                <>
-                  <div className="login-or" aria-hidden>
-                    <span>или</span>
-                  </div>
-                  <div className="login-vk-block">
-                    {vkBotUrl ? (
-                      <a
-                        href={vkBotUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-vk w-full"
-                      >
-                        <span className="btn-vk-label">Войти через VK</span>
-                        <span className="btn-vk-subtitle">отправьте боту /panel</span>
-                      </a>
-                    ) : (
-                      <p className="login-alt-hint">
-                        Откройте бота VK и отправьте <code className="login-alt-code">/panel</code>
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {!devMode && !discordConfigured && !botLoginEnabled && (
-                <p className="login-dev-hint">Способы входа не настроены на сервере.</p>
-              )}
-
-              <p className="login-footer">
-                Нет доступа — обратитесь к руководству вашей структуры
+              </div>
+              <div>
+                <label className="login-field-label">{sphereFieldLabel(parsedLevel)}</label>
+                <SphereMultiSelect
+                  accessLevel={parsedLevel}
+                  value={devSpheres}
+                  onChange={setDevSpheres}
+                  disabled={busy}
+                />
+              </div>
+              <p className="login-dev-hint">
+                {!defaultDevVkId
+                  ? 'DEV_VK_ID не задан в .env — укажите VK ID в поле выше.'
+                  : 'Уровень и сферы из формы попадут в сессию для теста.'}
               </p>
             </div>
-          </section>
+          )}
+
+          {showDiscord && (
+            <div className="login-primary-action">
+              <button
+                type="button"
+                onClick={handleDiscordLogin}
+                disabled={busy || !canLogin}
+                className={`btn w-full ${devMode ? 'btn-gold' : 'btn-discord'}`}
+              >
+                {!devMode && <DiscordIcon size={18} className="login-btn-icon" />}
+                {busy ? 'Вход…' : devMode ? 'Войти' : 'Войти через Discord'}
+              </button>
+            </div>
+          )}
+
+          {showBotAlt && (
+            <>
+              <div className="login-or" aria-hidden>
+                <span>или</span>
+              </div>
+              <div className="login-vk-block">
+                {vkBotUrl ? (
+                  <a href={vkBotUrl} target="_blank" rel="noopener noreferrer" className="btn btn-vk w-full">
+                    <span className="btn-vk-label">Войти через VK</span>
+                    <span className="btn-vk-subtitle">отправьте боту /panel</span>
+                  </a>
+                ) : (
+                  <p className="login-alt-hint">
+                    Откройте бота VK и отправьте <code className="login-alt-code">/panel</code>
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          {!devMode && !discordConfigured && !botLoginEnabled && (
+            <p className="login-dev-hint">Способы входа не настроены на сервере.</p>
+          )}
+
+          <p className="login-footer">Нет доступа — обратитесь к руководству вашей структуры</p>
         </div>
       </div>
     </div>

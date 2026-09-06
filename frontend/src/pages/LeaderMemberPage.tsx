@@ -79,7 +79,6 @@ export function LeaderMemberPage() {
           access_level: 0,
           access_level_name: 'Руководство',
           access_role_title: member.position || 'Руководство',
-          panel_role: 'leader',
           has_ca_access: false,
           server_id: member.server_id ?? 30,
           badges: member.badges?.length ? member.badges : ['🛡'],

@@ -8,8 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_SERVER_ID
-from app.models.bot import AccessLevel
+from app.models.bot import AccessLevel, User, UserServerAccess
+from app.models.panel import DiscordLink
 from app.services.auth import require_ca_user
+from app.services import messages
 from app.services.discord_oauth import normalize_discord_id
 from app.services.activity_log import staff_assign_detail
 from app.services.audit import log_audit
@@ -39,7 +41,7 @@ ASSIGN_ROLE_MIN_LEVEL = LEADER_REGISTRY_EDIT_MIN_LEVEL
 def require_assign_user(user: dict = Depends(require_ca_user)) -> dict:
     level = int(user.get("access_level") or 0)
     if level < ASSIGN_ROLE_MIN_LEVEL:
-        raise HTTPException(status_code=403, detail="Нужен уровень Следящий (2) или выше")
+        raise HTTPException(status_code=403, detail=messages.ASSIGN_NEED_SUPERVISOR)
     return user
 
 
@@ -56,9 +58,9 @@ def _role_types_for_level(level: int) -> list[dict]:
 class AssignBody(BaseModel):
     role_type: Literal["staff", "judge", "congress"]
     vk_id: str = Field(min_length=1)
-    discord_id: str = Field(min_length=1)
-    forum_account: str = Field(min_length=1)
-    nickname: str = Field(min_length=1)
+    discord_id: str = ""
+    forum_account: str = ""
+    nickname: str = ""
     access_level: int | None = None
     spheres: list[str] | None = None
     nickname_tag: str | None = None
@@ -92,10 +94,26 @@ async def post_assign(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    bot_user = await User.get_or_none(vk_id=vk_id)
+    link = await DiscordLink.get_or_none(vk_id=vk_id)
+    existing_nick = (access.nickname or "").strip() if access else ""
+    existing_forum = (bot_user.username or "").strip() if bot_user else ""
+    existing_discord = (link.discord_id or "").strip() if link else ""
+
     try:
-        discord_raw = normalize_discord_id(body.discord_id)
+        discord_raw = normalize_discord_id(body.discord_id) if (body.discord_id or "").strip() else None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    discord_raw = discord_raw or existing_discord or None
+    nickname = (body.nickname or "").strip() or existing_nick
+    forum_account = (body.forum_account or "").strip() or existing_forum
+    if not nickname:
+        raise HTTPException(status_code=400, detail=messages.NICKNAME_REQUIRED)
+    if not forum_account:
+        raise HTTPException(status_code=400, detail=messages.FORUM_REQUIRED)
+    if not discord_raw:
+        raise HTTPException(status_code=400, detail=messages.DISCORD_REQUIRED)
 
     actor_level = int(user.get("access_level") or 0)
     dev_persona = bool(user.get("dev_persona"))
@@ -106,7 +124,7 @@ async def post_assign(
             if actor_level < ASSIGN_STAFF_MIN_LEVEL:
                 raise HTTPException(
                     status_code=403,
-                    detail="Назначение следящего — только ЗГС (3) и выше",
+                    detail=messages.ASSIGN_STAFF_NEED_ZGS,
                 )
             perms = staff_edit_permissions(
                 actor_vk_id=user["vk_id"],
@@ -119,13 +137,13 @@ async def post_assign(
                 dev_persona=dev_persona,
             )
             if not perms["assign_staff"]:
-                raise HTTPException(status_code=403, detail="Недостаточно прав для назначения следящего")
+                raise HTTPException(status_code=403, detail=messages.ASSIGN_STAFF_FORBIDDEN)
             if user["vk_id"] == vk_id:
-                raise HTTPException(status_code=403, detail="Нельзя назначить себя")
+                raise HTTPException(status_code=403, detail=messages.SELF_ASSIGN_FORBIDDEN)
             if body.access_level is None:
-                raise HTTPException(status_code=400, detail="Укажите уровень доступа")
+                raise HTTPException(status_code=400, detail=messages.LEVEL_REQUIRED)
             if body.spheres is None:
-                raise HTTPException(status_code=400, detail="Укажите сферы")
+                raise HTTPException(status_code=400, detail=messages.SPHERES_REQUIRED)
             assert_can_set_level(
                 actor_vk_id=user["vk_id"],
                 actor_level=actor_level,
@@ -148,7 +166,7 @@ async def post_assign(
             if body.is_senior and not body.senior_spheres:
                 raise HTTPException(
                     status_code=400,
-                    detail="Для старшего следящего / совмещения укажите сферу",
+                    detail=messages.ASSIGN_SENIOR_SPHERE,
                 )
             extra_spheres: list[str] | None = None
             extra_senior = bool(body.is_senior)
@@ -166,8 +184,8 @@ async def post_assign(
             result = await assign_staff_with_profile(
                 server_id,
                 vk_id,
-                forum_account=body.forum_account.strip(),
-                nickname=body.nickname.strip(),
+                forum_account=forum_account,
+                nickname=nickname,
                 access_level=body.access_level,
                 spheres=normalized_spheres,
                 nickname_tag=body.nickname_tag,
@@ -181,15 +199,15 @@ async def post_assign(
             if actor_level < ASSIGN_ROLE_MIN_LEVEL:
                 raise HTTPException(
                     status_code=403,
-                    detail="Назначение судьи — только Следящий (2) и выше",
+                    detail=messages.ASSIGN_JUDGE_NEED_SUPERVISOR,
                 )
             if not body.judge_position:
-                raise HTTPException(status_code=400, detail="Укажите должность судьи")
+                raise HTTPException(status_code=400, detail=messages.ASSIGN_JUDGE_POSITION)
             result = await assign_judge(
                 server_id,
                 vk_id,
-                forum_account=body.forum_account.strip(),
-                nickname=body.nickname.strip(),
+                forum_account=forum_account,
+                nickname=nickname,
                 position=body.judge_position.strip(),
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
@@ -199,15 +217,15 @@ async def post_assign(
             if actor_level < ASSIGN_ROLE_MIN_LEVEL:
                 raise HTTPException(
                     status_code=403,
-                    detail="Назначение в конгресс — только Следящий (2) и выше",
+                    detail=messages.ASSIGN_CONGRESS_NEED_SUPERVISOR,
                 )
             if not body.congress_role:
-                raise HTTPException(status_code=400, detail="Укажите должность в конгрессе")
+                raise HTTPException(status_code=400, detail=messages.ASSIGN_CONGRESS_POSITION)
             result = await assign_congress(
                 server_id,
                 vk_id,
-                forum_account=body.forum_account.strip(),
-                nickname=body.nickname.strip(),
+                forum_account=forum_account,
+                nickname=nickname,
                 congress_role=body.congress_role,
                 discord_id=discord_raw,
                 granted_by=user["vk_id"],
@@ -224,7 +242,7 @@ async def post_assign(
             vk_id,
             staff_assign_detail(
                 target_vk_id=vk_id,
-                nickname=body.nickname.strip(),
+                nickname=nickname,
                 access_level=body.access_level or 0,
                 spheres=list(body.spheres or []),
             ),
@@ -237,7 +255,7 @@ async def post_assign(
             vk_id,
             {
                 "target_vk_id": vk_id,
-                "nickname": body.nickname.strip(),
+                "nickname": nickname,
                 "position": (body.judge_position or "").strip(),
             },
         )
@@ -249,9 +267,23 @@ async def post_assign(
             vk_id,
             {
                 "target_vk_id": vk_id,
-                "nickname": body.nickname.strip(),
+                "nickname": nickname,
                 "position": CONGRESS_ROLES.get(body.congress_role or "", body.congress_role or ""),
             },
         )
+
+    actor_name = (user.get("bot_nickname") or user.get("nickname") or str(user["vk_id"]))
+    role_label = {
+        "staff": "следящим",
+        "judge": "судьёй",
+        "congress": "в конгресс",
+    }.get(body.role_type, "в штат")
+    from app.services.vk_notify import notify_assignment
+
+    await notify_assignment(
+        vk_id,
+        f"👤 Вас назначили {role_label}",
+        [f"Ник: {nickname}", f"Назначил: {actor_name}"],
+    )
 
     return result

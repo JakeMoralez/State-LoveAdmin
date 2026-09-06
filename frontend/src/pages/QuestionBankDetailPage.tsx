@@ -23,6 +23,7 @@ import { BankIcon } from '../components/question-banks/BankIcon'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { ModalViewport } from '../components/ui/ModalViewport'
+import { Alert } from '../components/ui/Alert'
 import { Select, recordToOptions } from '../components/ui/Select'
 
 export function QuestionBankDetailPage() {
@@ -91,7 +92,7 @@ export function QuestionBankDetailPage() {
   const listEmptyMessage = useMemo(() => {
     if (filteredQuestions.length > 0) return undefined
     if (q.trim()) return 'По запросу ничего не найдено'
-    if (statusFilter) return 'Нет вопросов с выбранным статусом'
+    if (statusFilter) return 'Нет вопросов с выбранным статусом.'
     const totals = bank?.bank_totals
     const restricted =
       bank?.visibility_restricted ??
@@ -187,7 +188,7 @@ export function QuestionBankDetailPage() {
   }
 
   if (!Number.isFinite(bankId)) {
-    return <p className="text-red-400">Неверный ID банка</p>
+    return <Alert>Неверный ID банка</Alert>
   }
 
   return (
@@ -234,7 +235,7 @@ export function QuestionBankDetailPage() {
         </p>
       )}
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <Alert>{error}</Alert>}
       {loading && <p className="text-white/40 text-sm">Загрузка…</p>}
 
       {bank && permissions && (

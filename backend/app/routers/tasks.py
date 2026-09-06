@@ -12,6 +12,7 @@ from app.config import DEFAULT_SERVER_ID
 from app.models.panel import Project, Task, TaskAttachment, TaskComment
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
+from app.services import messages
 from tortoise.expressions import Q
 
 from app.services.sphere_work import (
@@ -23,11 +24,15 @@ from app.services.sphere_work import (
 )
 from app.services.display_names import resolve_display_name, resolve_display_names, resolve_vk_photos
 from app.services.task_helpers import (
+    KANBAN_STATUSES,
     PRIORITY_LABELS,
     STATUS_EMOJI,
     STATUS_LABELS,
     assignee_ids as _assignee_ids,
     format_due_display,
+    mentioned_vk_ids,
+    migrate_legacy_task_statuses,
+    normalize_task_status,
     task_watchers,
 )
 from app.services.vk_notify import (
@@ -41,7 +46,8 @@ from app.services.vk_notify import (
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
-STATUSES = ["backlog", "todo", "in_progress", "review", "done", "cancelled"]
+STATUSES = ["todo", "in_progress", "done", "cancelled"]
+ACCEPT_STATUSES = [*STATUSES, "backlog", "review"]
 PRIORITIES = ["low", "medium", "high", "urgent"]
 TASK_TYPES = ["assignment", "check", "report", "bug"]
 ZGS_MIN_LEVEL = 3
@@ -264,7 +270,7 @@ def _serialize_task(t: Task) -> dict:
         "id": t.id,
         "title": t.title,
         "description": t.description,
-        "status": t.status,
+        "status": normalize_task_status(t.status),
         "priority": t.priority,
         "task_type": t.task_type,
         "assignee_vk_id": t.assignee_vk_id,
@@ -292,6 +298,7 @@ async def list_tasks(
     sphere: list[str] | None = Query(default=None),
     user: dict = Depends(require_ca_user),
 ):
+    await migrate_legacy_task_statuses()
     spheres = resolve_work_spheres(user, sphere)
     sphere_clause = work_item_sphere_filter(spheres)
     visible_project_ids = await Project.filter(
@@ -303,7 +310,7 @@ async def list_tasks(
     if project_id is not None:
         qs = qs.filter(project_id=project_id)
     if status:
-        qs = qs.filter(status=status)
+        qs = qs.filter(status=normalize_task_status(status))
     if priority:
         qs = qs.filter(priority=priority)
     tasks = await qs.order_by("-updated_at")
@@ -340,7 +347,7 @@ async def list_tasks(
 
     items = [enrich(t) for t in tasks]
     if view == "kanban":
-        columns = {s: [] for s in STATUSES}
+        columns = {s: [] for s in KANBAN_STATUSES}
         for item in items:
             columns.setdefault(item["status"], []).append(item)
         return {"view": "kanban", "columns": columns}
@@ -355,14 +362,14 @@ async def create_task(
     user: dict = Depends(require_ca_user),
 ):
     sphere = resolve_work_sphere(user, sphere)
-    if body.status not in STATUSES:
-        raise HTTPException(status_code=400, detail="Неверный статус")
+    if body.status not in ACCEPT_STATUSES:
+        raise HTTPException(status_code=400, detail=messages.TASK_BAD_STATUS)
     due_d, due_t = _parse_due(body.due_date)
     assignee_ids = body.assignee_vk_ids or ([body.assignee_vk_id] if body.assignee_vk_id else [])
     task = await Task.create(
         title=body.title,
         description=body.description,
-        status=body.status,
+        status=normalize_task_status(body.status),
         priority=body.priority,
         task_type=body.task_type,
         assignee_vk_id=assignee_ids[0] if assignee_ids else None,
@@ -393,7 +400,7 @@ async def create_task(
 async def get_task(task_id: int, user: dict = Depends(require_ca_user)):
     task = await Task.get_or_none(id=task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
+        raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
     comments = await TaskComment.filter(task_id=task_id).order_by("created_at")
     attachments = await TaskAttachment.filter(task_id=task_id)
     project_title = None
@@ -445,9 +452,9 @@ async def update_task(
 ):
     task = await Task.get_or_none(id=task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
+        raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
     if not _can_edit_task(user, task):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
 
     old_title = task.title
     old_description = task.description or ""
@@ -464,9 +471,9 @@ async def update_task(
     if body.description is not None:
         task.description = body.description
     if body.status is not None:
-        if body.status not in STATUSES:
-            raise HTTPException(status_code=400, detail="Неверный статус")
-        task.status = body.status
+        if body.status not in ACCEPT_STATUSES:
+            raise HTTPException(status_code=400, detail=messages.TASK_BAD_STATUS)
+        task.status = normalize_task_status(body.status)
     if body.priority is not None:
         task.priority = body.priority
     if body.task_type is not None:
@@ -550,10 +557,10 @@ async def update_task(
 @router.delete("/{task_id}")
 async def delete_task(task_id: int, user: dict = Depends(require_ca_user)):
     if not _can_delete_task(user):
-        raise HTTPException(status_code=403, detail="Удалять задачи могут только ЗГС+")
+        raise HTTPException(status_code=403, detail=messages.TASK_DELETE_FORBIDDEN)
     task = await Task.get_or_none(id=task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
+        raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
     watchers = task_watchers(task, exclude=user["vk_id"])
     title = task.title
     task_pk = task.id
@@ -580,12 +587,16 @@ async def add_comment(
 ):
     task = await Task.get_or_none(id=task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
+        raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
     comment = await TaskComment.create(
         task=task, author_vk_id=user["vk_id"], body=body.body
     )
     author_name = await resolve_display_name(user["vk_id"])
-    notify_targets = task_watchers(task, exclude=user["vk_id"])
+    from app.services.staff import list_staff
+
+    staff_rows = await list_staff(int(user.get("server_id") or DEFAULT_SERVER_ID))
+    mentioned = mentioned_vk_ids(body.body, staff_rows, exclude=user["vk_id"])
+    notify_targets = set(task_watchers(task, exclude=user["vk_id"])) | mentioned
     for vid in notify_targets:
         await notify_task_comment(
             vid,
@@ -611,7 +622,7 @@ async def add_attachment(
 ):
     task = await Task.get_or_none(id=task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
+        raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
     att = await TaskAttachment.create(task=task, url=body.url, title=body.title)
     watchers = task_watchers(task, exclude=user["vk_id"])
     if watchers:
@@ -634,12 +645,12 @@ async def delete_attachment(
 ):
     task = await Task.get_or_none(id=task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
+        raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
     if not _can_edit_task(user, task):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     att = await TaskAttachment.get_or_none(id=attachment_id, task_id=task_id)
     if not att:
-        raise HTTPException(status_code=404, detail="Вложение не найдено")
+        raise HTTPException(status_code=404, detail=messages.ATTACHMENT_NOT_FOUND)
     att_title = (att.title or "").strip() or "файл"
     await att.delete()
     watchers = task_watchers(task, exclude=user["vk_id"])

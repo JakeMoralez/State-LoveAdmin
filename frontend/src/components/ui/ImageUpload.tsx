@@ -1,6 +1,7 @@
 import { ImagePlus, Loader2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { api } from '../../api'
+import { useToast } from '../../context/ToastContext'
 
 export function ImageUploadButton({
   onUploaded,
@@ -13,6 +14,7 @@ export function ImageUploadButton({
   className?: string
   iconOnly?: boolean
 }) {
+  const { toast } = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
 
@@ -23,7 +25,7 @@ export function ImageUploadButton({
       const res = await api.uploadFile(file)
       onUploaded(res.url, res.filename)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Ошибка загрузки')
+      toast(e instanceof Error ? e.message : 'Ошибка загрузки')
     } finally {
       setBusy(false)
       if (inputRef.current) inputRef.current.value = ''

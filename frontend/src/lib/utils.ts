@@ -58,13 +58,11 @@ export function priorityBadgeClass(priority: string | undefined): string {
 export function statusBadgeClass(status: string | undefined): string {
   switch (status) {
     case 'backlog':
-      return 'badge-status-backlog'
     case 'todo':
       return 'badge-status-todo'
     case 'in_progress':
-      return 'badge-status-progress'
     case 'review':
-      return 'badge-status-review'
+      return 'badge-status-progress'
     case 'done':
       return 'badge-status-done'
     case 'cancelled':

@@ -16,6 +16,9 @@ async def get_activity_log(
     offset: int = Query(0, ge=0),
     q: str | None = None,
     vk_id: int | None = Query(None),
+    actions: str | None = Query(None),
+    group: str | None = Query(None),
+    about: bool = Query(False),
     user: dict = Depends(require_ca_user),
 ):
     level = int(user.get("access_level") or 0)
@@ -25,4 +28,13 @@ async def get_activity_log(
             status_code=403,
             detail="Журнал действий доступен с уровня Следящий (2)+",
         )
-    return await list_activity(limit=limit, offset=offset, q=q, vk_id=vk_id)
+    action_list = [a.strip() for a in (actions or "").split(",") if a.strip()] or None
+    return await list_activity(
+        limit=limit,
+        offset=offset,
+        q=q,
+        vk_id=vk_id,
+        actions=action_list,
+        group=group,
+        about=about,
+    )

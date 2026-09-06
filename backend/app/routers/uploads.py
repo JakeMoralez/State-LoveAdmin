@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 
 from app.config import UPLOAD_DIR
 from app.services.auth import require_ca_user
+from app.services import messages
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
@@ -104,13 +105,13 @@ def regenerate_all_gallery_pages() -> int:
 
 async def _save_upload(file: UploadFile) -> tuple[bytes, str]:
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Файл не выбран")
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_NO_FILE)
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED:
-        raise HTTPException(status_code=400, detail="Допустимы PNG, JPG, GIF, WebP")
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_BAD_TYPE)
     data = await file.read()
     if len(data) > MAX_BYTES:
-        raise HTTPException(status_code=400, detail="Максимум 8 МБ на файл")
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_TOO_LARGE)
     return data, ext
 
 
@@ -139,7 +140,7 @@ async def upload_gallery(
     user: dict = Depends(require_ca_user),
 ):
     if not files:
-        raise HTTPException(status_code=400, detail="Выберите хотя бы один скрин")
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_NEED_IMAGE)
 
     gid = gallery_id if gallery_id and GALLERY_ID_RE.match(gallery_id) else uuid.uuid4().hex
     gdir = _gallery_dir(gid)

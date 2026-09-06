@@ -1,6 +1,6 @@
 .page-stack--assign {
-  max-width: 36rem;
-  margin-inline: auto;
+  width: 100%;
+  max-width: none;
 }
 
 .assign-card {
@@ -168,6 +168,15 @@
 .assign-spheres .sphere-multi-select-label {
   font-size: 0.75rem;
   line-height: 1.25;
+}
+
+.assign-spheres .sphere-role-row {
+  min-height: 2.25rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.assign-spheres .sphere-role-name {
+  font-size: 0.75rem;
 }
 
 .assign-card .forum-field {

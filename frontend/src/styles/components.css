@@ -118,7 +118,7 @@ button.glass-card:hover {
 }
 
 .page-toolbar {
-  padding: var(--space-1) var(--space-2);
+  padding: 0;
 }
 
 .page-toolbar-row {
@@ -126,7 +126,7 @@ button.glass-card:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  padding: 0;
 }
 
 .page-toolbar-search-slot {
@@ -244,7 +244,7 @@ button.glass-card:hover {
   min-height: 2rem;
   padding: 0 0.75rem;
   font-size: 0.8125rem;
-  line-height: 1;
+  line-height: 1.25;
 }
 
 .btn-icon {
@@ -1014,14 +1014,27 @@ a.project-card:hover,
   font-style: italic;
 }
 
-.checklist-member-pill-tag {
-  font-size: 0.5625rem;
+.checklist-week-btn--now {
+  width: auto;
+  padding: 0 0.55rem;
+  font-size: 0.6875rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent-gold);
+}
+
+.checklist-member-pill--self {
+  border-color: rgba(201, 162, 39, 0.45);
+}
+
+.checklist-member-pill-tag {
+  font-size: 0.6875rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 1px 5px;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(201, 162, 39, 0.15);
+  background: rgba(201, 162, 39, 0.28);
   color: var(--accent-gold);
 }
 
@@ -1403,4 +1416,54 @@ a.project-card:hover,
     width: 100%;
     justify-content: center;
   }
+}
+
+.sl-alert {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.sl-alert--danger {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #fca5a5;
+}
+
+.sl-alert--success {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: #86efac;
+}
+
+.sl-alert--warning {
+  background: rgba(201, 162, 39, 0.12);
+  border: 1px solid rgba(201, 162, 39, 0.28);
+  color: var(--accent-gold-bright);
+}
+
+.sl-alert--info {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--sl-border);
+  color: var(--sl-text-muted);
+}
+
+.sl-toast-stack {
+  position: fixed;
+  z-index: 80;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.sl-toast {
+  pointer-events: auto;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
 }

@@ -16,6 +16,7 @@ import { BankIconPicker } from './BankIconPicker'
 import { FormField } from '../ui/FormField'
 import { ModalViewport } from '../ui/ModalViewport'
 import { Select } from '../ui/Select'
+import { Alert } from '../ui/Alert'
 import { TagInput } from '../ui/TagInput'
 
 export interface BankFormValues {
@@ -113,7 +114,7 @@ export function BankForm({
       >
         <Select value={visibility} onChange={setVisibility} options={visibilitySelectOptions} />
       </FormField>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <Alert>{error}</Alert>}
       <div className="qb-bank-form-actions">
         <button type="button" className="btn-secondary" onClick={onCancel}>
           Отмена
@@ -254,7 +255,7 @@ export function QuestionItemModal({
           <FormField label="Теги">
             <TagInput value={body.tags ?? []} onChange={(tags) => setBody({ ...body, tags })} />
           </FormField>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <Alert>{error}</Alert>}
         </div>
         <div className="qb-modal-foot">
           <button type="button" className="btn-secondary" onClick={onClose}>
@@ -407,7 +408,7 @@ export function ReviewQuestionModal({
               placeholder="Замечания автору…"
             />
           </FormField>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <Alert>{error}</Alert>}
         </div>
         <div className="qb-modal-foot">
           <button type="button" className="btn-secondary" disabled={saving} onClick={() => void run('needs_revision')}>
@@ -459,9 +460,9 @@ export function QuestionList({
 }) {
   if (!items.length) {
     return (
-      <p className="text-white/40 text-sm py-8 text-center">
-        {emptyMessage ?? 'Вопросов пока нет'}
-      </p>
+      <div className="page-empty-state page-empty-state--card">
+        <p className="page-empty-state-title">{emptyMessage ?? 'Вопросов пока нет'}</p>
+      </div>
     )
   }
 

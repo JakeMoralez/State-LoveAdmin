@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from app.models.bot import Server
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
+from app.services import messages
 from app.services.forum_judge_list import (
     DEFAULT_BODY_TEMPLATE,
     DEFAULT_EMPTY_TEXT,
@@ -30,7 +31,7 @@ router = APIRouter(prefix="/api/forum", tags=["forum"])
 def require_zgs_user(user: dict = Depends(require_ca_user)) -> dict:
     level = int(user.get("access_level") or 0)
     if level < ZGS_MIN_LEVEL:
-        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС ГОС (6) или выше")
+        raise HTTPException(status_code=403, detail=messages.FORUM_NEED_ZGS_GOS)
     return user
 
 
@@ -106,10 +107,10 @@ async def validate_judge_list_thread_endpoint(
     if body.thread_url:
         parsed = parse_thread_id(body.thread_url)
         if not parsed:
-            raise HTTPException(status_code=400, detail="Некорректная ссылка на тему")
+            raise HTTPException(status_code=400, detail=messages.FORUM_BAD_THREAD_URL)
         thread_id = parsed
     if not thread_id or thread_id <= 0:
-        raise HTTPException(status_code=400, detail="Укажите ссылку или ID темы")
+        raise HTTPException(status_code=400, detail=messages.FORUM_NEED_THREAD)
 
     check, err = await validate_judge_list_thread(body.server_id, thread_id)
     if err:
@@ -139,7 +140,7 @@ async def save_judge_list_settings(
 ):
     server = await Server.get_or_none(id=body.server_id)
     if not server:
-        raise HTTPException(status_code=404, detail="Сервер не найден")
+        raise HTTPException(status_code=404, detail=messages.SERVER_NOT_FOUND)
 
     settings = await get_or_create_settings(body.server_id)
     fields_set = body.model_fields_set
@@ -159,7 +160,7 @@ async def save_judge_list_settings(
     if "enabled" in fields_set and body.enabled and not thread_id:
         raise HTTPException(
             status_code=400,
-            detail="Укажите ссылку или ID темы в разделе forums/3758/",
+            detail=messages.FORUM_THREAD_HINT,
         )
 
     validation_warning: str | None = None

@@ -48,7 +48,9 @@ from app.routers import (
     uploads,
 )
 from app.services.bootstrap import ensure_defaults
+from app.services.task_helpers import migrate_legacy_task_statuses
 from app.services.error_log import record_server_exception
+from app.services import messages
 from app.services.staff import list_staff
 from app.services.task_notifications import run_task_reminders
 
@@ -73,6 +75,7 @@ async def lifespan(app: FastAPI):
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     await ensure_defaults()
+    await migrate_legacy_task_statuses()
     galleries = regenerate_all_gallery_pages()
     staff_rows = await list_staff(DEFAULT_SERVER_ID)
     if is_sqlite_url(BOT_DATABASE_URL):
@@ -114,9 +117,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     if isinstance(exc, (HTTPException, StarletteHTTPException)):
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     if isinstance(exc, RequestValidationError):
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        # Форма ответа прежняя ({"detail": ...}), но текст — человечный русский
+        # вместо сырого списка технических ошибок pydantic.
+        return JSONResponse(
+            status_code=422,
+            content={"detail": messages.humanize_validation(exc.errors())},
+        )
     await record_server_exception(request, exc)
-    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+    return JSONResponse(status_code=500, content={"detail": messages.INTERNAL_ERROR})
 
 
 register_tortoise(

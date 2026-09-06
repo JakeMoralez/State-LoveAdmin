@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { PRIORITY_LABELS, STATUS_LABELS, type Project, type StaffMember, type WorkSphere } from '../../api'
+import { PRIORITY_LABELS, STATUS_LABELS, TASK_FORM_STATUSES, type Project, type StaffMember, type WorkSphere } from '../../api'
 import type { TaskLabel } from '../../lib/labels'
 import { cn, statusBadgeClass } from '../../lib/utils'
 import { CreateSphereField } from '../CreateSphereField'
@@ -9,6 +9,7 @@ import { LabelInput } from '../ui/LabelInput'
 import { MultiAssigneePicker } from '../ui/MultiAssigneePicker'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
+import { Alert } from '../ui/Alert'
 
 export interface TaskCreatePayload {
   title: string
@@ -146,7 +147,7 @@ export function TaskCreateModal({
           <div>
             <label className="text-caption mb-1.5 block">Статус</label>
             <div className="status-chip-row">
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              {TASK_FORM_STATUSES.map((value) => (
                 <button
                   key={value}
                   type="button"
@@ -157,7 +158,7 @@ export function TaskCreateModal({
                   )}
                   onClick={() => setStatus(value)}
                 >
-                  {label}
+                  {STATUS_LABELS[value]}
                 </button>
               ))}
             </div>
@@ -201,7 +202,7 @@ export function TaskCreateModal({
             <LabelInput value={labels} onChange={setLabels} placeholder="Своя метка…" />
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <Alert>{error}</Alert>}
         </div>
 
         <div className="shrink-0 border-t border-white/8 p-6 pt-4 flex justify-end gap-2">

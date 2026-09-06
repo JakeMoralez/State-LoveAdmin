@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   DragOverlay,
@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ClipboardList, type LucideIcon } from 'lucide-react'
-import { api, STATUS_LABELS, type Project, type StaffMember, type TaskDetail } from '../api'
+import { api, STATUS_LABELS, normalizeTaskStatus, type Project, type StaffMember, type TaskDetail } from '../api'
 import { pickDefaultCreateSphere } from '../components/CreateSphereField'
 import { PageHeader } from '../components/PageHeader'
 import { SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
@@ -22,9 +22,9 @@ import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TasksToolbar, type TaskFilters } from '../components/tasks/TasksToolbar'
 import { useAuth } from '../context/AuthContext'
 import { COMPACT_QUERY, matchesMediaQuery } from '../hooks/useMediaQuery'
-import { cn } from '../lib/utils'
+import { cn, isOverdue } from '../lib/utils'
 
-const KANBAN_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done']
+const KANBAN_STATUSES = ['todo', 'in_progress', 'done']
 
 const TASKS_VIEW_KEY = 'sl-tasks-view'
 
@@ -70,9 +70,11 @@ export function TasksWorkspace({
   taskIdParam,
 }: TasksWorkspaceProps) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [filters, setFilters] = useState<TaskFilters>(() => ({
-    mine: false,
+    mine: searchParams.get('mine') === '1',
+    overdue: searchParams.get('overdue') === '1',
     assigneeVkId: '',
     priority: '',
     projectId: projectId ? String(projectId) : '',
@@ -103,8 +105,9 @@ export function TasksWorkspace({
   }, [filters, projectId, apiSpheres])
 
   const filterTasks = useCallback((items: TaskDetail[]) => {
+    let next = items
     if (filters.assigneeVkId === 'none') {
-      return items.filter((t) => {
+      next = next.filter((t) => {
         const ids = t.assignee_vk_ids?.length
           ? t.assignee_vk_ids
           : t.assignee_vk_id
@@ -113,8 +116,11 @@ export function TasksWorkspace({
         return ids.length === 0
       })
     }
-    return items
-  }, [filters.assigneeVkId])
+    if (filters.overdue) {
+      next = next.filter((t) => isOverdue(t.due_date) && t.status !== 'done' && t.status !== 'cancelled')
+    }
+    return next
+  }, [filters.assigneeVkId, filters.overdue])
 
   const load = useCallback(async () => {
     if (workSpheres && workSpheres.length > 0 && !spheres?.length) return
@@ -123,13 +129,19 @@ export function TasksWorkspace({
       const res = await api.tasks(apiParams)
       if (res.view === 'kanban' && res.columns) {
         const next: Record<string, TaskDetail[]> = {}
+        for (const col of KANBAN_STATUSES) next[col] = []
         for (const [col, items] of Object.entries(res.columns)) {
-          next[col] = filterTasks(items)
+          const key = normalizeTaskStatus(col)
+          if (!KANBAN_STATUSES.includes(key)) continue
+          next[key] = [
+            ...next[key],
+            ...filterTasks(items).map((t) => ({ ...t, status: normalizeTaskStatus(t.status) })),
+          ]
         }
         setColumns(next)
         setListTasks([])
       } else if (res.tasks) {
-        setListTasks(filterTasks(res.tasks))
+        setListTasks(filterTasks(res.tasks).map((t) => ({ ...t, status: normalizeTaskStatus(t.status) })))
         setColumns({})
       }
     } finally {
@@ -176,7 +188,10 @@ export function TasksWorkspace({
     const key = String(overId)
     if (KANBAN_STATUSES.includes(key)) return key
     const overTask = allTasks.find((t) => t.id === Number(overId))
-    if (overTask?.status && KANBAN_STATUSES.includes(overTask.status)) return overTask.status
+    if (overTask?.status) {
+      const mapped = normalizeTaskStatus(overTask.status)
+      if (KANBAN_STATUSES.includes(mapped)) return mapped
+    }
     return null
   }
 
@@ -286,7 +301,10 @@ export function TasksWorkspace({
       ) : filters.view === 'list' ? (
         <div className="list-stack">
           {listTasks.length === 0 ? (
-            <p className="text-white/40">Задач нет</p>
+            <div className="page-empty-state page-empty-state--card">
+              <p className="page-empty-state-title">Задач пока нет</p>
+              <p className="page-empty-state-hint">Создайте первую или смените фильтры.</p>
+            </div>
           ) : (
             listTasks.map((t) => <TaskListRow key={t.id} task={t} onSelect={openTask} />)
           )}

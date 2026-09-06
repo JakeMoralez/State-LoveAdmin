@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 import urllib.parse
 
@@ -35,11 +36,14 @@ from app.services.discord_oauth import (
     discord_oauth_configured,
     exchange_code,
 )
+from app.services import messages
 from app.services.auth import (
     clear_session_cookie,
     require_ca_user,
     set_session_cookie,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -245,7 +249,12 @@ async def vk_callback(code: str | None = None, state: str | None = None):
         )
         token_data = token_resp.json()
         if "error" in token_data:
-            raise HTTPException(status_code=400, detail=token_data.get("error_description", "OAuth error"))
+            logger.warning(
+                "VK OAuth error: %s / %s",
+                token_data.get("error"),
+                token_data.get("error_description"),
+            )
+            raise HTTPException(status_code=400, detail=messages.OAUTH_ERROR)
 
         vk_id = int(token_data["user_id"])
         access_token = token_data["access_token"]
@@ -297,4 +306,9 @@ async def me(request: Request):
     user["discord_username"] = link.discord_username if link else None
     user["discord_display_name"] = link.discord_display_name if link else None
     user["work_spheres"] = work_spheres_payload(user)
+    from app.models.panel import UserNotifyPrefs
+
+    prefs = await UserNotifyPrefs.get_or_none(vk_id=user["vk_id"])
+    user["notify_tasks"] = True if prefs is None else bool(prefs.notify_tasks)
+    user["notify_assign"] = True if prefs is None else bool(prefs.notify_assign)
     return user

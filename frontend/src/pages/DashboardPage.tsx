@@ -28,7 +28,7 @@ export function DashboardPage() {
 
     { label: 'Мои открытые задачи', value: data.my_open_tasks, to: '/tasks?mine=1', warn: false },
 
-    { label: 'Просрочено', value: data.overdue_tasks, to: '/tasks', warn: data.overdue_tasks > 0 },
+    { label: 'Просрочено', value: data.overdue_tasks, to: '/tasks?overdue=1', warn: data.overdue_tasks > 0 },
 
     { label: 'Активные проекты', value: data.active_projects, to: '/projects', warn: false },
 
@@ -86,7 +86,10 @@ export function DashboardPage() {
 
       {data.recent_tasks.length === 0 ? (
 
-        <p className="text-white/40">Задач пока нет.</p>
+        <div className="page-empty-state page-empty-state--card">
+          <p className="page-empty-state-title">Задач пока нет</p>
+          <p className="page-empty-state-hint">Новые появятся здесь, когда их создадут.</p>
+        </div>
 
       ) : (
 

@@ -15,6 +15,7 @@ import {
 } from '../components/question-banks/QuestionBankUi'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
+import { Alert } from '../components/ui/Alert'
 
 export function QuestionBankReviewPage() {
   const [items, setItems] = useState<QuestionBankPendingItem[]>([])
@@ -101,7 +102,7 @@ export function QuestionBankReviewPage() {
         <PageSearch value={q} onChange={setQ} placeholder="Поиск по тексту, банку или автору…" />
       )}
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && <Alert>{error}</Alert>}
       {loading && <p className="text-white/40 text-sm">Загрузка…</p>}
 
       {!loading && visibleItems.length > 0 && (

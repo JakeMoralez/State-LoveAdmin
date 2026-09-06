@@ -3,13 +3,16 @@ import { Navigate } from 'react-router-dom'
 import { RefreshCw, Shield } from 'lucide-react'
 import { api, ApiError, type LeadershipCandidate } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { Alert } from '../components/ui/Alert'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
 export function DevLeadershipPage() {
   const { user, loading: authLoading } = useAuth()
+  const { toast } = useToast()
   const [members, setMembers] = useState<LeadershipCandidate[]>([])
   const [total, setTotal] = useState(0)
   const [leadersCount, setLeadersCount] = useState(0)
@@ -57,7 +60,7 @@ export function DevLeadershipPage() {
         return isLeader ? c + 1 : Math.max(0, c - 1)
       })
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка')
     } finally {
       setBusyVkId(null)
     }
@@ -96,7 +99,7 @@ export function DevLeadershipPage() {
         </PageToolbarActions>
       </PageToolbarRow>
 
-      {error && <div className="glass-card glass-card-pad text-red-400 text-sm">{error}</div>}
+      {error && <Alert>{error}</Alert>}
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
@@ -109,7 +112,9 @@ export function DevLeadershipPage() {
           </div>
 
           {visible.length === 0 ? (
-            <div className="staff-registry-empty">Никого не найдено</div>
+            <div className="staff-registry-empty">
+              {q.trim() ? 'Никого не найдено. Измените поиск.' : 'Кандидатов пока нет.'}
+            </div>
           ) : (
             <div className="staff-registry-body ll-scroll dev-leadership-body">
               {visible.map((m, i) => (

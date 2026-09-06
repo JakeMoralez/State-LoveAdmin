@@ -10,6 +10,7 @@ from app.models.panel import Project, ProjectMember
 from app.models.bot import AccessLevel
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
+from app.services import messages
 from app.services.sphere_work import (
     DEFAULT_WORK_SPHERE,
     resolve_work_sphere,
@@ -83,7 +84,7 @@ async def create_project(
 ):
     sphere = resolve_work_sphere(user, sphere)
     if not _can_create_project(user):
-        raise HTTPException(status_code=403, detail="Создавать проекты могут Lead+")
+        raise HTTPException(status_code=403, detail=messages.PROJECT_CREATE_FORBIDDEN)
     project = await Project.create(
         title=body.title,
         description=body.description,
@@ -101,7 +102,7 @@ async def create_project(
 async def get_project(project_id: int, user: dict = Depends(require_ca_user)):
     project = await Project.get_or_none(id=project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Проект не найден")
+        raise HTTPException(status_code=404, detail=messages.PROJECT_NOT_FOUND)
     from app.models.panel import Task
 
     tasks = await Task.filter(project_id=project_id).order_by("-updated_at")
@@ -128,9 +129,9 @@ async def update_project(
 ):
     project = await Project.get_or_none(id=project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Проект не найден")
+        raise HTTPException(status_code=404, detail=messages.PROJECT_NOT_FOUND)
     if project.owner_vk_id != user["vk_id"] and user["panel_role"] not in ("owner", "lead"):
-        raise HTTPException(status_code=403, detail="Недостаточно прав")
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     if body.title is not None:
         project.title = body.title
     if body.description is not None:

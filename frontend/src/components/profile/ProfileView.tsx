@@ -1,26 +1,30 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   Check,
   ClipboardList,
   Code2,
   Copy,
-  Crown,
   ExternalLink,
   History,
   ListChecks,
   Shield,
   UserRound,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { api, ApiError, type ActivityLogItem, type DashboardSummary } from '../../api'
+import { api, ApiError, type ActivityLogItem, type DashboardSummary, type ProfileUpdateBody } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import { localizeActivityMessage } from '../../lib/activityLabels'
+import { looksLikeDiscordId } from '../../lib/discordId'
+import { forumMemberUrl, parseForumMemberUrl } from '../../lib/forumAccount'
 import { formatSpheresDisplay } from '../../lib/spheres'
 import { PageHeader } from '../PageHeader'
+import { Checkbox } from '../ui/Checkbox'
+import { ForumAccountField } from '../ui/ForumAccountField'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
-const FEED_LIMIT = 12
+const FEED_LIMIT = 20
 const JOURNAL_MIN_LEVEL = 2
+const ACCESS_HISTORY_ACTIONS = 'staff_assign,staff_update,staff_revoke'
 
 export interface ProfileViewData {
   vk_id: number
@@ -41,6 +45,10 @@ export interface ProfileViewData {
   discord_username?: string | null
   discord_display_name?: string | null
   granted_at?: string | null
+  is_senior?: boolean
+  senior_spheres?: string[]
+  notify_tasks?: boolean
+  notify_assign?: boolean
 }
 
 function parseNickname(nickname: string | null, vkId: number) {
@@ -57,20 +65,6 @@ function parseNickname(nickname: string | null, vkId: number) {
 function avatarInitial(title: string) {
   const letter = title.replace(/^\W+/, '').charAt(0)
   return (letter || '?').toUpperCase()
-}
-
-function panelRoleBadge(role: string) {
-  const key = role.toLowerCase()
-  if (key === 'owner') {
-    return { label: 'Владелец', icon: Crown, gold: true }
-  }
-  if (key === 'admin') {
-    return { label: 'Администратор', icon: Shield, gold: true }
-  }
-  if (key === 'leader') {
-    return { label: 'Руководство', icon: Shield, gold: true }
-  }
-  return { label: 'Участник', icon: UserRound, gold: false }
 }
 
 function pad2(n: number) {
@@ -97,7 +91,7 @@ function cabinetActivityText(item: ActivityLogItem, subjectVkId: number): string
       msg = msg.replace(needle, ' ')
     }
   }
-  return msg
+  return localizeActivityMessage(msg, item.action)
 }
 
 function discordLabel(profile: ProfileViewData): string | null {
@@ -119,10 +113,13 @@ export function ProfileView({
   backTo?: { label: string; href: string }
   headerActions?: ReactNode
 }) {
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const [copied, setCopied] = useState(false)
   const [feed, setFeed] = useState<ActivityLogItem[] | null>(null)
   const [feedTotal, setFeedTotal] = useState(0)
+  const [feedOffset, setFeedOffset] = useState(0)
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false)
+  const [history, setHistory] = useState<ActivityLogItem[]>([])
   const [feedError, setFeedError] = useState<string | null>(null)
   const [feedForbidden, setFeedForbidden] = useState(false)
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
@@ -131,26 +128,32 @@ export function ProfileView({
   const avatar = profile.avatar_url || DEFAULT_AVATAR
   const vkUrl = `https://vk.com/id${profile.vk_id}`
   const roleTitle = profile.access_role_title || profile.access_level_name
-  const panelRole = profile.panel_role || 'member'
-  const roleBadge = panelRoleBadge(panelRole)
-  const RoleIcon = roleBadge.icon
   const spheres = formatSpheresDisplay(profile.spheres)
+  const seniorSpheres = formatSpheresDisplay(profile.senior_spheres)
   const spheresValue = spheres !== '—' ? spheres : profile.sphere || '—'
   const discord = discordLabel(profile)
   const isOwn = showQuickLinks || user?.vk_id === profile.vk_id
   const canOpenJournal = (user?.access_level ?? 0) >= JOURNAL_MIN_LEVEL
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [discordId, setDiscordId] = useState('')
+  const [forumAccount, setForumAccount] = useState('')
+  const [notifyTasks, setNotifyTasks] = useState(true)
+  const [notifyAssign, setNotifyAssign] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     setFeed(null)
+    setFeedOffset(0)
     setFeedError(null)
     setFeedForbidden(false)
     api
-      .activityLog({ vk_id: profile.vk_id, limit: FEED_LIMIT })
+      .activityLog({ vk_id: profile.vk_id, limit: FEED_LIMIT, offset: 0 })
       .then((res) => {
         if (cancelled) return
         setFeed(res.items)
         setFeedTotal(res.total)
+        setFeedOffset(res.items.length)
       })
       .catch((e: unknown) => {
         if (cancelled) return
@@ -161,6 +164,20 @@ export function ProfileView({
         }
         setFeed([])
         setFeedError(e instanceof Error ? e.message : 'Не удалось загрузить журнал')
+      })
+    api
+      .activityLog({
+        vk_id: profile.vk_id,
+        limit: 50,
+        offset: 0,
+        actions: ACCESS_HISTORY_ACTIONS,
+        about: true,
+      })
+      .then((res) => {
+        if (!cancelled) setHistory(res.items.filter((item) => item.history_label))
+      })
+      .catch(() => {
+        if (!cancelled) setHistory([])
       })
     return () => {
       cancelled = true
@@ -183,6 +200,63 @@ export function ProfileView({
     }
   }, [showQuickLinks])
 
+  useEffect(() => {
+    setDiscordId(profile.discord_id ?? '')
+    setForumAccount(forumMemberUrl(profile.username, profile.vk_id) || profile.username || '')
+    setNotifyTasks(profile.notify_tasks !== false)
+    setNotifyAssign(profile.notify_assign !== false)
+    setSaveError(null)
+  }, [profile])
+
+  const loadMoreFeed = async () => {
+    setFeedLoadingMore(true)
+    try {
+      const res = await api.activityLog({
+        vk_id: profile.vk_id,
+        limit: FEED_LIMIT,
+        offset: feedOffset,
+      })
+      setFeed((prev) => [...(prev ?? []), ...res.items])
+      setFeedTotal(res.total)
+      setFeedOffset((prev) => prev + res.items.length)
+    } catch {
+      /* keep current feed */
+    } finally {
+      setFeedLoadingMore(false)
+    }
+  }
+
+  const saveOwnProfile = async () => {
+    const forumRaw = forumAccount.trim()
+    if (forumRaw) {
+      const forum = parseForumMemberUrl(forumRaw)
+      if (!forum.ok) {
+        setSaveError(forum.message)
+        return
+      }
+    }
+    if (discordId.trim() && !looksLikeDiscordId(discordId)) {
+      setSaveError('Discord ID — 17–20 цифр')
+      return
+    }
+    setSaving(true)
+    setSaveError(null)
+    const body: ProfileUpdateBody = {
+      discord_id: discordId.trim() || null,
+      notify_tasks: notifyTasks,
+      notify_assign: notifyAssign,
+    }
+    if (forumRaw) body.forum_account = forumRaw
+    try {
+      await api.updateProfile(body)
+      await refresh()
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : 'Не удалось сохранить')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const copyVkId = async () => {
     try {
       await navigator.clipboard.writeText(String(profile.vk_id))
@@ -193,17 +267,24 @@ export function ProfileView({
     }
   }
 
-  const facts = [
-    { label: 'Ник', value: parsed.full },
+  const facts: { label: string; value: ReactNode; mono?: boolean }[] = [
+    {
+      label: 'Ник',
+      value: (
+        <span className="lk-nick-fact">
+          {parsed.tag ? <span className="activity-nick-tag">{parsed.tag.replace(/^\[|\]$/g, '')}</span> : null}
+          <span>{parsed.title}</span>
+        </span>
+      ),
+    },
     { label: 'Должность', value: roleTitle },
-    { label: 'Роль в панели', value: roleBadge.label },
     {
       label: 'Username',
       value: profile.username ? `@${profile.username}` : '—',
       mono: Boolean(profile.username),
     },
     { label: 'Портал', value: profile.has_ca_access ? 'Есть доступ' : 'Нет доступа' },
-    ...(discord ? [{ label: 'Discord', value: discord, mono: true }] : []),
+    ...(discord ? [{ label: 'Discord', value: discord, mono: true as const }] : []),
     ...(profile.granted_at
       ? [{ label: 'В составе с', value: formatGrantedAt(profile.granted_at) }]
       : []),
@@ -250,10 +331,6 @@ export function ProfileView({
                   {parsed.tag.replace(/^\[|\]$/g, '')}
                 </span>
               )}
-              <span className={`profile-badge ${roleBadge.gold ? 'profile-badge--gold' : ''}`}>
-                <RoleIcon size={11} aria-hidden />
-                {roleBadge.label}
-              </span>
               {profile.dev_persona && (
                 <span className="profile-badge">
                   <Code2 size={11} aria-hidden />
@@ -297,6 +374,12 @@ export function ProfileView({
             <dt>Сферы</dt>
             <dd>{spheresValue}</dd>
           </div>
+          {profile.is_senior && seniorSpheres !== '—' && (
+            <div className="lk-id-chip">
+              <dt>Ст. След.</dt>
+              <dd>{seniorSpheres}</dd>
+            </div>
+          )}
         </dl>
       </section>
 
@@ -313,6 +396,67 @@ export function ProfileView({
               ))}
             </dl>
           </section>
+
+          {history.length > 0 && (
+            <section className="glass-card lk-card">
+              <h3 className="profile-section-title">История доступа</h3>
+              <ol className="lk-history-list">
+                {history.map((item) => (
+                  <li key={item.id} className="lk-history-item">
+                    <span className="lk-history-date">{formatCabinetStamp(item.created_at)}</span>
+                    <span className="lk-history-text">{item.history_label}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
+          {showQuickLinks && (
+            <section className="glass-card lk-card">
+              <h3 className="profile-section-title">Настройки</h3>
+              <div className="lk-edit-stack">
+                <ForumAccountField
+                  id="lk-forum"
+                  labelClassName="lk-field-label"
+                  value={forumAccount}
+                  onChange={setForumAccount}
+                />
+                <div className="lk-field">
+                  <label className="lk-field-label" htmlFor="lk-discord">
+                    Discord ID
+                  </label>
+                  <input
+                    id="lk-discord"
+                    className="control w-full"
+                    inputMode="numeric"
+                    value={discordId}
+                    placeholder="123456789012345678"
+                    onChange={(e) => setDiscordId(e.target.value)}
+                  />
+                </div>
+                <div className="lk-field">
+                  <span className="lk-field-label">Уведомления VK</span>
+                  <label className="lk-check">
+                    <Checkbox checked={notifyTasks} onChange={setNotifyTasks} />
+                    <span>Задачи</span>
+                  </label>
+                  <label className="lk-check">
+                    <Checkbox checked={notifyAssign} onChange={setNotifyAssign} />
+                    <span>Назначения</span>
+                  </label>
+                </div>
+                {saveError && <p className="forum-field-error">{saveError}</p>}
+                <button
+                  type="button"
+                  className="btn btn-gold btn-sm lk-edit-save"
+                  disabled={saving}
+                  onClick={() => void saveOwnProfile()}
+                >
+                  {saving ? 'Сохранение…' : 'Сохранить'}
+                </button>
+              </div>
+            </section>
+          )}
 
           {showQuickLinks && (
             <section className="glass-card lk-card">
@@ -376,6 +520,7 @@ export function ProfileView({
               Пока нет записей. Назначения, смены должности и правки карточки появятся здесь.
             </p>
           ) : (
+            <>
             <ol className="lk-feed-list">
               {feed.map((item, index) => (
                 <li key={item.id} className="lk-feed-item">
@@ -386,6 +531,17 @@ export function ProfileView({
                 </li>
               ))}
             </ol>
+            {feed.length < feedTotal && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm lk-feed-more"
+                disabled={feedLoadingMore}
+                onClick={() => void loadMoreFeed()}
+              >
+                {feedLoadingMore ? 'Загрузка…' : 'Ещё записи'}
+              </button>
+            )}
+            </>
           )}
         </section>
       </div>

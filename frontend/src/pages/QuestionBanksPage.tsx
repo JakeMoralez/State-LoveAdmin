@@ -8,6 +8,7 @@ import { PageHeader } from '../components/PageHeader'
 import { SphereBadge, SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
 import { useAuth } from '../context/AuthContext'
 import { ModalViewport } from '../components/ui/ModalViewport'
+import { Alert } from '../components/ui/Alert'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { bankCountLabel } from '../lib/questionBanks'
 import { BankIcon } from '../components/question-banks/BankIcon'
@@ -113,7 +114,7 @@ export function QuestionBanksPage() {
             </PageToolbarActions>
           </PageToolbarRow>
 
-          {error && <p className="text-red-400 text-sm m-0">{error}</p>}
+          {error && <Alert>{error}</Alert>}
           {loading && <div className="page-loading m-0">Загрузка…</div>}
 
           {!loading && !error && (
@@ -154,7 +155,14 @@ export function QuestionBanksPage() {
                 </Link>
               ))}
               {!banks.length && (
-                <div className="page-empty-state col-span-full">Банков в выбранных сферах пока нет</div>
+                <div className="page-empty-state page-empty-state--card col-span-full">
+                  <p className="page-empty-state-title">Банков в выбранных сферах пока нет</p>
+                  <p className="page-empty-state-hint">
+                    {permissions.can_manage
+                      ? 'Создайте первый банк или смените сферы.'
+                      : 'Смените сферы или попросите руководство завести банк.'}
+                  </p>
+                </div>
               )}
             </div>
           )}

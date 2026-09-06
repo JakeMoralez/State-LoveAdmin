@@ -23,7 +23,7 @@ async def dashboard_summary(
     user: dict = Depends(require_ca_user),
 ):
     vk_id = user["vk_id"]
-    open_statuses = ["backlog", "todo", "in_progress", "review"]
+    open_statuses = ["todo", "in_progress", "backlog", "review"]
     my_open = await Task.filter(
         server_id=server_id, assignee_vk_id=vk_id, status__in=open_statuses
     ).count()

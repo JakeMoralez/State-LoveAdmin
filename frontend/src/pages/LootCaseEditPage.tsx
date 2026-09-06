@@ -9,6 +9,8 @@ import { CaseRarityPicker } from '../components/cases/CaseRarityPicker'
 import { formatPrizeConfig, parsePrizeConfig } from '../components/cases/parsePrizeConfig'
 import { rarityLabel, normalizeRarity, dropChanceRatio, formatDropChance, DEFAULT_SPIN_DURATION_MS, MIN_SPIN_DURATION_MS, MAX_SPIN_DURATION_MS, resolveSpinDurationMs } from '../components/cases/rouletteLayout'
 import { useAuth } from '../context/AuthContext'
+import { Alert } from '../components/ui/Alert'
+import { useToast } from '../context/ToastContext'
 
 const PRIZE_LIST_PLACEHOLDER = `1кк | 20 | легендарный
 5кк | 15 | эпический
@@ -37,6 +39,7 @@ export function LootCaseEditPage() {
   const caseId = Number(id)
   const navigate = useNavigate()
   const { user, loading: authLoading } = useAuth()
+  const { toast } = useToast()
   const [data, setData] = useState<LootCaseDetail | null>(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -79,7 +82,7 @@ export function LootCaseEditPage() {
 
   const saveCase = async () => {
     if (!title.trim()) {
-      window.alert('Укажите название кейса')
+      toast('Укажите название кейса')
       return
     }
     setSaving(true)
@@ -94,7 +97,7 @@ export function LootCaseEditPage() {
       setData(updated)
       setSpinDurationSec(Math.round(resolveSpinDurationMs(updated.spin_duration_ms) / 1000))
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения')
     } finally {
       setSaving(false)
     }
@@ -106,7 +109,7 @@ export function LootCaseEditPage() {
       await api.deleteDevCase(caseId)
       navigate('/dev/cases')
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка удаления')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка удаления')
     }
   }
 
@@ -128,13 +131,13 @@ export function LootCaseEditPage() {
 
   const savePrize = async () => {
     if (!prizeDraft.title.trim()) {
-      window.alert('Укажите название приза')
+      toast('Укажите название приза')
       return
     }
     const weight = Number(prizeDraft.weight)
     const sortOrder = Number(prizeDraft.sort_order)
     if (!Number.isFinite(weight) || weight < 1) {
-      window.alert('Количество в ленте должно быть не меньше 1')
+      toast('Количество в ленте должно быть не меньше 1')
       return
     }
     try {
@@ -158,7 +161,7 @@ export function LootCaseEditPage() {
       resetPrizeForm()
       load()
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения приза')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка сохранения приза')
     }
   }
 
@@ -167,11 +170,11 @@ export function LootCaseEditPage() {
   const importPrizeList = async () => {
     const { prizes, errors } = parsePrizeConfig(prizeListText)
     if (errors.length) {
-      window.alert(errors.slice(0, 8).join('\n') + (errors.length > 8 ? `\n…ещё ${errors.length - 8}` : ''))
+      toast(errors.slice(0, 8).join('\n') + (errors.length > 8 ? `\n…ещё ${errors.length - 8}` : ''))
       return
     }
     if (prizes.length === 0) {
-      window.alert('Вставьте список: каждая строка «название | количество | редкость»')
+      toast('Вставьте список: каждая строка «название | количество | редкость»')
       return
     }
     if (replacePrizes && data?.prizes.length) {
@@ -198,7 +201,7 @@ export function LootCaseEditPage() {
       setSpinDurationSec(Math.round(resolveSpinDurationMs(updated.spin_duration_ms) / 1000))
       setPrizeListText('')
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка импорта списка')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка импорта списка')
       load()
     } finally {
       setImporting(false)
@@ -208,7 +211,7 @@ export function LootCaseEditPage() {
   const copyCurrentList = async () => {
     const text = formatPrizeConfig(data?.prizes ?? [])
     if (!text) {
-      window.alert('Пока нет призов, чтобы скопировать')
+      toast('Пока нет призов, чтобы скопировать')
       return
     }
     setPrizeListText(text)
@@ -226,7 +229,7 @@ export function LootCaseEditPage() {
       const updated = await api.shuffleDevCasePrizes(caseId)
       setData(updated)
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось перемешать')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось перемешать')
     } finally {
       setShuffling(false)
     }
@@ -239,7 +242,7 @@ export function LootCaseEditPage() {
       if (editingPrizeId === prizeId) resetPrizeForm()
       load()
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка удаления')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Ошибка удаления')
     }
   }
 
@@ -249,7 +252,7 @@ export function LootCaseEditPage() {
 
   if (loading) return <div className="page-loading">Загрузка…</div>
   if (error || !data) {
-    return <div className="glass-card glass-card-pad text-red-400 text-sm">{error ?? 'Кейс не найден'}</div>
+    return <Alert>{error ?? 'Кейс не найден'}</Alert>
   }
 
   return (

@@ -21,6 +21,7 @@ from app.models.panel import (
 )
 from app.routers.uploads import gallery_image_urls, is_gallery_url
 from app.services.auth import require_ca_user
+from app.services import messages
 from app.services.display_names import resolve_display_names
 from app.services.sphere_work import DEFAULT_WORK_SPHERE, resolve_work_sphere, visible_work_spheres
 from app.services.staff import list_staff
@@ -493,14 +494,14 @@ async def update_checklist_tasks(
 ):
     sphere = resolve_work_sphere(user, sphere)
     if not _can_manage_checklist(user):
-        raise HTTPException(status_code=403, detail="Задачи чеклиста настраивает только ЗГС ЦА+")
+        raise HTTPException(status_code=403, detail=messages.CHECKLIST_TASKS_FORBIDDEN)
 
     if not body.tasks:
-        raise HTTPException(status_code=400, detail="Нужна хотя бы одна задача")
+        raise HTTPException(status_code=400, detail=messages.CHECKLIST_NEED_TASK)
 
     slugs = [t.slug for t in body.tasks]
     if len(slugs) != len(set(slugs)):
-        raise HTTPException(status_code=400, detail="Дублирующиеся slug задач")
+        raise HTTPException(status_code=400, detail=messages.CHECKLIST_DUP_SLUG)
 
     await ChecklistTaskDef.filter(server_id=server_id, sphere=sphere).delete()
     for i, t in enumerate(body.tasks):
@@ -532,9 +533,9 @@ async def checklist_members_only_me(
     staff_by_id = {m["vk_id"]: m for m in staff}
     me = staff_by_id.get(user["vk_id"])
     if not me or not _portal_staff(me):
-        raise HTTPException(status_code=400, detail="Нужен уровень ПГС+")
+        raise HTTPException(status_code=400, detail=messages.NEED_PGS)
     if not _member_eligible_for_sphere(me, sphere):
-        raise HTTPException(status_code=400, detail="Нет доступа к этой сфере")
+        raise HTTPException(status_code=400, detail=messages.NO_SPHERE_ACCESS)
 
     template_rows = await _template_member_rows(server_id, sphere)
     if template_rows and not _can_manage_checklist(user):
@@ -573,7 +574,7 @@ async def update_checklist_members(
     if not manage and not self_only:
         raise HTTPException(
             status_code=403,
-            detail="Состав колонок настраивает только ЗГС ЦА+. Используйте «Только моя колонка».",
+            detail=messages.CHECKLIST_MEMBERS_FORBIDDEN,
         )
 
     vk_ids = body.vk_ids
@@ -581,7 +582,7 @@ async def update_checklist_members(
         vk_ids = [vid for vid in body.vk_ids if _member_eligible_for_sphere(staff_by_id.get(vid), sphere)]
 
     if not vk_ids:
-        raise HTTPException(status_code=400, detail="Выберите хотя бы одного следящего для этой сферы")
+        raise HTTPException(status_code=400, detail=messages.CHECKLIST_PICK_MEMBER)
 
     for vk_id in vk_ids:
         m = staff_by_id.get(vk_id)
@@ -589,9 +590,9 @@ async def update_checklist_members(
             raise HTTPException(status_code=400, detail=f"Пользователь id{vk_id} не найден")
         if self_only:
             if vk_id != user["vk_id"]:
-                raise HTTPException(status_code=400, detail="Можно включить только свою колонку")
+                raise HTTPException(status_code=400, detail=messages.CHECKLIST_OWN_COLUMN_ONLY)
             if not _portal_staff(user):
-                raise HTTPException(status_code=400, detail="Нужен уровень ПГС+")
+                raise HTTPException(status_code=400, detail=messages.NEED_PGS)
             continue
         if not _member_eligible_for_sphere(m, sphere):
             raise HTTPException(
@@ -705,23 +706,23 @@ async def upsert_cell(
     sphere = resolve_work_sphere(user, sphere)
     week_start = _monday(date.fromisoformat(week))
     if _is_past_week(week_start):
-        raise HTTPException(status_code=403, detail="Прошлая неделя зафиксирована — редактирование недоступно")
+        raise HTTPException(status_code=403, detail=messages.CHECKLIST_WEEK_LOCKED)
 
     staff = await list_staff(server_id)
     task_defs = await _week_task_defs(server_id, week_start, staff, sphere)
     valid_slugs = {t.slug for t in task_defs}
     if task_slug not in valid_slugs:
-        raise HTTPException(status_code=400, detail="Неизвестная задача")
+        raise HTTPException(status_code=400, detail=messages.CHECKLIST_UNKNOWN_TASK)
     task_row = next(t for t in task_defs if t.slug == task_slug)
     if day_offset not in _days_from_str(task_row.days_of_week):
-        raise HTTPException(status_code=400, detail="Задача не назначена на этот день")
+        raise HTTPException(status_code=400, detail=messages.CHECKLIST_TASK_NOT_ON_DAY)
 
     members = await _week_checklist_members(server_id, week_start, staff, sphere)
     if member_vk_id not in {m["vk_id"] for m in members}:
-        raise HTTPException(status_code=400, detail="Пользователь не в чеклисте")
+        raise HTTPException(status_code=400, detail=messages.CHECKLIST_USER_NOT_IN)
 
     if not _can_edit_member(user, member_vk_id):
-        raise HTTPException(status_code=403, detail="Можно заполнять только свою колонку")
+        raise HTTPException(status_code=403, detail=messages.CHECKLIST_FILL_OWN)
 
     cell, _ = await ChecklistCell.get_or_create(
         server_id=server_id,
@@ -755,7 +756,7 @@ async def generate_week_tasks(
 ):
     sphere = resolve_work_sphere(user, sphere)
     if not _can_manage_checklist(user):
-        raise HTTPException(status_code=403, detail="Создание задач из чеклиста — только для ЗГС ЦА+")
+        raise HTTPException(status_code=403, detail=messages.CHECKLIST_CREATE_TASK_FORBIDDEN)
 
     week_start = _monday(date.fromisoformat(week))
     cells = await ChecklistCell.filter(server_id=server_id, sphere=sphere, week_start=week_start)

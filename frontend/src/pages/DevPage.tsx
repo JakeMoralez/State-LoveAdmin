@@ -109,7 +109,7 @@ export function DevPage() {
         <PageSearch value={q} onChange={setQ} placeholder="Поиск по сообщению, источнику или URL…" />
       )}
 
-      <div className="page-body page-body--wide">
+      <div className="page-body">
         {error && (
           <div className="alert-banner">
             <AlertTriangle size={16} />
@@ -131,6 +131,7 @@ export function DevPage() {
           ) : filteredItems.length === 0 ? (
             <div className="page-empty-state page-empty-state--card">
               <p className="page-empty-state-title">Ничего не найдено</p>
+              <p className="page-empty-state-hint">Измените поиск.</p>
             </div>
           ) : (
             filteredItems.map((item) => (

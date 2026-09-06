@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.config import MAIN_ADMIN_ID
 from app.models.bot import AccessLevel
+from app.services import messages
 from app.services.staff_spheres import effective_grantable_sphere_keys
 
 # Судьи / конгресс: назначение и правка реестра «Руководство» — Следящий (2)+
@@ -51,7 +52,7 @@ def assert_can_manage_leadership_registry(
     ):
         raise HTTPException(
             status_code=403,
-            detail="Нужен уровень Следящий (2)+ для управления реестром руководства",
+            detail=messages.LEADERSHIP_EDIT_MIN,
         )
 
 
@@ -70,7 +71,7 @@ def assert_can_remove_from_leadership_registry(
     ):
         raise HTTPException(
             status_code=403,
-            detail="Нельзя убрать из реестра себя или без уровня Следящий (2+)",
+            detail=messages.LEADERSHIP_REMOVE_SELF,
         )
 
 
@@ -124,7 +125,7 @@ def assert_can_edit_staff_target(
     if int(target_level) >= int(actor_level):
         raise HTTPException(
             status_code=403,
-            detail="Нельзя изменять доступ пользователя с вашим уровнем или выше",
+            detail=messages.CANNOT_EDIT_PEER_OR_HIGHER,
         )
 
 
@@ -136,12 +137,10 @@ def can_revoke_staff_target(
     target_level: int,
     dev_persona: bool = False,
 ) -> bool:
-    """Снятие — только уровень строго ниже своего и не ЗГС ГОС+."""
+    """Снятие — только уровень строго ниже своего (по иерархии)."""
     if int(actor_vk_id) == int(target_vk_id):
         return False
     if int(target_level) >= int(actor_level):
-        return False
-    if int(target_level) >= AccessLevel.ZGS_GOS:
         return False
     return int(target_level) <= max_grantable_level(
         actor_vk_id,
@@ -200,9 +199,9 @@ def staff_edit_permissions(
         or actor_panel_role in ("owner", "lead")
     )
     edit_forum_account = (
-        (actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor)
+        is_self
+        or (actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor)
         or actor_panel_role in ("owner", "lead")
-        or (is_self and actor_level >= AccessLevel.ZGS)
     )
     revoke_staff = (
         edit_level
@@ -248,11 +247,11 @@ def assert_can_set_level(
     from fastapi import HTTPException
 
     if actor_level < AccessLevel.ZGS:
-        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для смены доступа")
+        raise HTTPException(status_code=403, detail=messages.NEED_ZGS_FOR_ACCESS)
     if new_level == 0:
         raise HTTPException(
             status_code=400,
-            detail="Для снятия доступа используйте действие «Снять доступ»",
+            detail=messages.REVOKE_VIA_ACTION,
         )
     if (
         target_vk_id is not None
@@ -278,7 +277,7 @@ def assert_can_set_level(
         else actor_level
     )
     if new_level > effective:
-        raise HTTPException(status_code=403, detail="Нельзя выдать уровень выше своего")
+        raise HTTPException(status_code=403, detail=messages.CANNOT_GRANT_ABOVE)
     is_other = target_vk_id is None or int(target_vk_id) != int(actor_vk_id)
     if (
         is_other
@@ -287,18 +286,18 @@ def assert_can_set_level(
     ):
         raise HTTPException(
             status_code=403,
-            detail="Нельзя выдать уровень равный или выше своего",
+            detail=messages.CANNOT_GRANT_EQUAL_OR_ABOVE,
         )
     if target_vk_id is not None and int(target_vk_id) == int(actor_vk_id):
         if (
             new_level < actor_level
             and not _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona)
         ):
-            raise HTTPException(status_code=403, detail="Нельзя понизить свой уровень")
+            raise HTTPException(status_code=403, detail=messages.CANNOT_LOWER_OWN_LEVEL)
     if target_vk_id is not None and int(target_level) > effective:
         raise HTTPException(
             status_code=403,
-            detail="Нельзя изменить уровень пользователя выше вашего",
+            detail=messages.CANNOT_EDIT_HIGHER_LEVEL,
         )
 
 
@@ -306,7 +305,7 @@ def assert_can_set_nickname(actor_level: int) -> None:
     from fastapi import HTTPException
 
     if actor_level < AccessLevel.PGS:
-        raise HTTPException(status_code=403, detail="Нужен уровень ПГС+ для смены ника")
+        raise HTTPException(status_code=403, detail=messages.NEED_PGS_FOR_NICK)
 
 
 def assert_can_edit_staff_nickname(
@@ -324,14 +323,14 @@ def assert_can_edit_staff_nickname(
         int(actor_vk_id) == int(target_vk_id)
         and not _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona)
     ):
-        raise HTTPException(status_code=403, detail="Нельзя менять свой ник через реестр")
+        raise HTTPException(status_code=403, detail=messages.CANNOT_EDIT_OWN_NICK_REGISTRY)
     effective = (
         AccessLevel.DEVELOPER
         if _is_developer(actor_vk_id, actor_level, dev_persona=dev_persona)
         else actor_level
     )
     if int(target_level) > effective:
-        raise HTTPException(status_code=403, detail="Нельзя менять ник пользователя выше вашего")
+        raise HTTPException(status_code=403, detail=messages.CANNOT_EDIT_HIGHER_NICK)
 
 
 def assert_can_set_spheres(
@@ -354,7 +353,7 @@ def assert_can_set_spheres(
     )
 
     if actor_level < AccessLevel.ZGS:
-        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для смены сфер")
+        raise HTTPException(status_code=403, detail=messages.NEED_ZGS_FOR_SPHERES)
     unrestricted = _is_developer(
         actor_vk_id, actor_level, dev_persona=dev_persona
     ) or actor_panel_role in ("owner", "lead")
@@ -376,7 +375,7 @@ def assert_can_set_ca(actor_level: int) -> None:
     from fastapi import HTTPException
 
     if actor_level < AccessLevel.ZGS:
-        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для доступа ЦА")
+        raise HTTPException(status_code=403, detail=messages.NEED_ZGS_FOR_CA)
 
 
 def assert_can_revoke_staff(
@@ -390,11 +389,11 @@ def assert_can_revoke_staff(
     from fastapi import HTTPException
 
     if actor_level < AccessLevel.ZGS:
-        raise HTTPException(status_code=403, detail="Нужен уровень ЗГС+ для снятия доступа")
+        raise HTTPException(status_code=403, detail=messages.NEED_ZGS_TO_REVOKE)
     if actor_vk_id == target_vk_id:
-        raise HTTPException(status_code=403, detail="Нельзя снять доступ с себя")
+        raise HTTPException(status_code=403, detail=messages.CANNOT_REVOKE_SELF)
     if MAIN_ADMIN_ID and target_vk_id == MAIN_ADMIN_ID and not dev_persona:
-        raise HTTPException(status_code=403, detail="Нельзя снять доступ главного администратора")
+        raise HTTPException(status_code=403, detail=messages.CANNOT_REVOKE_MAIN_ADMIN)
     assert_can_edit_staff_target(
         actor_vk_id=actor_vk_id,
         actor_level=actor_level,
@@ -408,12 +407,7 @@ def assert_can_revoke_staff(
         target_level=target_level,
         dev_persona=dev_persona,
     ):
-        if int(target_level) >= AccessLevel.ZGS_GOS:
-            raise HTTPException(
-                status_code=403,
-                detail="Нельзя снять доступ ЗГС ГОС+ через реестр следящих",
-            )
         raise HTTPException(
             status_code=403,
-            detail="Нельзя снять доступ: вы не сможете снова выдать этот уровень",
+            detail=messages.CANNOT_REVOKE_UNGGRANTABLE,
         )

@@ -8,6 +8,7 @@ import { Select } from '../ui/Select'
 
 export interface TaskFilters {
   mine: boolean
+  overdue: boolean
   assigneeVkId: string
   priority: string
   projectId: string
@@ -51,6 +52,7 @@ export function TasksToolbar({
   const activeCount = useMemo(
     () =>
       Number(filters.mine) +
+      Number(filters.overdue) +
       Number(Boolean(filters.assigneeVkId)) +
       Number(Boolean(filters.priority)) +
       Number(Boolean(filters.projectId)),
@@ -60,6 +62,7 @@ export function TasksToolbar({
   const reset = () =>
     onChange({
       mine: false,
+      overdue: false,
       assigneeVkId: '',
       priority: '',
       projectId: hideProjectFilter ? filters.projectId : '',
@@ -119,6 +122,13 @@ export function TasksToolbar({
             onClick={() => onChange({ mine: !filters.mine, assigneeVkId: '' })}
           >
             Мои
+          </button>
+          <button
+            type="button"
+            className={cn('btn-secondary btn-sm tasks-filter-mine', filters.overdue && 'tasks-filter-mine--active')}
+            onClick={() => onChange({ overdue: !filters.overdue })}
+          >
+            Просроченные
           </button>
           <div className="tasks-filter-field">
             <Select

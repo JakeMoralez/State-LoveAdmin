@@ -15,6 +15,43 @@
   overflow: visible;
 }
 
+.staff-registry-toolbar.page-toolbar-row {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.staff-registry-toolbar .page-toolbar-search-slot {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.staff-registry-filter {
+  flex: 0 0 11.5rem;
+  width: 11.5rem;
+  max-width: 14rem;
+}
+
+.staff-registry-filter--sphere {
+  flex-basis: 14rem;
+  width: 14rem;
+  max-width: 16rem;
+}
+
+@media (max-width: 767px) {
+  .staff-registry-toolbar.page-toolbar-row {
+    flex-wrap: wrap;
+  }
+
+  .staff-registry-filter,
+  .staff-registry-filter--sphere {
+    flex: 1 1 calc(50% - 0.25rem);
+    width: auto;
+    max-width: none;
+  }
+}
+
 .staff-registry-body {
   display: flex;
   flex-direction: column;

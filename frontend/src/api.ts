@@ -83,6 +83,11 @@ export const api = {
       body: JSON.stringify(body),
     }),
   me: () => request<UserProfile>('/auth/me'),
+  updateProfile: (body: ProfileUpdateBody) =>
+    request<UserProfile>('/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   dashboard: () => request<DashboardSummary>('/dashboard/summary'),
   staff: (params?: { q?: string; level?: number }) => {
@@ -91,6 +96,12 @@ export const api = {
     if (params?.level != null) q.set('level', String(params.level))
     const s = q.toString()
     return request<StaffResponse>(`/staff${s ? `?${s}` : ''}`)
+  },
+  staffInactive: (params?: { q?: string }) => {
+    const q = new URLSearchParams()
+    if (params?.q) q.set('q', params.q)
+    const s = q.toString()
+    return request<StaffResponse>(`/staff?former=true${s ? `&${s}` : ''}`)
   },
   staffMember: (vkId: number) => request<StaffMemberDetail>(`/staff/${vkId}`),
   assignStaff: (body: StaffAssignBody) =>
@@ -398,12 +409,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  activityLog: (params?: { q?: string; limit?: number; offset?: number; vk_id?: number }) => {
+  activityLog: (params?: {
+    q?: string
+    limit?: number
+    offset?: number
+    vk_id?: number
+    actions?: string
+    group?: string
+    about?: boolean
+  }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
     if (params?.limit != null) q.set('limit', String(params.limit))
     if (params?.offset != null) q.set('offset', String(params.offset))
     if (params?.vk_id != null) q.set('vk_id', String(params.vk_id))
+    if (params?.actions) q.set('actions', params.actions)
+    if (params?.group) q.set('group', params.group)
+    if (params?.about) q.set('about', 'true')
     const s = q.toString()
     return request<ActivityLogResponse>(`/activity${s ? `?${s}` : ''}`)
   },
@@ -440,7 +462,20 @@ export interface UserProfile {
   discord_id?: string | null
   discord_username?: string | null
   discord_display_name?: string | null
+  is_senior?: boolean
+  senior_spheres?: string[]
+  notify_tasks?: boolean
+  notify_assign?: boolean
   work_spheres?: WorkSphere[]
+}
+
+export interface ProfileUpdateBody {
+  nickname?: string | null
+  nickname_tag?: string | null
+  discord_id?: string | null
+  forum_account?: string | null
+  notify_tasks?: boolean
+  notify_assign?: boolean
 }
 
 export interface WorkSphere {
@@ -752,12 +787,20 @@ export interface TaskListResponse {
 }
 
 export const STATUS_LABELS: Record<string, string> = {
-  backlog: 'Бэклог',
   todo: 'К выполнению',
   in_progress: 'В работе',
-  review: 'На проверке',
   done: 'Готово',
   cancelled: 'Отменено',
+  backlog: 'К выполнению',
+  review: 'В работе',
+}
+
+export const TASK_FORM_STATUSES = ['todo', 'in_progress', 'done', 'cancelled'] as const
+
+export function normalizeTaskStatus(status: string | undefined | null): string {
+  if (status === 'backlog') return 'todo'
+  if (status === 'review') return 'in_progress'
+  return status || 'todo'
 }
 
 export const PRIORITY_LABELS: Record<string, string> = {
@@ -969,9 +1012,9 @@ export interface AssignOptionsResponse {
 export interface AssignBody {
   role_type: AssignRoleType
   vk_id: string
-  discord_id: string
-  forum_account: string
-  nickname: string
+  discord_id?: string
+  forum_account?: string
+  nickname?: string
   access_level?: number
   spheres?: string[]
   nickname_tag?: string | null
@@ -1002,6 +1045,7 @@ export interface ActivityLogItem {
   actor_name: string
   target_vk_id?: number | null
   target_name?: string | null
+  history_label?: string | null
   message: string
   detail: Record<string, unknown>
   created_at: string

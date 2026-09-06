@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ImagePlus, Images, Loader2, Video, X } from 'lucide-react'
 import { api } from '../../api'
+import { useToast } from '../../context/ToastContext'
 import { COMPACT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery'
 
 export type ChecklistCellData = {
@@ -59,6 +60,7 @@ export function ChecklistCellEditor({
     proof_video_url?: string | null
   }) => Promise<void>
 }) {
+  const { toast } = useToast()
   const [note, setNote] = useState(cell.proof_note)
   const [galleryUrl, setGalleryUrl] = useState<string | null>(
     cell.proof_gallery ? cell.proof_gallery_url ?? cell.proof_url : null,
@@ -154,7 +156,7 @@ export function ChecklistCellEditor({
       setImageCount(res.count)
       persist(note, res.url, res.images, videoUrl || null)
     } catch (e) {
-      window.alert(e instanceof Error ? e.message : 'Ошибка загрузки')
+      toast(e instanceof Error ? e.message : 'Ошибка загрузки')
     } finally {
       setUploading(false)
     }

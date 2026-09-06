@@ -152,15 +152,15 @@ body {
     line-height: 1.4;
   }
 
-  .page-header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    flex: 0 1 auto;
-    min-width: min(100%, 14rem);
-  }
+.page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  min-width: min(100%, 14rem);
+}
 
   .page-stack {
     display: flex;
@@ -389,12 +389,15 @@ body {
     color: #fff;
   }
 
-  .btn-sm,
-  .btn-primary.btn-sm,
-  .btn-secondary.btn-sm {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.8125rem;
-  }
+.btn-sm,
+.btn-primary.btn-sm,
+.btn-secondary.btn-sm {
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  height: 2rem;
+  min-height: 2rem;
+}
 
   a.btn,
   a.btn-primary,
@@ -730,6 +733,35 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    position: relative;
+  }
+
+  .msg-mention-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.25rem;
+    border-radius: 0.7rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(16, 16, 18, 0.96);
+    max-height: 12rem;
+    overflow: auto;
+  }
+
+  .msg-mention-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 0.4rem 0.55rem;
+    border: none;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--sl-text);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+
+  .msg-mention-item:hover {
+    background: rgba(201, 162, 39, 0.12);
   }
 
   .msg-composer-preview {
@@ -2310,12 +2342,12 @@ body {
   }
 
   .login-shell {
-    position: relative;
-    overflow-x: hidden;
-    overflow-y: auto;
+    position: fixed;
+    inset: 0;
+    overflow: auto;
     min-height: 100dvh;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     padding:
       calc(1rem + env(safe-area-inset-top, 0px))
@@ -2324,13 +2356,6 @@ body {
       calc(0.75rem + env(safe-area-inset-left, 0px));
     background: var(--page-bg);
     -webkit-overflow-scrolling: touch;
-  }
-
-  @media (min-width: 768px) {
-    .login-shell {
-      align-items: center;
-      padding: 2rem 1.5rem;
-    }
   }
 
   .login-loading {
@@ -2426,9 +2451,9 @@ body {
   .login-card {
     position: relative;
     z-index: 2;
-    width: min(58rem, 100%);
-    max-width: 100%;
-    margin: auto 0;
+    width: min(26rem, 100%);
+    max-width: 26rem;
+    margin: 0;
     padding: clamp(1.25rem, 4vw, 2.25rem);
     border-radius: 22px;
     background: linear-gradient(160deg, rgba(24, 22, 16, 0.94) 0%, rgba(8, 8, 12, 0.98) 100%);
@@ -2437,12 +2462,6 @@ body {
       0 28px 64px rgba(0, 0, 0, 0.55),
       inset 0 1px 0 rgba(255, 255, 255, 0.04);
     animation: modal-pop var(--motion-slow) var(--ease-out-expo) both;
-  }
-
-  @media (min-width: 768px) {
-    .login-card {
-      margin: 0;
-    }
   }
 
   .login-card-grid {
@@ -4200,6 +4219,90 @@ body {
     line-height: 1.25;
   }
 
+  .sphere-role-select {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .sphere-role-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .sphere-role-select .sphere-role-list + .sphere-role-list {
+    margin-top: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .sphere-role-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2.375rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 0.625rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .sphere-role-row--on {
+    border-color: rgba(201, 162, 39, 0.38);
+    background: rgba(201, 162, 39, 0.08);
+  }
+
+  .sphere-role-row--disabled {
+    opacity: 0.55;
+  }
+
+  .sphere-role-name {
+    min-width: 0;
+    font-size: 0.8125rem;
+    line-height: 1.25;
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .sphere-role-chips {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0.375rem;
+  }
+
+  .sphere-role-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1875rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.55);
+    font-family: inherit;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .sphere-role-chip:hover:not(:disabled) {
+    border-color: rgba(201, 162, 39, 0.28);
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  .sphere-role-chip--on {
+    border-color: rgba(201, 162, 39, 0.45);
+    background: rgba(201, 162, 39, 0.14);
+    color: var(--accent-gold-bright, #f6e7a1);
+  }
+
+  .sphere-role-chip:disabled {
+    cursor: not-allowed;
+  }
+
   .staff-profile-label {
     font-size: 0.8125rem;
     font-weight: 600;
@@ -4467,10 +4570,10 @@ body {
     align-items: center;
     justify-content: flex-end;
     flex-shrink: 0;
-    min-height: 2.25rem;
-    padding: 0.25rem 1.25rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    background: transparent;
+    min-height: var(--app-top-bar-height);
+    padding: 0 1.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: #050508;
   }
 
   .app-top-bar-profile {
@@ -4512,13 +4615,14 @@ body {
 
   @media (min-width: 768px) {
     .has-app-top-bar .app-top-bar {
-      position: absolute;
-      inset: 0 0 auto 0;
-      z-index: 2;
-      min-height: 0;
-      padding: 0.375rem 1.25rem 0;
-      border-bottom: none;
-      pointer-events: none;
+      position: relative;
+      inset: auto;
+      z-index: 3;
+      min-height: var(--app-top-bar-height);
+      padding: 0 calc(var(--page-pad-x) + var(--scrollbar-size, 6px));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      background: #050508;
+      pointer-events: auto;
     }
 
     .has-app-top-bar .app-top-bar-profile {

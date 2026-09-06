@@ -321,6 +321,16 @@ class LootCase(Model):
         table = "loot_cases"
 
 
+class UserNotifyPrefs(Model):
+    vk_id = fields.BigIntField(pk=True)
+    notify_tasks = fields.BooleanField(default=True)
+    notify_assign = fields.BooleanField(default=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "user_notify_prefs"
+
+
 class LootCasePrize(Model):
     id = fields.IntField(pk=True)
     case = fields.ForeignKeyField("models.LootCase", related_name="prizes")

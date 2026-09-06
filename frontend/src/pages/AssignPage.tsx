@@ -18,6 +18,7 @@ import { ForumAccountField } from '../components/ui/ForumAccountField'
 import { Select } from '../components/ui/Select'
 import { DatePicker } from '../components/ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
+import { SphereRoleSelect, usesSphereRoles } from '../components/staff/SphereRoleSelect'
 import { todayDateInputValue } from '../lib/grantedAt'
 import { effectiveGrantableSphereKeys } from '../lib/spheres'
 import { cn } from '../lib/utils'
@@ -75,6 +76,7 @@ export function AssignPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [restoreLocked, setRestoreLocked] = useState(false)
 
   const maxAccessLevel = userLevel
   const actorSphereIds = user?.spheres ?? []
@@ -103,6 +105,44 @@ export function AssignPage() {
   }, [searchParams])
 
   useEffect(() => {
+    const raw = searchParams.get('vk_id')
+    if (!raw) {
+      setRestoreLocked(false)
+      return
+    }
+    const id = Number(raw)
+    if (!Number.isFinite(id) || id <= 0) return
+    let cancelled = false
+    api
+      .staffInactive()
+      .then((res) => {
+        if (cancelled) return
+        const m = res.members.find((row) => row.vk_id === id)
+        if (!m) return
+        setRoleType('staff')
+        setVkInput(String(m.vk_id))
+        setVkTouched(true)
+        const nick = stripStaffNicknameTags(m.bot_nickname || m.nickname || '').trim()
+        if (nick) setNickname(nick)
+        if (m.discord_id) {
+          setDiscordId(m.discord_id)
+          setDiscordTouched(true)
+        }
+        if (m.username) {
+          setForumAccount(m.username)
+          setForumTouched(true)
+        }
+        setRestoreLocked(true)
+      })
+      .catch(() => {
+        if (!cancelled) setRestoreLocked(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     if (userLevel >= 3) return
     if (roleType === 'staff') setRoleType('judge')
   }, [userLevel, roleType])
@@ -110,7 +150,7 @@ export function AssignPage() {
   useEffect(() => {
     if (roleType !== 'staff') return
     setSpheres((prev) => filterSpheresForLevel(prev, parsedLevel))
-    if (parsedLevel < 2 || parsedLevel >= 8) {
+    if (!usesSphereRoles(parsedLevel)) {
       setIsSenior(false)
       setSeniorSpheres([])
     }
@@ -271,7 +311,11 @@ export function AssignPage() {
         title="Назначить"
         icon={UserPlus}
         shrink
-        subtitle="Новый человек в реестре следящих, судей или конгресса"
+        subtitle={
+          restoreLocked
+            ? 'Повторное назначение: заполните только то, чего не хватает'
+            : 'Новый человек в реестре следящих, судей или конгресса'
+        }
       />
 
       <div className="assign-card glass-card">
@@ -308,7 +352,7 @@ export function AssignPage() {
                   className={cn('control w-full', nickOk && nickname.trim() && 'assign-control--valid')}
                   value={nickname}
                   placeholder="Имя Фамилия"
-                  disabled={saving}
+                  disabled={saving || restoreLocked}
                   onChange={(e) => setNickname(e.target.value)}
                 />
               </div>
@@ -347,7 +391,7 @@ export function AssignPage() {
                   className={cn('control w-full', fieldState(vkTouched, vkOk))}
                   value={vkInput}
                   placeholder="604562391"
-                  disabled={saving}
+                  disabled={saving || restoreLocked}
                   onChange={(e) => setVkInput(e.target.value)}
                   onBlur={() => setVkTouched(true)}
                 />
@@ -372,7 +416,7 @@ export function AssignPage() {
                   className={cn('control w-full', fieldState(discordTouched, discordOk))}
                   value={discordId}
                   placeholder="18–20 цифр"
-                  disabled={saving}
+                  disabled={saving || (restoreLocked && Boolean(discordId))}
                   onChange={(e) => setDiscordId(e.target.value)}
                   onBlur={() => setDiscordTouched(true)}
                 />
@@ -384,7 +428,7 @@ export function AssignPage() {
                   value={forumAccount}
                   onChange={setForumAccount}
                   onBlur={() => setForumTouched(true)}
-                  disabled={saving}
+                  disabled={saving || (restoreLocked && Boolean(forumAccount))}
                   error={forumError}
                   placeholder="ID или ссылка на профиль"
                   labelClassName="assign-label"
@@ -428,59 +472,30 @@ export function AssignPage() {
 
                 <div className="assign-field assign-field--full assign-spheres">
                   <span className="assign-label">{sphereFieldLabel(parsedLevel)}</span>
-                  <SphereMultiSelect
-                    value={spheres}
-                    onChange={setSpheres}
-                    disabled={saving}
-                    accessLevel={parsedLevel}
-                    showHint={false}
-                    grantableSpheres={grantableSphereIds}
-                  />
+                  {usesSphereRoles(parsedLevel) ? (
+                    <SphereRoleSelect
+                      spheres={spheres}
+                      seniorSpheres={seniorSpheres}
+                      onChange={(next) => {
+                        setSpheres(next.spheres)
+                        setSeniorSpheres(next.seniorSpheres)
+                        setIsSenior(next.isSenior)
+                      }}
+                      disabled={saving}
+                      accessLevel={parsedLevel}
+                      grantableSpheres={grantableSphereIds}
+                    />
+                  ) : (
+                    <SphereMultiSelect
+                      value={spheres}
+                      onChange={setSpheres}
+                      disabled={saving}
+                      accessLevel={parsedLevel}
+                      showHint={false}
+                      grantableSpheres={grantableSphereIds}
+                    />
+                  )}
                 </div>
-
-                {parsedLevel >= 2 && parsedLevel < 8 && (
-                  <>
-                    <div className="assign-field assign-field--full">
-                      <label className="assign-label">
-                        {parsedLevel <= 2 ? 'Старший следящий' : 'Совмещение: следящий'}
-                      </label>
-                      <label className="flex gap-3 items-center">
-                        <input
-                          type="checkbox"
-                          className="ui-checkbox"
-                          checked={isSenior}
-                          disabled={saving}
-                          onChange={(e) => {
-                            const on = e.target.checked
-                            setIsSenior(on)
-                            if (!on) setSeniorSpheres([])
-                          }}
-                        />
-                        <span className="ui-checkbox-box" />
-                        <span className="text-sm opacity-80">
-                          {parsedLevel <= 2
-                            ? 'Тег [Ст. След. Сфера], сфера старшего выбирается отдельно'
-                            : 'Тег [ГС/ЗГС СФЕРА | След. СФЕРА]'}
-                        </span>
-                      </label>
-                    </div>
-                    {isSenior && (
-                      <div className="assign-field assign-field--full assign-spheres">
-                        <span className="assign-label">
-                          {parsedLevel <= 2 ? 'Сфера старшего' : 'Доп. сфера следящего'}
-                        </span>
-                        <SphereMultiSelect
-                          value={seniorSpheres}
-                          onChange={setSeniorSpheres}
-                          disabled={saving}
-                          accessLevel={2}
-                          showHint={false}
-                          grantableSpheres={grantableSphereIds}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
             </section>
           )}

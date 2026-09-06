@@ -126,7 +126,8 @@ def constrain_spheres_for_actor(
     if not locked.issubset(requested_set):
         missing = locked - requested_set
         raise ValueError(
-            f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(missing))}"
+            f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(missing))}. "
+            "Чтобы снять только свою сферу — /setsphere @user -ца (или -мю, -мо…)."
         )
 
     added = requested_set - current
@@ -140,7 +141,8 @@ def constrain_spheres_for_actor(
     illegal_remove = removed - grantable
     if illegal_remove:
         raise ValueError(
-            f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(illegal_remove))}"
+            f"Нельзя снять сферу без прав редактора: {format_spheres_display(sorted(illegal_remove))}. "
+            "Чтобы снять только свою сферу — /setsphere @user -ца (или -мю, -мо…)."
         )
 
     return validate_spheres(list(requested_set), access_level)

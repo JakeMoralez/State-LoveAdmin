@@ -1,17 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, Settings, UserPlus, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, ApiError, type StaffMember, type StaffMemberDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
-import { PageSearch } from '../components/ui/PageSearch'
+import { PageSearch, PageToolbarRow } from '../components/ui/PageSearch'
+import { Alert } from '../components/ui/Alert'
+import { Select } from '../components/ui/Select'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { useAuth } from '../context/AuthContext'
+import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
+import { SPHERE_OPTIONS } from '../lib/spheres'
 import { staffLabel } from '../lib/staff'
 
+type StaffTab = 'active' | 'inactive'
 type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
+
+function staffSortRank(m: StaffMember): number {
+  let rank = m.access_level * 10
+  if (m.access_level === 2 && m.is_senior) rank += 1
+  return rank
+}
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   if (!active) return <ArrowUpDown size={14} className="staff-sort-icon staff-sort-icon--idle" />
@@ -27,29 +38,44 @@ export function StaffPage() {
   const [members, setMembers] = useState<StaffMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
+  const [levelFilter, setLevelFilter] = useState('')
+  const [sphereFilter, setSphereFilter] = useState('')
+  const [tab, setTab] = useState<StaffTab>('active')
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('index')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [settingsMember, setSettingsMember] = useState<StaffMemberDetail | null>(null)
   const [settingsLoadingVkId, setSettingsLoadingVkId] = useState<number | null>(null)
   const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [listError, setListError] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   const canAssign = (user?.access_level ?? 0) >= 3
 
-  const loadStaff = useCallback(() => {
+  useEffect(() => {
+    let cancelled = false
     setLoading(true)
-    api
-      .staff({ q: q || undefined })
+    setListError(null)
+    const req = tab === 'inactive' ? api.staffInactive({ q: q || undefined }) : api.staff({ q: q || undefined })
+    req
       .then((res) => {
+        if (cancelled) return
         setMembers(res.members)
         setTotal(res.total)
       })
-      .finally(() => setLoading(false))
-  }, [q])
-
-  useEffect(() => {
-    loadStaff()
-  }, [loadStaff])
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setMembers([])
+        setTotal(0)
+        setListError(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось загрузить реестр')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [q, reloadTick, tab])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -61,19 +87,27 @@ export function StaffPage() {
   }
 
   const sorted = useMemo(() => {
-    const list = [...members]
+    const list = members.filter((m) => {
+      if (levelFilter && String(m.access_level) !== levelFilter) return false
+      if (sphereFilter && !(m.spheres ?? []).includes(sphereFilter) && m.sphere !== sphereFilter) {
+        return false
+      }
+      return true
+    })
     const dir = sortDir === 'asc' ? 1 : -1
 
     list.sort((a, b) => {
       if (sortKey === 'index') {
-        const lvl = b.access_level - a.access_level
-        if (lvl !== 0) return lvl * dir
+        const rankDiff = staffSortRank(b) - staffSortRank(a)
+        if (rankDiff !== 0) return rankDiff * dir
         return staffLabel(a).localeCompare(staffLabel(b), 'ru') * dir
       }
       if (sortKey === 'nickname') {
         return staffLabel(a).localeCompare(staffLabel(b), 'ru') * dir
       }
       if (sortKey === 'role') {
+        const rankDiff = staffSortRank(b) - staffSortRank(a)
+        if (rankDiff !== 0) return rankDiff * dir
         const ar = (a.access_role_title || a.access_level_name).localeCompare(
           b.access_role_title || b.access_level_name,
           'ru',
@@ -84,7 +118,7 @@ export function StaffPage() {
     })
 
     return list
-  }, [members, sortKey, sortDir])
+  }, [members, sortKey, sortDir, levelFilter, sphereFilter])
 
   const columns: { key: SortKey; label: string; className: string }[] = [
     { key: 'index', label: '#', className: 'staff-col-num' },
@@ -112,7 +146,11 @@ export function StaffPage() {
         section="Команда"
         title="Следящие"
         icon={Users}
-        subtitle={`${total} человек в реестре · ник — профиль, ⚙ — настройки`}
+        subtitle={
+          tab === 'inactive'
+            ? `${total} без доступа`
+            : `${total} человек в реестре`
+        }
         shrink
         actions={
           canAssign ? (
@@ -124,18 +162,53 @@ export function StaffPage() {
         }
       />
 
-      <PageSearch
-        className="staff-page-search"
-        value={q}
-        onChange={setQ}
-        placeholder="Поиск по нику, VK или Discord…"
-      />
+      <div className="sphere-tabs" role="tablist" aria-label="Реестр следящих">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'active'}
+          className={tab === 'active' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+          onClick={() => setTab('active')}
+        >
+          В составе
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'inactive'}
+          className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+          onClick={() => setTab('inactive')}
+        >
+          Без доступа
+        </button>
+      </div>
 
-      {settingsError && (
-        <p className="staff-settings-toast shrink-0" role="alert">
-          {settingsError}
-        </p>
-      )}
+      <PageToolbarRow className="staff-registry-toolbar">
+        <PageSearch
+          variant="row"
+          value={q}
+          onChange={setQ}
+          placeholder="Поиск по нику, VK, Discord или заметке…"
+        />
+        <Select
+          className="staff-registry-filter"
+          value={levelFilter}
+          onChange={setLevelFilter}
+          options={[{ value: '', label: 'Все уровни' }, ...ACCESS_LEVEL_OPTIONS]}
+        />
+        <Select
+          className="staff-registry-filter staff-registry-filter--sphere"
+          value={sphereFilter}
+          onChange={setSphereFilter}
+          options={[
+            { value: '', label: 'Все сферы' },
+            ...SPHERE_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
+          ]}
+        />
+      </PageToolbarRow>
+
+      {listError && <Alert className="shrink-0">{listError}</Alert>}
+      {settingsError && <Alert className="shrink-0">{settingsError}</Alert>}
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
@@ -156,7 +229,13 @@ export function StaffPage() {
           </div>
 
           {sorted.length === 0 ? (
-            <div className="staff-registry-empty">Никого не найдено</div>
+            <div className="staff-registry-empty">
+              {q.trim() || levelFilter || sphereFilter
+                ? 'Никого не найдено. Измените поиск или фильтры.'
+                : tab === 'inactive'
+                  ? 'Нет пользователей без доступа'
+                  : 'В реестре пока никого нет.'}
+            </div>
           ) : (
             <div className="staff-registry-body ll-scroll">
               {sorted.map((m, i) => (
@@ -177,6 +256,18 @@ export function StaffPage() {
                     >
                       {staffLabel(m)}
                     </Link>
+                    {tab === 'inactive' ? (
+                      canAssign ? (
+                        <Link
+                          to={`/assign?type=staff&vk_id=${m.vk_id}`}
+                          className="staff-settings-btn no-underline"
+                          title="Назначить"
+                          aria-label={`Назначить: ${staffLabel(m)}`}
+                        >
+                          <UserPlus size={15} />
+                        </Link>
+                      ) : null
+                    ) : (
                     <button
                       type="button"
                       className="staff-settings-btn"
@@ -190,6 +281,7 @@ export function StaffPage() {
                         className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
                       />
                     </button>
+                    )}
                     {m.badges.length > 0 && (
                       <span className="staff-badges">{m.badges.join(' ')}</span>
                     )}
@@ -209,7 +301,7 @@ export function StaffPage() {
         onClose={() => setSettingsMember(null)}
         onSaved={(result) => {
           if (result?.removed) setSettingsMember(null)
-          loadStaff()
+          setReloadTick((n) => n + 1)
           if (settingsMember?.vk_id === user?.vk_id) {
             void refresh()
           }

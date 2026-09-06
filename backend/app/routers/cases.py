@@ -267,11 +267,17 @@ async def delete_prize(
 @router.post("/{case_id}/spin")
 async def spin(case_id: int, user: dict = Depends(require_dev_user)):
     result = await spin_case(case_id)
+    case = await get_case_or_404(case_id)
     await log_audit(
         user["vk_id"],
         "loot_case_spin",
         "loot_case",
         case_id,
-        {"prize_id": result["prize"]["id"], "prize_title": result["prize"]["title"]},
+        {
+            "prize_id": result["prize"]["id"],
+            "prize_title": result["prize"]["title"],
+            "case_title": case.title,
+            "title": case.title,
+        },
     )
     return result

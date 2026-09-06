@@ -17,7 +17,7 @@ export const ACCESS_LEVEL_SHORT: Record<number, string> = {
 
 /** Полные названия ролей (колонка «Доступ» в реестре). */
 export const ACCESS_ROLE_TITLES: Record<number, string> = {
-  1: 'Помощник Главного Следящего',
+  1: 'Помощник следящих',
   2: 'Следящий',
   3: 'Зам. Главного следящего сферы',
   4: 'Главный следящий сферы',

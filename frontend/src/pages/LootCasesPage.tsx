@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { ApiError, api, type LootCase } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { ModalViewport } from '../components/ui/ModalViewport'
+import { Alert } from '../components/ui/Alert'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
 
@@ -102,9 +103,7 @@ export function LootCasesPage() {
             autoFocus
           />
           {createError && (
-            <p className="text-red-400/90 text-sm m-0" role="alert">
-              {createError}
-            </p>
+            <Alert>{createError}</Alert>
           )}
           <div className="flex gap-2 justify-end pt-1">
             <button
@@ -134,12 +133,17 @@ export function LootCasesPage() {
         </PageToolbarActions>
       </PageToolbarRow>
 
-      {error && <div className="glass-card glass-card-pad text-red-400 text-sm">{error}</div>}
+      {error && <Alert>{error}</Alert>}
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
       ) : filtered.length === 0 ? (
-        <div className="glass-card glass-card-pad text-white/50 text-sm">Кейсов пока нет</div>
+        <div className="page-empty-state page-empty-state--card">
+          <p className="page-empty-state-title">{q.trim() ? 'Ничего не найдено' : 'Кейсов пока нет'}</p>
+          <p className="page-empty-state-hint">
+            {q.trim() ? 'Измените поиск.' : 'Создайте первый кейс.'}
+          </p>
+        </div>
       ) : (
         <div className="case-list">
           {filtered.map((item) => (

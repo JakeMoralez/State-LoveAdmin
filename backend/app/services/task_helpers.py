@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from app.models.panel import Task
 
-OPEN_TASK_STATUSES = ("backlog", "todo", "in_progress", "review")
+MENTION_RE = re.compile(r"@([^\s@,.;:!?]+)")
+_NICK_TAG_RE = re.compile(r"^[\[［][^\]］]+[\]］]\s*")
+
+LEGACY_STATUS_MAP = {"backlog": "todo", "review": "in_progress"}
+OPEN_TASK_STATUSES = ("todo", "in_progress", "backlog", "review")
+KANBAN_STATUSES = ("todo", "in_progress", "done")
 
 PRIORITY_LABELS: dict[str, str] = {
     "low": "Низкий",
@@ -16,12 +22,12 @@ PRIORITY_LABELS: dict[str, str] = {
 }
 
 STATUS_LABELS: dict[str, str] = {
-    "backlog": "Бэклог",
     "todo": "К выполнению",
     "in_progress": "В работе",
-    "review": "На проверке",
     "done": "Готово",
     "cancelled": "Отменена",
+    "backlog": "К выполнению",
+    "review": "В работе",
 }
 
 TASK_TYPE_LABELS: dict[str, str] = {
@@ -32,13 +38,24 @@ TASK_TYPE_LABELS: dict[str, str] = {
 }
 
 STATUS_EMOJI: dict[str, str] = {
-    "backlog": "📥",
     "todo": "📌",
     "in_progress": "▶️",
-    "review": "👀",
     "done": "✅",
     "cancelled": "🚫",
+    "backlog": "📌",
+    "review": "▶️",
 }
+
+
+def normalize_task_status(status: str | None) -> str:
+    if not status:
+        return "todo"
+    return LEGACY_STATUS_MAP.get(status, status)
+
+
+async def migrate_legacy_task_statuses() -> None:
+    await Task.filter(status="backlog").update(status="todo")
+    await Task.filter(status="review").update(status="in_progress")
 
 
 def assignee_ids(task: Task) -> list[int]:
@@ -95,3 +112,52 @@ def task_watchers(task: Task, *, exclude: int | None = None) -> list[int]:
     if exclude:
         ids.discard(int(exclude))
     return sorted(ids)
+
+
+def _nick_key(raw: str | None) -> str:
+    text = (raw or "").strip().lower()
+    if not text:
+        return ""
+    for _ in range(4):
+        next_text = _NICK_TAG_RE.sub("", text).strip()
+        if next_text == text:
+            break
+        text = next_text
+    return re.sub(r"[\s_\-]+", "", text)
+
+
+def mentioned_vk_ids(body: str, staff_rows: list[dict], *, exclude: int | None = None) -> set[int]:
+    tokens = [t.strip() for t in MENTION_RE.findall(body or "") if t.strip()]
+    if not tokens:
+        return set()
+    by_id: dict[int, dict] = {}
+    by_key: dict[str, list[int]] = {}
+    for row in staff_rows:
+        try:
+            vid = int(row["vk_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        by_id[vid] = row
+        keys = {
+            str(vid),
+            _nick_key(row.get("nickname")),
+            _nick_key(row.get("bot_nickname")),
+            _nick_key(row.get("display_name")),
+            _nick_key(row.get("username")),
+        }
+        for key in keys:
+            if key:
+                by_key.setdefault(key, []).append(vid)
+    found: set[int] = set()
+    for token in tokens:
+        compact = re.sub(r"[\s_\-]+", "", token.lower())
+        if compact.isdigit():
+            vid = int(compact)
+            if vid in by_id:
+                found.add(vid)
+            continue
+        for vid in by_key.get(compact, []):
+            found.add(vid)
+    if exclude:
+        found.discard(int(exclude))
+    return found

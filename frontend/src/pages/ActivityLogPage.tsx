@@ -1,39 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { History } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, type ActivityLogItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
-import { PageSearch } from '../components/ui/PageSearch'
+import { PageSearch, PageToolbarRow } from '../components/ui/PageSearch'
+import { Select } from '../components/ui/Select'
 import { useAuth } from '../context/AuthContext'
+import {
+  ACTION_FILTER_OPTIONS,
+  actionMatchesFilter,
+  activityKind,
+  activityVerb,
+} from '../lib/activityLabels'
+import { parseStaffNick } from '../lib/staff'
 
 const PAGE_SIZE = 50
 
-function formatTime(iso: string): string {
+function formatWhen(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatDayKey(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const now = new Date()
-  const opts: Intl.DateTimeFormatOptions =
-    d.getFullYear() === now.getFullYear()
-      ? { day: 'numeric', month: 'long' }
-      : { day: 'numeric', month: 'long', year: 'numeric' }
-  return d.toLocaleDateString('ru-RU', opts)
-}
-
-function groupByDay(items: ActivityLogItem[]): { day: string; items: ActivityLogItem[] }[] {
-  const map = new Map<string, ActivityLogItem[]>()
-  for (const item of items) {
-    const day = formatDayKey(item.created_at)
-    const list = map.get(day)
-    if (list) list.push(item)
-    else map.set(day, [item])
-  }
-  return Array.from(map.entries()).map(([day, dayItems]) => ({ day, items: dayItems }))
+  return d.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 function formatDetail(detail: Record<string, unknown>, action: string): string | null {
@@ -55,6 +47,16 @@ function formatDetail(detail: Record<string, unknown>, action: string): string |
   if (action === 'task_update' && detail.status) {
     return `статус: ${String(detail.status)}`
   }
+  if (action === 'loot_case_spin') {
+    const prize = typeof detail.prize_title === 'string' ? detail.prize_title.trim() : ''
+    const caseTitle = typeof detail.case_title === 'string' ? detail.case_title.trim() : ''
+    if (prize && caseTitle) return `выпал приз «${prize}» из кейса «${caseTitle}»`
+    if (prize) return `выпал приз «${prize}»`
+    if (caseTitle) return `«${caseTitle}»`
+  }
+  if (action === 'loot_case_prize_bulk' && detail.count != null) {
+    return `${detail.count}`
+  }
   const title = detail.title
   if (typeof title === 'string' && title.trim()) return `«${title.trim()}»`
   const comment = detail.comment
@@ -64,56 +66,81 @@ function formatDetail(detail: Record<string, unknown>, action: string): string |
   return null
 }
 
-function ActivityActors({ item }: { item: ActivityLogItem }) {
-  const { actor_name, actor_vk_id, target_name, target_vk_id, action_label } = item
+function activityLine(item: ActivityLogItem): string {
+  const verb = activityVerb(item.action, item.action_label)
+  const extra = formatDetail(item.detail, item.action)
+  const target = item.target_name?.trim()
+  return [verb, target, extra].filter(Boolean).join(' ')
+}
+
+function kindClass(tone: 'error' | 'warn' | 'info') {
+  return `dev-log-level dev-log-level--${tone}`
+}
+
+function ActivityNick({ label }: { label: string }) {
+  const { tag, name } = parseStaffNick(label)
+  const tagText = tag?.replace(/^\[|\]$/g, '') ?? null
+  return (
+    <span className="activity-nick">
+      {tagText ? <span className="activity-nick-tag">{tagText}</span> : null}
+      <span className="activity-nick-name">{name}</span>
+    </span>
+  )
+}
+
+function ActivityCard({ item }: { item: ActivityLogItem }) {
+  const [open, setOpen] = useState(false)
+  const kind = activityKind(item.action)
   const targetPath =
-    target_vk_id != null && item.entity_type === 'leader'
-      ? `/leaders/${target_vk_id}`
-      : target_vk_id != null
-        ? `/staff/${target_vk_id}`
+    item.target_vk_id != null && item.entity_type === 'leader'
+      ? `/leaders/${item.target_vk_id}`
+      : item.target_vk_id != null
+        ? `/staff/${item.target_vk_id}`
         : null
 
   return (
-    <p className="activity-row-text">
-      <Link to={`/staff/${actor_vk_id}`} className="activity-row-link">
-        {actor_name}
-      </Link>
-      <span className="activity-row-verb">{action_label}</span>
-      {target_name && target_vk_id != null ? (
-        <Link to={targetPath!} className="activity-row-link">
-          {target_name}
-        </Link>
-      ) : null}
-    </p>
-  )
-}
-
-function ActivityRow({ item }: { item: ActivityLogItem }) {
-  const detail = formatDetail(item.detail, item.action)
-
-  return (
-    <li className="activity-row">
-      <time className="activity-row-time" dateTime={item.created_at}>
-        {formatTime(item.created_at)}
-      </time>
-      <div className="activity-row-body">
-        <ActivityActors item={item} />
-        {detail ? <p className="activity-row-meta">{detail}</p> : null}
-      </div>
-    </li>
-  )
-}
-
-function ActivityDayGroup({ day, items }: { day: string; items: ActivityLogItem[] }) {
-  return (
-    <li className="activity-day">
-      <h2 className="activity-day-label">{day}</h2>
-      <ul className="activity-rows">
-        {items.map((item) => (
-          <ActivityRow key={item.id} item={item} />
-        ))}
-      </ul>
-    </li>
+    <article className="dev-log-card">
+      <button type="button" className="dev-log-card-head" onClick={() => setOpen((v) => !v)}>
+        <span className={kindClass(kind.tone)}>{kind.label}</span>
+        <span className="dev-log-source">
+          <ActivityNick label={item.actor_name} />
+        </span>
+        <span className="dev-log-message">{activityLine(item)}</span>
+        <time className="dev-log-time" dateTime={item.created_at}>
+          {formatWhen(item.created_at)}
+        </time>
+      </button>
+      {open && (
+        <div className="dev-log-card-body">
+          <div className="activity-log-meta">
+            <div className="activity-log-meta-item">
+              <span>Кто</span>
+              <Link to={`/staff/${item.actor_vk_id}`} className="activity-log-meta-link">
+                <ActivityNick label={item.actor_name} />
+              </Link>
+              <span className="activity-log-vk">{item.actor_vk_id}</span>
+            </div>
+            {item.target_name && item.target_vk_id != null && (
+              <div className="activity-log-meta-item">
+                <span>Кому</span>
+                {targetPath ? (
+                  <Link to={targetPath} className="activity-log-meta-link">
+                    <ActivityNick label={item.target_name} />
+                  </Link>
+                ) : (
+                  <ActivityNick label={item.target_name} />
+                )}
+                <span className="activity-log-vk">{item.target_vk_id}</span>
+              </div>
+            )}
+            <div className="activity-log-meta-item">
+              <span>Действие</span>
+              <span className="activity-log-action">{activityVerb(item.action, item.action_label)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </article>
   )
 }
 
@@ -123,34 +150,54 @@ export function ActivityLogPage() {
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
   const [q, setQ] = useState('')
+  const [actionFilter, setActionFilter] = useState('all')
   const [loading, setLoading] = useState(true)
 
   const canView = (user?.access_level ?? 0) >= 2
 
-  const load = useCallback(() => {
+  useEffect(() => {
     if (!canView) {
       setLoading(false)
       return
     }
+    let cancelled = false
     setLoading(true)
     api
-      .activityLog({ q: q || undefined, limit: PAGE_SIZE, offset })
+      .activityLog({
+        q: q || undefined,
+        group: actionFilter !== 'all' ? actionFilter : undefined,
+        limit: PAGE_SIZE,
+        offset,
+      })
       .then((res) => {
+        if (cancelled) return
         setItems(res.items)
         setTotal(res.total)
       })
-      .finally(() => setLoading(false))
-  }, [canView, offset, q])
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [actionFilter, canView, offset, q])
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const visibleItems = useMemo(
+    () => items.filter((item) => actionMatchesFilter(item.action, actionFilter)),
+    [actionFilter, items],
+  )
+  const filtered = Boolean(q) || actionFilter !== 'all'
 
-  useEffect(() => {
+  const onSearchChange = (value: string) => {
+    setQ(value)
     setOffset(0)
-  }, [q])
+  }
 
-  const groups = useMemo(() => groupByDay(items), [items])
+  const onActionFilterChange = (value: string) => {
+    setActionFilter(value)
+    setOffset(0)
+  }
+
   const hasMore = offset + items.length < total
   const hasPrev = offset > 0
 
@@ -162,7 +209,7 @@ export function ActivityLogPage() {
 
   return (
     <div className="page-stack page-stack--activity">
-      <PageHeader section="Команда" title="Журнал действий" subtitle={subtitle} icon={History} />
+      <PageHeader section="Команда" title="Журнал действий" subtitle={subtitle} icon={History} shrink />
 
       {!canView ? (
         <div className="page-empty-state page-empty-state--card">
@@ -171,52 +218,54 @@ export function ActivityLogPage() {
         </div>
       ) : (
         <>
-          <PageSearch
-            value={q}
-            onChange={setQ}
-            placeholder="Поиск по имени или действию…"
-            className="activity-log-search"
-          />
+          <PageToolbarRow className="activity-log-toolbar">
+            <PageSearch variant="row" value={q} onChange={onSearchChange} placeholder="Поиск по имени…" />
+            <Select
+              className="activity-log-filter"
+              value={actionFilter}
+              onChange={onActionFilterChange}
+              options={ACTION_FILTER_OPTIONS}
+              placeholder="Действие"
+            />
+          </PageToolbarRow>
 
-          {loading && items.length === 0 ? (
-            <div className="page-empty-state page-empty-state--card page-loading">Загрузка…</div>
-          ) : items.length === 0 ? (
-            <div className="page-empty-state page-empty-state--card">
-              <p className="page-empty-state-title">{q ? 'Ничего не найдено' : 'Записей пока нет'}</p>
+          <div className="page-body">
+            <div className="dev-log-list">
+              {loading && visibleItems.length === 0 && items.length === 0 ? (
+                <div className="staff-registry-empty page-loading">Загрузка…</div>
+              ) : visibleItems.length === 0 ? (
+                <div className="staff-registry-empty">
+                  {filtered ? 'Ничего не найдено. Измените поиск или фильтр.' : 'Записей пока нет'}
+                </div>
+              ) : (
+                visibleItems.map((item) => <ActivityCard key={item.id} item={item} />)
+              )}
             </div>
-          ) : (
-            <div className="activity-log glass-card">
-              <ul className="activity-feed">
-                {groups.map((group) => (
-                  <ActivityDayGroup key={group.day} day={group.day} items={group.items} />
-                ))}
-              </ul>
-            </div>
-          )}
 
-          {(hasPrev || hasMore) && (
-            <div className="activity-pager">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={!hasPrev || loading}
-                onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-              >
-                Назад
-              </button>
-              <span className="activity-pager-meta">
-                {offset + 1}–{offset + items.length} из {total}
-              </span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={!hasMore || loading}
-                onClick={() => setOffset((o) => o + PAGE_SIZE)}
-              >
-                Дальше
-              </button>
-            </div>
-          )}
+            {(hasPrev || hasMore) && (
+              <div className="activity-pager">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={!hasPrev || loading}
+                  onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
+                >
+                  Назад
+                </button>
+                <span className="activity-pager-meta">
+                  {offset + 1}–{offset + items.length} из {total}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={!hasMore || loading}
+                  onClick={() => setOffset((o) => o + PAGE_SIZE)}
+                >
+                  Дальше
+                </button>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

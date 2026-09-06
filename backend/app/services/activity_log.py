@@ -12,11 +12,22 @@ from app.services.staff_spheres import format_spheres_display
 
 VIEW_MIN_LEVEL = AccessLevel.SUPERVISOR
 
+ACTION_GROUP_PREFIXES: dict[str, tuple[str, ...]] = {
+    "staff": ("staff_",),
+    "leaders": ("leader_",),
+    "justice": ("judge_", "congress_"),
+    "tasks": ("task_",),
+    "projects": ("project_",),
+    "banks": ("qb_",),
+    "cases": ("loot_case_",),
+}
+
 ACTION_MESSAGES: dict[str, str] = {
     # Следящие и назначения
     "staff_assign": "назначил следящим",
     "staff_update": "изменил должность",
     "staff_revoke": "снял доступ следящего",
+    "profile_update": "обновил кабинет",
     "judge_assign": "назначил судьёй",
     "congress_assign": "назначил в конгресс",
     # Руководство
@@ -50,6 +61,16 @@ ACTION_MESSAGES: dict[str, str] = {
     "project_delete": "удалил проект",
     # Форум
     "judge_forum_template_save": "обновил шаблон списка судей",
+    # Кейсы
+    "loot_case_create": "создал кейс",
+    "loot_case_update": "изменил кейс",
+    "loot_case_delete": "удалил кейс",
+    "loot_case_spin": "открыл кейс",
+    "loot_case_prize_create": "добавил приз в кейс",
+    "loot_case_prize_update": "изменил приз в кейсе",
+    "loot_case_prize_delete": "удалил приз из кейса",
+    "loot_case_prize_bulk": "импортировал призы в кейс",
+    "loot_case_prize_shuffle": "перемешал призы в кейсе",
 }
 
 
@@ -57,9 +78,10 @@ def action_label(action: str) -> str:
     if action in ACTION_MESSAGES:
         return ACTION_MESSAGES[action]
     if action.startswith("qb_item_"):
-        tail = action.removeprefix("qb_item_").replace("_", " ")
-        return f"действие с вопросом: {tail}"
-    return action.replace("_", " ")
+        return "изменил вопрос в банке"
+    if action.startswith("loot_case_"):
+        return "изменил кейс"
+    return "выполнил действие"
 
 
 def _name(names: dict[int, str], vk_id: int | None) -> str:
@@ -109,6 +131,25 @@ def _detail_suffix(action: str, detail: dict | None) -> str:
     if action == "staff_revoke":
         return ""
 
+    if action == "loot_case_spin":
+        prize = (detail.get("prize_title") or "").strip()
+        case_title = (detail.get("case_title") or "").strip()
+        if prize and case_title:
+            return f": выпал приз «{prize}» из кейса «{case_title}»"
+        if prize:
+            return f": выпал приз «{prize}»"
+        if case_title:
+            return f" «{case_title}»"
+        return ""
+
+    if action == "loot_case_prize_bulk":
+        count = detail.get("count")
+        try:
+            n = int(count)
+        except (TypeError, ValueError):
+            n = 0
+        return f" ({n})" if n else ""
+
     if action == "task_update":
         status = (detail.get("status") or "").strip()
         if status:
@@ -148,6 +189,34 @@ def _format_staff_update(
         return f"{actor_name} изменил доступ к порталу{who} [Стало: {state}]"
     suffix = _detail_suffix("staff_update", detail)
     return f"{actor_name} изменил карточку следящего{who}{suffix}"
+
+
+def history_label(action: str, detail: dict | None) -> str | None:
+    detail = detail or {}
+    if action == "staff_assign":
+        level = detail.get("access_level_name") or AccessLevel.title(
+            int(detail.get("access_level") or 0)
+        )
+        spheres = detail.get("spheres_display") or format_spheres_display(
+            list(detail.get("spheres") or [])
+        )
+        parts = [p for p in (level, spheres) if p and p != "—"]
+        return " · ".join(parts) if parts else "назначен следящим"
+    if action == "staff_revoke":
+        return "доступ снят"
+    if action == "staff_update":
+        level = detail.get("access_level")
+        if isinstance(level, dict):
+            old = level.get("from_name") or level.get("from") or "—"
+            new = level.get("to_name") or level.get("to") or "—"
+            return f"уровень: {old} → {new}"
+        if detail.get("spheres") is not None:
+            spheres = detail.get("spheres_display") or format_spheres_display(
+                list(detail.get("spheres") or [])
+            )
+            return f"сферы: {spheres or '—'}"
+        return None
+    return None
 
 
 def format_activity_message(
@@ -198,6 +267,7 @@ async def serialize_activity_row(row: PanelAuditLog, names: dict[int, str]) -> d
             detail=detail,
         ),
         "detail": detail,
+        "history_label": history_label(row.action, detail),
         "created_at": row.created_at.isoformat(),
     }
 
@@ -208,11 +278,25 @@ async def list_activity(
     offset: int = 0,
     q: str | None = None,
     vk_id: int | None = None,
+    actions: list[str] | None = None,
+    group: str | None = None,
+    about: bool = False,
 ) -> dict:
     qs = PanelAuditLog.all().order_by("-created_at")
+    prefixes = ACTION_GROUP_PREFIXES.get((group or "").strip())
+    if prefixes:
+        prefix_q = Q()
+        for prefix in prefixes:
+            prefix_q |= Q(action__startswith=prefix)
+        qs = qs.filter(prefix_q)
+    elif actions:
+        qs = qs.filter(action__in=actions)
     if vk_id is not None:
         sid = str(int(vk_id))
-        qs = qs.filter(Q(actor_vk_id=int(vk_id)) | Q(entity_id=sid))
+        if about:
+            qs = qs.filter(Q(entity_id=sid))
+        else:
+            qs = qs.filter(Q(actor_vk_id=int(vk_id)) | Q(entity_id=sid))
     total = await qs.count()
     rows = await qs.offset(offset).limit(min(limit, 100))
 

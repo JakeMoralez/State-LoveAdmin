@@ -2,6 +2,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 import { ChecklistPage } from './pages/ChecklistPage'
 import { CongressPage } from './pages/CongressPage'
 import { ForumFormattingPage } from './pages/ForumFormattingPage'
@@ -75,7 +76,9 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

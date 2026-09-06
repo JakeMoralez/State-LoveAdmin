@@ -855,7 +855,8 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   }
 
   .staff-page-search,
-  .leaders-page-search {
+  .leaders-page-search,
+  .staff-registry-toolbar {
     width: 100%;
   }
 

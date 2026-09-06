@@ -4,7 +4,9 @@ import { Link2, Paperclip, Trash2, X } from 'lucide-react'
 import {
   PRIORITY_LABELS,
   STATUS_LABELS,
+  TASK_FORM_STATUSES,
   api,
+  normalizeTaskStatus,
   type Project,
   type StaffMember,
   type TaskDetail,
@@ -19,6 +21,7 @@ import { LabelInput } from '../ui/LabelInput'
 import { MessageComposer } from '../ui/MessageComposer'
 import { MultiAssigneePicker } from '../ui/MultiAssigneePicker'
 import { Select } from '../ui/Select'
+import { Alert } from '../ui/Alert'
 
 type DrawerTab = 'details' | 'comments'
 
@@ -76,7 +79,7 @@ export function TaskDrawer({
     if (!task) return
     setTitle(task.title)
     setDescription(task.description || '')
-    setStatus(task.status || 'todo')
+    setStatus(normalizeTaskStatus(task.status))
     setPriority(task.priority || 'medium')
     setTaskType(task.task_type || 'assignment')
     setAssigneeVkIds(assigneeIdsFromTask(task))
@@ -250,7 +253,7 @@ export function TaskDrawer({
               <div>
                 <label className="text-caption mb-1.5 block">Статус</label>
                 <div className="status-chip-row">
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  {TASK_FORM_STATUSES.map((value) => (
                     <button
                       key={value}
                       type="button"
@@ -261,7 +264,7 @@ export function TaskDrawer({
                       )}
                       onClick={() => setStatus(value)}
                     >
-                      {label}
+                      {STATUS_LABELS[value]}
                     </button>
                   ))}
                 </div>
@@ -383,7 +386,7 @@ export function TaskDrawer({
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && <Alert>{error}</Alert>}
 
               <button type="button" onClick={save} disabled={saving || !dirty} className="btn btn-gold w-full">
                 {saving ? 'Сохранение…' : 'Сохранить'}
@@ -396,7 +399,7 @@ export function TaskDrawer({
               <div className="min-h-0 flex-1 overflow-y-auto p-6 pb-3 ll-scroll">
                 <div className="space-y-2">
                   {task.comments.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-white/35">Комментариев пока нет</p>
+                    <p className="py-8 text-center text-sm text-white/35">Комментариев пока нет. Напишите первый.</p>
                   ) : (
                     task.comments.map((c) => (
                       <div key={c.id} className="glass-card p-3 text-sm">
@@ -418,7 +421,8 @@ export function TaskDrawer({
               </div>
               <div className="drawer-composer-wrap msg-composer-foot shrink-0">
                 <MessageComposer
-                  placeholder="Сообщение…"
+                  placeholder="Сообщение… @ник"
+                  mentionCandidates={staff}
                   onSend={async (body) => {
                     try {
                       await sendComment(body)

@@ -25,6 +25,7 @@ import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
 import { DatePicker } from '../ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from './SphereMultiSelect'
+import { SphereRoleSelect, usesSphereRoles } from './SphereRoleSelect'
 import {
   forumAccountForApi,
   forumMemberUrl,
@@ -93,8 +94,9 @@ export function StaffProfileModal({
     )
     setAccessLevel(String(member.access_level))
     setSpheres(member.spheres ?? [])
-    setIsSenior(Boolean(member.is_senior))
-    setSeniorSpheres(member.senior_spheres ?? [])
+    const loadedSenior = member.senior_spheres ?? []
+    setSeniorSpheres(loadedSenior)
+    setIsSenior(Boolean(member.is_senior) && loadedSenior.length > 0)
     setDiscordId(member.discord_id ?? '')
     setForumAccount(forumMemberUrl(member.username, member.vk_id) || member.username || '')
     setForumTouched(false)
@@ -132,6 +134,10 @@ export function StaffProfileModal({
   useEffect(() => {
     if (!canEditAccessLevel) return
     setSpheres((prev) => filterSpheresForLevel(prev, parsedLevel))
+    if (!usesSphereRoles(parsedLevel)) {
+      setIsSenior(false)
+      setSeniorSpheres([])
+    }
     if (isDeveloperLevel(parsedLevel)) {
       setNicknameTag((tag) => (isLegacyStaffTag(tag) ? '' : tag))
     }
@@ -503,78 +509,46 @@ export function StaffProfileModal({
           <div className="staff-profile-field">
             <span className="staff-profile-label">{sphereFieldLabel(parsedLevel)}</span>
             {canEditSpheres ? (
-              <SphereMultiSelect
-                value={spheres}
-                onChange={setSpheres}
-                disabled={saving}
-                accessLevel={parsedLevel}
-                showHint={false}
-                lockedSpheres={permissions.locked_spheres}
-                grantableSpheres={
-                  permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
-                }
-              />
+              usesSphereRoles(parsedLevel) ? (
+                <SphereRoleSelect
+                  spheres={spheres}
+                  seniorSpheres={seniorSpheres}
+                  onChange={(next) => {
+                    setSpheres(next.spheres)
+                    setSeniorSpheres(next.seniorSpheres)
+                    setIsSenior(next.isSenior)
+                  }}
+                  disabled={saving}
+                  accessLevel={parsedLevel}
+                  lockedSpheres={permissions.locked_spheres}
+                  grantableSpheres={
+                    permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
+                  }
+                />
+              ) : (
+                <SphereMultiSelect
+                  value={spheres}
+                  onChange={setSpheres}
+                  disabled={saving}
+                  accessLevel={parsedLevel}
+                  showHint={false}
+                  lockedSpheres={permissions.locked_spheres}
+                  grantableSpheres={
+                    permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
+                  }
+                />
+              )
             ) : (
-              <p className="staff-profile-value">{formatSpheresDisplay(member.spheres) || member.sphere || '—'}</p>
+              <p className="staff-profile-value">
+                {formatSpheresDisplay(member.spheres) || member.sphere || '—'}
+                {member.is_senior && (member.senior_spheres?.length ?? 0) > 0
+                  ? parsedLevel <= 2
+                    ? ` · Ст. След.: ${formatSpheresDisplay(member.senior_spheres)}`
+                    : ` · След.: ${formatSpheresDisplay(member.senior_spheres)}`
+                  : ''}
+              </p>
             )}
           </div>
-
-          {parsedLevel >= 2 && parsedLevel < 8 && (
-            <>
-              <div className="staff-profile-field">
-                <label className="staff-profile-label">
-                  {parsedLevel <= 2 ? 'Старший следящий' : 'Совмещение: следящий'}
-                </label>
-                {canEditSpheres ? (
-                  <label className="flex gap-3 items-center">
-                    <input
-                      id="staff-is-senior"
-                      type="checkbox"
-                      className="ui-checkbox"
-                      checked={isSenior}
-                      disabled={saving}
-                      onChange={(e) => {
-                        const on = e.target.checked
-                        setIsSenior(on)
-                        if (!on) setSeniorSpheres([])
-                      }}
-                    />
-                    <span className="ui-checkbox-box" />
-                    <span className="text-sm opacity-80">
-                      {parsedLevel <= 2
-                        ? 'Выше следящего: Ст. След. своей сферы, можно совмещать След. другой'
-                        : 'ГС/ЗГС может дополнительно быть следящим другой сферы'}
-                    </span>
-                  </label>
-                ) : (
-                  <p className="staff-profile-value">{member.is_senior ? 'Да' : '—'}</p>
-                )}
-              </div>
-
-              {isSenior && (
-                <div className="staff-profile-field">
-                  <span className="staff-profile-label">
-                    {parsedLevel <= 2 ? 'Сфера старшего (Ст. След.)' : 'Доп. сфера следящего'}
-                  </span>
-                  {canEditSpheres ? (
-                    <SphereMultiSelect
-                      value={seniorSpheres}
-                      onChange={setSeniorSpheres}
-                      disabled={saving}
-                      accessLevel={2}
-                      showHint={false}
-                      lockedSpheres={permissions.locked_spheres}
-                      grantableSpheres={
-                        permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
-                      }
-                    />
-                  ) : (
-                    <p className="staff-profile-value">{formatSpheresDisplay(member.senior_spheres) || '—'}</p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
 
           {(permissions.edit_nickname ||
             canEditAccessLevel ||

@@ -100,6 +100,8 @@ async def get_user_profile(
         "has_ca_access": has_ca,
         "spheres": spheres,
         "sphere": sphere,
+        "is_senior": bool(access and getattr(access, "is_senior", False)),
+        "senior_spheres": list(getattr(access, "senior_spheres", []) or []) if access else [],
         "panel_role": panel_role(level),
         "server_id": server_id,
         "dev_persona": dev_level is not None,

@@ -75,7 +75,7 @@ def format_badges(access: UserServerAccess | None, user: User, spheres: list[str
 
 
 FULL_ROLE_TITLES: dict[int, str] = {
-    1: "Помощник Главного Следящего",
+    1: "Помощник следящих",
     2: "Следящий",
     3: "Зам. Главного следящего сферы",
     4: "Главный следящий сферы",
@@ -272,7 +272,71 @@ async def list_staff(server_id: int) -> list[dict]:
             }
         )
 
-    result.sort(key=lambda r: (-r["access_level"], r["nickname"].lower()))
+    result.sort(
+        key=lambda r: (
+            -r["access_level"],
+            -(
+                1
+                if r["access_level"] == AccessLevel.SUPERVISOR and r.get("is_senior")
+                else 0
+            ),
+            r["nickname"].lower(),
+        )
+    )
+    return result
+
+
+async def list_former_staff(server_id: int) -> list[dict]:
+    """Бывшие следящие: уровень ниже ПГС, ник сохранён. Discord отфильтровывает роутер."""
+    rows = await UserServerAccess.filter(
+        server_id=server_id,
+        access_level__lt=AccessLevel.PGS,
+    ).prefetch_related("user")
+    result: list[dict] = []
+    for access in rows:
+        if (
+            access.is_judge
+            or access.is_congress_speaker
+            or access.is_congress_vice
+            or access.is_attorney
+            or access.is_leader
+        ):
+            continue
+        user = access.user
+        if user.is_admin:
+            continue
+        effective = await get_access_level(user.vk_id, server_id)
+        if effective >= AccessLevel.PGS:
+            continue
+        bot_nickname = await resolve_bot_nickname(
+            user.vk_id, server_id, access=access, user=user
+        )
+        nick_fields = _leader_nick_fields(bot_nickname, user.vk_id)
+        if not (nick_fields["nickname"] or "").strip():
+            continue
+        result.append(
+            {
+                "vk_id": user.vk_id,
+                "bot_nickname": nick_fields["bot_nickname"],
+                "nickname": nick_fields["nickname"],
+                "display_name": nick_fields["display_name"],
+                "username": user.username,
+                "access_level": 0,
+                "access_level_name": "Нет доступа",
+                "access_role_title": "Без доступа",
+                "sphere": "",
+                "spheres": [],
+                "badges": [],
+                "has_ca_access": False,
+                "ca_source": None,
+                "granted_by": None,
+                "granted_at": access.granted_at.isoformat() if access.granted_at else None,
+                "note": "",
+                "is_senior": False,
+                "senior_spheres": [],
+            }
+        )
+    result.sort(key=lambda r: (r["nickname"] or "").lower())
     return result
 
 
@@ -664,10 +728,6 @@ async def revoke_staff_access(
 
     if access.is_leader:
         raise ValueError("Сначала уберите из реестра «Руководство»")
-
-    level = await get_access_level(vk_id, server_id)
-    if level >= AccessLevel.ZGS_GOS:
-        raise ValueError("Нельзя снять доступ ЗГС ГОС+ через реестр следящих")
 
     access.access_level = 0
     access.has_ca_access = False

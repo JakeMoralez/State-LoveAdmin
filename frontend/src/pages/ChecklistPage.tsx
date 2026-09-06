@@ -6,6 +6,8 @@ import { ChecklistCellEditor } from '../components/checklist/ChecklistCellEditor
 import { PageHeader } from '../components/PageHeader'
 import { SphereTabs, useActiveSphere } from '../components/SphereTabs'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
+import { Alert } from '../components/ui/Alert'
 import { COMPACT_QUERY, MOBILE_NAV_QUERY, matchesMediaQuery, useMediaQuery } from '../hooks/useMediaQuery'
 
 function mondayOf(d: Date): string {
@@ -42,6 +44,7 @@ type ViewMode = 'all' | 'single'
 
 export function ChecklistPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const spheres = user?.work_spheres ?? []
   const activeSphere = useActiveSphere('checklist', spheres)
   const [week, setWeek] = useState(() => mondayOf(new Date()))
@@ -155,7 +158,7 @@ export function ChecklistPage() {
       }
       load()
     } catch (e: unknown) {
-      window.alert(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось включить колонку')
+      toast(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось включить колонку')
     } finally {
       setEnablingSelf(false)
     }
@@ -267,6 +270,15 @@ export function ChecklistPage() {
               >
                 <ChevronRight size={15} />
               </button>
+              {week !== mondayOf(new Date()) && (
+                <button
+                  type="button"
+                  className="checklist-week-btn checklist-week-btn--now"
+                  onClick={() => setWeek(mondayOf(new Date()))}
+                >
+                  Эта неделя
+                </button>
+              )}
               <button
                 type="button"
                 className="checklist-week-btn"
@@ -301,7 +313,7 @@ export function ChecklistPage() {
                   <button
                     key={m.vk_id}
                     type="button"
-                    className={`checklist-member-pill ${active ? 'checklist-member-pill--active' : ''}`}
+                    className={`checklist-member-pill ${active ? 'checklist-member-pill--active' : ''} ${isSelf ? 'checklist-member-pill--self' : ''}`}
                     onClick={() => setActiveMemberId(m.vk_id)}
                     title={m.display_name}
                   >
@@ -330,13 +342,16 @@ export function ChecklistPage() {
         <div className="page-loading">Загрузка…</div>
       ) : error ? (
         <div className="glass-card modal-card modal-card--sm">
-          <p className="text-red-400 mb-3">{error}</p>
+          <Alert className="mb-3">{error}</Alert>
           <button type="button" className="btn btn-gold btn-sm" onClick={load}>
             Повторить
           </button>
         </div>
       ) : !data ? (
-        <div className="text-white/40">Нет данных</div>
+        <div className="page-empty-state page-empty-state--card">
+          <p className="page-empty-state-title">Чеклист пуст</p>
+          <p className="page-empty-state-hint">Обновите страницу или выберите другую сферу.</p>
+        </div>
       ) : data.members.length === 0 ? (
         <div className="glass-card modal-card modal-card--md">
           <p className="text-white/70 mb-2">В чеклисте пока никого нет.</p>

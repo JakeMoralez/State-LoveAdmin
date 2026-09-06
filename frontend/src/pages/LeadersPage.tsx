@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api, ApiError, type LeaderMember, type LeaderMemberDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
+import { Alert } from '../components/ui/Alert'
 import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 import { useAuth } from '../context/AuthContext'
 import { canOpenLeaderSettings } from '../lib/accessLevels'
@@ -113,11 +114,7 @@ export function LeadersPage() {
         placeholder="Поиск по нику, должности или заметке…"
       />
 
-      {settingsError && (
-        <p className="staff-settings-toast shrink-0" role="alert">
-          {settingsError}
-        </p>
-      )}
+      {settingsError && <Alert className="shrink-0">{settingsError}</Alert>}
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
@@ -138,7 +135,9 @@ export function LeadersPage() {
           </div>
 
           {sorted.length === 0 ? (
-            <div className="staff-registry-empty">Никого не найдено</div>
+            <div className="staff-registry-empty">
+              {q.trim() ? 'Никого не найдено. Измените поиск.' : 'В реестре пока никого нет.'}
+            </div>
           ) : (
             <div className="staff-registry-body ll-scroll">
               {sorted.map((m, i) => (

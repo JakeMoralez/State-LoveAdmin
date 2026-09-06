@@ -8,22 +8,37 @@ import logging
 import httpx
 
 from app.config import PANEL_BASE_URL, SLED_BOT_SECRET, SLED_INTERNAL_URL
+from app.models.panel import UserNotifyPrefs
 from app.services.task_helpers import (
     PRIORITY_LABELS,
     STATUS_EMOJI,
     STATUS_LABELS,
     TASK_TYPE_LABELS,
+    normalize_task_status,
 )
 
 logger = logging.getLogger(__name__)
+
+NotifyCategory = str
 
 
 def _task_link(task_id: int) -> str:
     return f"{PANEL_BASE_URL.rstrip('/')}/tasks/{task_id}"
 
 
-async def notify_vk(vk_id: int, message: str) -> bool:
+async def _prefs_allows(vk_id: int, category: NotifyCategory) -> bool:
+    row = await UserNotifyPrefs.get_or_none(vk_id=vk_id)
+    if row is None:
+        return True
+    if category == "assign":
+        return bool(row.notify_assign)
+    return bool(row.notify_tasks)
+
+
+async def notify_vk(vk_id: int, message: str, *, category: NotifyCategory = "tasks") -> bool:
     if not vk_id:
+        return False
+    if not await _prefs_allows(vk_id, category):
         return False
     if not SLED_BOT_SECRET:
         logger.warning("SLED_BOT_SECRET not set — skip VK notify")
@@ -41,7 +56,12 @@ async def notify_vk(vk_id: int, message: str) -> bool:
         return False
 
 
-async def notify_vk_many(vk_ids: list[int] | set[int], message: str) -> None:
+async def notify_vk_many(
+    vk_ids: list[int] | set[int],
+    message: str,
+    *,
+    category: NotifyCategory = "tasks",
+) -> None:
     seen: set[int] = set()
     jobs = []
     for vid in vk_ids:
@@ -52,7 +72,7 @@ async def notify_vk_many(vk_ids: list[int] | set[int], message: str) -> None:
         if n in seen:
             continue
         seen.add(n)
-        jobs.append(notify_vk(n, message))
+        jobs.append(notify_vk(n, message, category=category))
     if jobs:
         await asyncio.gather(*jobs, return_exceptions=True)
 
@@ -71,7 +91,7 @@ async def notify_task_event(
         lines.extend(d for d in details if d)
     if with_link:
         lines.append(f"→ {_task_link(task_id)}")
-    await notify_vk_many(vk_ids, "\n".join(lines))
+    await notify_vk_many(vk_ids, "\n".join(lines), category="tasks")
 
 
 async def notify_task_assigned(
@@ -93,7 +113,7 @@ async def notify_task_assigned(
     if due_display:
         lines.append(f"Срок: {due_display}")
     lines.append(f"→ {link}")
-    return await notify_vk(assignee_vk_id, "\n".join(lines))
+    return await notify_vk(assignee_vk_id, "\n".join(lines), category="tasks")
 
 
 async def notify_task_overdue(
@@ -108,7 +128,7 @@ async def notify_task_overdue(
         f"Дедлайн был: {due_display}\n"
         f"→ {link}"
     )
-    return await notify_vk(assignee_vk_id, msg)
+    return await notify_vk(assignee_vk_id, msg, category="tasks")
 
 
 async def notify_task_due_soon(
@@ -129,7 +149,7 @@ async def notify_task_due_soon(
         f"Срок: {due_display}\n"
         f"→ {link}"
     )
-    return await notify_vk(assignee_vk_id, msg)
+    return await notify_vk(assignee_vk_id, msg, category="tasks")
 
 
 async def notify_task_comment(
@@ -148,7 +168,7 @@ async def notify_task_comment(
         f"{author_name}: {body}\n"
         f"→ {link}"
     )
-    return await notify_vk(vk_id, msg)
+    return await notify_vk(vk_id, msg, category="tasks")
 
 
 async def notify_task_status(
@@ -159,19 +179,32 @@ async def notify_task_status(
     *,
     by_name: str | None = None,
 ) -> bool:
-    label = STATUS_LABELS.get(status, status)
-    emoji = STATUS_EMOJI.get(status, "📋")
+    mapped = normalize_task_status(status)
+    label = STATUS_LABELS.get(mapped, mapped)
+    emoji = STATUS_EMOJI.get(mapped, "📋")
     link = _task_link(task_id)
     text = f"{emoji} Задача «{title}» — {label}"
     if by_name:
         text += f"\nИзменил(а): {by_name}"
     text += f"\n→ {link}"
-    return await notify_vk(vk_id, text)
+    return await notify_vk(vk_id, text, category="tasks")
+
+
+async def notify_assignment(
+    vk_id: int,
+    headline: str,
+    details: list[str] | None = None,
+) -> bool:
+    lines = [headline]
+    if details:
+        lines.extend(d for d in details if d)
+    return await notify_vk(vk_id, "\n".join(lines), category="assign")
 
 
 def format_status_line(status: str) -> str:
-    label = STATUS_LABELS.get(status, status)
-    emoji = STATUS_EMOJI.get(status, "📋")
+    mapped = normalize_task_status(status)
+    label = STATUS_LABELS.get(mapped, mapped)
+    emoji = STATUS_EMOJI.get(mapped, "📋")
     return f"{emoji} Колонка: {label}"
 
 
