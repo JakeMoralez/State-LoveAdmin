@@ -1,4 +1,4 @@
-"""Ники руководителей в формате /snick: [LSPD] [10] Name_Surname."""
+"""Ники руководителей в формате /snick: [LSPD][10] Name_Surname."""
 
 from __future__ import annotations
 
@@ -146,7 +146,7 @@ def format_leadership_nickname(
         advisors=advisors,
     )
     if role_type in ROLE_RANKS:
-        nick = f"[{tag}] [{ROLE_RANKS[role_type]}] {clean}"
+        nick = f"[{tag}][{ROLE_RANKS[role_type]}] {clean}"
     else:
         nick = f"[{tag}] {clean}"
     if len(nick) > 64:
@@ -172,7 +172,7 @@ def iter_nickname_tags(raw: str | None) -> tuple[list[str], str]:
 
 
 def infer_leadership_from_nickname(nickname: str | None) -> dict[str, str | None]:
-    """Должность и тег из формата /snick: [LSPD] [10] Name, [Pr.Min] Name, [Зам.ЛСПД] Name."""
+    """Должность и тег из формата /snick: [LSPD][10] Name, [Pr.Min] Name."""
     empty = {"position": None, "org_tag": None, "role_type": None}
     tags, _name = iter_nickname_tags(nickname)
     if not tags:
@@ -246,7 +246,7 @@ def infer_leadership_from_nickname(nickname: str | None) -> dict[str, str | None
 
 
 def canonicalize_leadership_nickname(nickname: str | None) -> str | None:
-    """Пробелы и канон тега, как в /snick: [LSPD] [10] Name_Surname. Старые [Зам.ЛСПД] не трогаем."""
+    """Канон: [LSPD][10] Name_Surname — без пробела между тегами, пробел перед именем."""
     raw = (nickname or "").strip()
     if not raw:
         return None
@@ -257,20 +257,36 @@ def canonicalize_leadership_nickname(nickname: str | None) -> str | None:
         return None
 
     first = tags[0]
-    if first.split("|", 1)[0].strip().casefold() == "judge":
-        try:
-            clean = validate_rp_name(name)
-        except ValueError:
-            clean = name.strip()
-        if not clean:
-            return None
+    role_part = first.split("|", 1)[0].strip().casefold()
+    try:
+        clean = validate_rp_name(name)
+    except ValueError:
+        clean = name.strip()
+    if not clean:
+        return None
+
+    if role_part == "judge":
         canon = f"[Judge] {clean}"
         return None if canon == raw else canon
+    if role_part == "speaker":
+        extra = next((t for t in tags[1:] if t in _RANK_TAGS), None)
+        if extra and "|" in first:
+            from app.services.leader_spheres import canon_org_tag
 
-    from app.services.leader_spheres import _POS_PREFIX_RE
+            faction = canon_org_tag(first.split("|", 1)[1]) or first.split("|", 1)[1].strip()
+            canon = f"[Speaker | {faction}][{extra}] {clean}"
+        else:
+            canon = f"[Speaker] {clean}"
+        return None if canon == raw else canon
+    if role_part == "vice-speaker":
+        extra = next((t for t in tags[1:] if t in _RANK_TAGS), None)
+        if extra and "|" in first:
+            from app.services.leader_spheres import canon_org_tag
 
-    if _POS_PREFIX_RE.match(first) and not _canon(first, _FACTION_BY_FOLD):
-        canon = f"[{first}] {name}"
+            faction = canon_org_tag(first.split("|", 1)[1]) or first.split("|", 1)[1].strip()
+            canon = f"[Vice-Speaker | {faction}][{extra}] {clean}"
+        else:
+            canon = f"[Vice-Speaker] {clean}"
         return None if canon == raw else canon
 
     role = inferred.get("role_type")
@@ -285,8 +301,7 @@ def canonicalize_leadership_nickname(nickname: str | None) -> str | None:
         elif org:
             canon = format_leadership_nickname(role, name, org)
         else:
-            validate_rp_name(name)
-            canon = f"[{first}] {name}"
+            canon = f"[{first}] {clean}"
     except ValueError:
         return None
     return None if canon == raw else canon

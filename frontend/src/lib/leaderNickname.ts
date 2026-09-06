@@ -273,7 +273,7 @@ export function formatLeadershipNickname(
   const tag = orgTag.trim()
   if (!clean || !tag) return ''
   const rank = ROLE_RANKS[roleType]
-  return rank ? `[${tag}] [${rank}] ${clean}` : `[${tag}] ${clean}`
+  return rank ? `[${tag}][${rank}] ${clean}` : `[${tag}] ${clean}`
 }
 
 export function canonicalizeLeadershipNickname(nickname: string | null | undefined): string {
