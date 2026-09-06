@@ -33,7 +33,7 @@ import { cn } from '../lib/utils'
 const ROLE_TYPE_OPTIONS = [
   { value: 'staff', label: 'Следящий' },
   { value: 'leader', label: 'Лидер' },
-  { value: 'deputy', label: 'Зам' },
+  { value: 'deputy', label: 'Заместитель' },
   { value: 'minister', label: 'Министр' },
   { value: 'advisor', label: 'Советник' },
   { value: 'judge', label: 'Судья' },
@@ -376,7 +376,7 @@ export function AssignPage() {
         judge: 'назначен судьёй',
         congress: 'назначен в конгресс',
         leader: 'назначен лидером',
-        deputy: 'назначен замом',
+        deputy: 'назначен заместителем',
         minister: 'назначен министром',
         advisor: 'назначен советником',
       }

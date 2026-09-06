@@ -200,6 +200,7 @@ class CatalogUpdate(BaseModel):
     ministers: list[dict] | None = None
     advisors: list[dict] | None = None
     judge_positions: list[str] | None = None
+    tag_spheres: dict[str, str] | None = None
 
 
 class ChatSettingsUpdate(BaseModel):

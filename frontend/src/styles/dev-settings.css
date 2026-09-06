@@ -59,9 +59,17 @@
   align-items: center;
 }
 
-.dev-settings-list--pair input:first-child {
+.dev-settings-list--pair input:first-child,
+.dev-settings-list--sphere input:first-child,
+.dev-settings-list--triple input:first-child {
   width: 140px;
   flex: 0 0 140px;
+}
+
+.dev-settings-list--sphere .select,
+.dev-settings-list--triple .select {
+  flex: 1 1 12rem;
+  min-width: 10rem;
 }
 
 .dev-settings-add {

@@ -3,15 +3,22 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Settings, UserPlus, type LucideIcon } 
 import { Link } from 'react-router-dom'
 import { ApiError, type LeaderMember, type LeaderMemberDetail } from '../../api'
 import { PageHeader } from '../PageHeader'
-import { PageSearch } from '../ui/PageSearch'
+import { PageSearch, PageToolbarRow } from '../ui/PageSearch'
 import { Alert } from '../ui/Alert'
+import { Select } from '../ui/Select'
 import { LeaderProfileModal } from './LeaderProfileModal'
 import { useAuth } from '../../context/AuthContext'
 import { canOpenLeaderSettings } from '../../lib/accessLevels'
+import { resolveLeadershipSphere } from '../../lib/leaderNickname'
+import { SPHERE_OPTIONS, formatSpheresDisplay } from '../../lib/spheres'
 import { staffLabel } from '../../lib/staff'
 
+function memberSphere(m: LeaderMember): string | null {
+  return m.sphere ?? resolveLeadershipSphere(m.bot_nickname || m.nickname)
+}
+
 type OfficeTab = 'active' | 'inactive'
-type SortKey = 'index' | 'nickname' | 'position'
+type SortKey = 'index' | 'nickname' | 'position' | 'sphere'
 type SortDir = 'asc' | 'desc'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
@@ -33,6 +40,7 @@ export function OfficeRegistryPage({
   assignType,
   list,
   loadOne,
+  sphereFilter = false,
 }: {
   title: string
   icon: LucideIcon
@@ -41,6 +49,7 @@ export function OfficeRegistryPage({
   assignType: string
   list: (params?: { q?: string; inactive?: boolean }) => Promise<{ members: LeaderMember[]; total: number }>
   loadOne: (vkId: number) => Promise<LeaderMemberDetail>
+  sphereFilter?: boolean
 }) {
   const { user } = useAuth()
   const actorLevel = user?.access_level ?? 0
@@ -48,6 +57,7 @@ export function OfficeRegistryPage({
   const [members, setMembers] = useState<LeaderMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
+  const [sphere, setSphere] = useState('')
   const [tab, setTab] = useState<OfficeTab>('active')
   const [loading, setLoading] = useState(true)
   const [sortKey, setSortKey] = useState<SortKey>('index')
@@ -80,21 +90,37 @@ export function OfficeRegistryPage({
   }
 
   const sorted = useMemo(() => {
-    const rows = [...members]
+    const rows = members.filter((m) => {
+      if (!sphereFilter || !sphere) return true
+      const member = memberSphere(m)
+      if (sphere === '_none') return !member
+      return member === sphere
+    })
     const dir = sortDir === 'asc' ? 1 : -1
     rows.sort((a, b) => {
       if (sortKey === 'index' || sortKey === 'nickname') {
         return staffLabel(a).localeCompare(staffLabel(b), 'ru') * dir
       }
+      if (sortKey === 'sphere') {
+        const as = memberSphere(a)
+        const bs = memberSphere(b)
+        return formatSpheresDisplay(as ? [as] : []).localeCompare(
+          formatSpheresDisplay(bs ? [bs] : []),
+          'ru',
+        ) * dir
+      }
       return (a.position || '—').localeCompare(b.position || '—', 'ru') * dir
     })
     return rows
-  }, [members, sortKey, sortDir])
+  }, [members, sortKey, sortDir, sphere, sphereFilter])
 
   const columns: { key: SortKey; label: string; className: string }[] = [
     { key: 'index', label: '#', className: 'staff-col-num' },
     { key: 'nickname', label: 'Ник', className: 'staff-col-nick' },
     { key: 'position', label: 'Должность', className: 'staff-col-position' },
+    ...(sphereFilter
+      ? [{ key: 'sphere' as const, label: 'Сфера', className: 'staff-col-sphere' }]
+      : []),
   ]
 
   const canAssign = actorLevel >= 2
@@ -152,19 +178,43 @@ export function OfficeRegistryPage({
         </button>
       </div>
 
-      <PageSearch
-        className="leaders-page-search"
-        value={q}
-        onChange={setQ}
-        placeholder="Поиск по нику, должности или заметке…"
-      />
+      {sphereFilter ? (
+        <PageToolbarRow className="staff-registry-toolbar leaders-page-search">
+          <PageSearch
+            variant="row"
+            value={q}
+            onChange={setQ}
+            placeholder="Поиск по нику, должности или заметке…"
+          />
+          <Select
+            className="staff-registry-filter staff-registry-filter--sphere"
+            value={sphere}
+            onChange={setSphere}
+            options={[
+              { value: '', label: 'Все сферы' },
+              ...SPHERE_OPTIONS.filter((s) => s.value !== 'server').map((s) => ({
+                value: s.value,
+                label: s.label,
+              })),
+              { value: '_none', label: 'Без сферы' },
+            ]}
+          />
+        </PageToolbarRow>
+      ) : (
+        <PageSearch
+          className="leaders-page-search"
+          value={q}
+          onChange={setQ}
+          placeholder="Поиск по нику, должности или заметке…"
+        />
+      )}
 
       {settingsError && <Alert className="shrink-0">{settingsError}</Alert>}
 
       {loading ? (
         <div className="page-loading">Загрузка…</div>
       ) : (
-        <div className="staff-registry leaders-registry">
+        <div className={`staff-registry leaders-registry${sphereFilter ? ' leaders-registry--spheres' : ''}`}>
           <div className="staff-registry-head leaders-registry-head">
             {columns.map((col) => (
               <button
@@ -181,15 +231,17 @@ export function OfficeRegistryPage({
 
           {sorted.length === 0 ? (
             <div className="staff-registry-empty">
-              {q.trim()
-                ? 'Никого не найдено. Измените поиск.'
+              {q.trim() || sphere
+                ? 'Никого не найдено. Измените поиск или сферу.'
                 : tab === 'inactive'
                   ? 'Нет пользователей без доступа'
                   : 'В реестре пока никого нет.'}
             </div>
           ) : (
             <div className="staff-registry-body ll-scroll">
-              {sorted.map((m, i) => (
+              {sorted.map((m, i) => {
+                const rowSphere = memberSphere(m)
+                return (
                 <div key={m.vk_id} className="staff-registry-row leaders-registry-row">
                   <div className="staff-col-num">{i + 1}</div>
                   <div className="staff-col-nick">
@@ -234,8 +286,14 @@ export function OfficeRegistryPage({
                     <span className="staff-badges">{badge}</span>
                   </div>
                   <div className="staff-col-position staff-col-readonly">{m.position || '—'}</div>
+                  {sphereFilter ? (
+                    <div className="staff-col-sphere staff-col-readonly">
+                      {rowSphere ? formatSpheresDisplay([rowSphere]) : '—'}
+                    </div>
+                  ) : null}
                 </div>
-              ))}
+              )
+              })}
             </div>
           )}
         </div>

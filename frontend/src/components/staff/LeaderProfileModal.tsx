@@ -8,7 +8,7 @@ import {
   parseForumMemberUrl,
 } from '../../lib/forumAccount'
 import { JUDGE_POSITIONS } from '../../lib/judgePositions'
-import { LEADER_POSITIONS } from '../../lib/leaderPositions'
+import { LEADER_POSITIONS, normalizeLeaderPosition } from '../../lib/leaderPositions'
 import {
   cleanLeadershipName,
   extractLeadershipOrgTag,
@@ -77,7 +77,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     setOrgTag(judge ? '' : extractLeadershipOrgTag(rawNick))
     setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
-    setPosition(member.position ?? '')
+    setPosition(normalizeLeaderPosition(member.position))
     setNote(member.note ?? '')
     setDiscordId(member.discord_id ?? '')
     setError(null)

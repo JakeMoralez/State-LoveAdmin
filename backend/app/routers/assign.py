@@ -51,7 +51,7 @@ def require_assign_user(user: dict = Depends(require_ca_user)) -> dict:
 def _role_types_for_level(level: int) -> list[dict]:
     types = [
         {"id": "leader", "label": "Лидер"},
-        {"id": "deputy", "label": "Зам"},
+        {"id": "deputy", "label": "Заместитель"},
         {"id": "minister", "label": "Министр"},
         {"id": "advisor", "label": "Советник"},
         {"id": "judge", "label": "Судья"},
@@ -339,7 +339,7 @@ async def post_assign(
         "judge": "судьёй",
         "congress": "в конгресс",
         "leader": "лидером",
-        "deputy": "замом",
+        "deputy": "заместителем",
         "minister": "министром",
         "advisor": "советником",
     }.get(body.role_type, "в штат")

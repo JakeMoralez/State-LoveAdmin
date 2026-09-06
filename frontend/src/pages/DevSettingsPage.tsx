@@ -16,7 +16,14 @@ import { PageHeader } from '../components/PageHeader'
 import { Alert } from '../components/ui/Alert'
 import { Select } from '../components/ui/Select'
 import { useAuth } from '../context/AuthContext'
+import { DEFAULT_TAG_SPHERES } from '../lib/leaderNickname'
+import { SPHERE_OPTIONS } from '../lib/spheres'
 import { cn } from '../lib/utils'
+
+const SPHERE_SELECT_OPTIONS = SPHERE_OPTIONS.filter((s) => s.value !== 'server').map((s) => ({
+  value: s.value,
+  label: s.label,
+}))
 
 type SettingsTab = 'chats' | 'catalog' | 'system'
 
@@ -225,19 +232,134 @@ function StringListEditor({
   )
 }
 
+function FactionListEditor({
+  title,
+  hint,
+  values,
+  tagSpheres,
+  onChange,
+  placeholder,
+}: {
+  title: string
+  hint?: string
+  values: string[]
+  tagSpheres: Record<string, string>
+  onChange: (next: { values: string[]; tagSpheres: Record<string, string> }) => void
+  placeholder: string
+}) {
+  const [draft, setDraft] = useState('')
+  const setTag = (index: number, nextValue: string) => {
+    const prev = values[index]
+    const nextValues = [...values]
+    nextValues[index] = nextValue
+    const nextSpheres = { ...tagSpheres }
+    const sphere = nextSpheres[prev] ?? DEFAULT_TAG_SPHERES[nextValue] ?? ''
+    if (prev && prev !== nextValue) delete nextSpheres[prev]
+    if (nextValue.trim()) nextSpheres[nextValue.trim()] = sphere || 'gov_structures'
+    onChange({ values: nextValues, tagSpheres: nextSpheres })
+  }
+  const setSphere = (tag: string, sphere: string) => {
+    onChange({ values, tagSpheres: { ...tagSpheres, [tag]: sphere } })
+  }
+  return (
+    <section className="dev-settings-block glass-card">
+      <h3 className="dev-settings-block-title">{title}</h3>
+      {hint ? <p className="dev-settings-hint">{hint}</p> : null}
+      <ul className="dev-settings-list dev-settings-list--sphere">
+        {values.map((item, index) => (
+          <li key={`${item}-${index}`}>
+            <input
+              className="control"
+              value={item}
+              onChange={(e) => setTag(index, e.target.value)}
+            />
+            <Select
+              value={tagSpheres[item] ?? DEFAULT_TAG_SPHERES[item] ?? ''}
+              onChange={(sphere) => setSphere(item, sphere)}
+              options={SPHERE_SELECT_OPTIONS}
+              placeholder="Сфера"
+            />
+            <button
+              type="button"
+              className="btn-icon"
+              aria-label="Удалить"
+              onClick={() => {
+                const nextSpheres = { ...tagSpheres }
+                delete nextSpheres[item]
+                onChange({
+                  values: values.filter((_, i) => i !== index),
+                  tagSpheres: nextSpheres,
+                })
+              }}
+            >
+              <Trash2 size={15} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="dev-settings-add">
+        <input
+          className="control w-full"
+          value={draft}
+          placeholder={placeholder}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return
+            e.preventDefault()
+            const value = draft.trim()
+            if (!value) return
+            onChange({
+              values: [...values, value],
+              tagSpheres: {
+                ...tagSpheres,
+                [value]: DEFAULT_TAG_SPHERES[value] ?? 'gov_structures',
+              },
+            })
+            setDraft('')
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => {
+            const value = draft.trim()
+            if (!value) return
+            onChange({
+              values: [...values, value],
+              tagSpheres: {
+                ...tagSpheres,
+                [value]: DEFAULT_TAG_SPHERES[value] ?? 'gov_structures',
+              },
+            })
+            setDraft('')
+          }}
+        >
+          <Plus size={15} />
+          Добавить
+        </button>
+      </div>
+    </section>
+  )
+}
+
 function TagListEditor({
   title,
   items,
+  tagSpheres,
   onChange,
 }: {
   title: string
   items: { value: string; label: string }[]
-  onChange: (next: { value: string; label: string }[]) => void
+  tagSpheres: Record<string, string>
+  onChange: (next: {
+    items: { value: string; label: string }[]
+    tagSpheres: Record<string, string>
+  }) => void
 }) {
   return (
     <section className="dev-settings-block glass-card">
       <h3 className="dev-settings-block-title">{title}</h3>
-      <ul className="dev-settings-list dev-settings-list--pair">
+      <ul className="dev-settings-list dev-settings-list--triple">
         {items.map((item, index) => (
           <li key={`${item.value}-${index}`}>
             <input
@@ -246,8 +368,14 @@ function TagListEditor({
               placeholder="Тег"
               onChange={(e) => {
                 const next = [...items]
-                next[index] = { ...item, value: e.target.value }
-                onChange(next)
+                const prev = item.value
+                const value = e.target.value
+                next[index] = { ...item, value }
+                const nextSpheres = { ...tagSpheres }
+                const sphere = nextSpheres[prev] ?? DEFAULT_TAG_SPHERES[value] ?? ''
+                if (prev && prev !== value) delete nextSpheres[prev]
+                if (value.trim()) nextSpheres[value.trim()] = sphere || 'central_apparatus'
+                onChange({ items: next, tagSpheres: nextSpheres })
               }}
             />
             <input
@@ -257,14 +385,32 @@ function TagListEditor({
               onChange={(e) => {
                 const next = [...items]
                 next[index] = { ...item, label: e.target.value }
-                onChange(next)
+                onChange({ items: next, tagSpheres })
               }}
+            />
+            <Select
+              value={tagSpheres[item.value] ?? DEFAULT_TAG_SPHERES[item.value] ?? ''}
+              onChange={(sphere) =>
+                onChange({
+                  items,
+                  tagSpheres: { ...tagSpheres, [item.value]: sphere },
+                })
+              }
+              options={SPHERE_SELECT_OPTIONS}
+              placeholder="Сфера"
             />
             <button
               type="button"
               className="btn-icon"
               aria-label="Удалить"
-              onClick={() => onChange(items.filter((_, i) => i !== index))}
+              onClick={() => {
+                const nextSpheres = { ...tagSpheres }
+                delete nextSpheres[item.value]
+                onChange({
+                  items: items.filter((_, i) => i !== index),
+                  tagSpheres: nextSpheres,
+                })
+              }}
             >
               <Trash2 size={15} />
             </button>
@@ -274,7 +420,7 @@ function TagListEditor({
       <button
         type="button"
         className="btn btn-secondary btn-sm"
-        onClick={() => onChange([...items, { value: '', label: '' }])}
+        onClick={() => onChange({ items: [...items, { value: '', label: '' }], tagSpheres })}
       >
         <Plus size={15} />
         Добавить
@@ -307,7 +453,14 @@ export function DevSettingsPage() {
     setError(null)
     try {
       const [catalogData, systemData] = await Promise.all([api.devCatalog(), api.devSystem()])
-      setCatalog(catalogData)
+      setCatalog({
+        ...catalogData,
+        tag_spheres: Object.fromEntries(
+          Object.entries({ ...DEFAULT_TAG_SPHERES, ...(catalogData.tag_spheres ?? {}) }).map(
+            ([tag, sphere]) => [tag, sphere === 'server' ? 'gov_structures' : sphere],
+          ),
+        ),
+      })
       setSystem(systemData)
       try {
         await loadChats()
@@ -428,22 +581,31 @@ export function DevSettingsPage() {
           <Alert>
             Новая фракция здесь появится в «Назначить». В /snick бота её нужно добавить отдельно.
           </Alert>
-          <StringListEditor
+          <FactionListEditor
             title="Фракции"
-            hint="Теги в нике лидера и зама: [LSPD] [10] Kyo_Parker"
+            hint="Тег в нике закрепляется за сферой. От этого зависит фильтр на странице «Руководители»."
             values={catalog.factions}
-            onChange={(factions) => setCatalog({ ...catalog, factions })}
+            tagSpheres={catalog.tag_spheres ?? {}}
+            onChange={({ values, tagSpheres }) =>
+              setCatalog({ ...catalog, factions: values, tag_spheres: tagSpheres })
+            }
             placeholder="LSPD"
           />
           <TagListEditor
             title="Министры"
             items={catalog.ministers}
-            onChange={(ministers) => setCatalog({ ...catalog, ministers })}
+            tagSpheres={catalog.tag_spheres ?? {}}
+            onChange={({ items, tagSpheres }) =>
+              setCatalog({ ...catalog, ministers: items, tag_spheres: tagSpheres })
+            }
           />
           <TagListEditor
             title="Советники"
             items={catalog.advisors}
-            onChange={(advisors) => setCatalog({ ...catalog, advisors })}
+            tagSpheres={catalog.tag_spheres ?? {}}
+            onChange={({ items, tagSpheres }) =>
+              setCatalog({ ...catalog, advisors: items, tag_spheres: tagSpheres })
+            }
           />
           <StringListEditor
             title="Должности судей"

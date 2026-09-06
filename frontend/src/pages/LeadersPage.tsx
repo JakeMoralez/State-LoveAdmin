@@ -12,6 +12,7 @@ export function LeadersPage() {
       assignType="leader"
       list={api.leaders}
       loadOne={api.leaderMember}
+      sphereFilter
     />
   )
 }

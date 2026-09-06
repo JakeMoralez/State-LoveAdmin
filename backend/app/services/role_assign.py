@@ -20,7 +20,7 @@ LeadershipRole = Literal["leader", "deputy", "minister", "advisor"]
 
 LEADERSHIP_POSITIONS: dict[LeadershipRole, str] = {
     "leader": "Лидер",
-    "deputy": "Зам",
+    "deputy": "Заместитель",
     "minister": "Министр",
     "advisor": "Советник",
 }
@@ -260,7 +260,7 @@ async def assign_leadership(
     granted_at: datetime | None = None,
 ) -> dict:
     if role_type not in LEADERSHIP_POSITIONS:
-        raise ValueError("Укажите должность: Лидер, Зам, Министр или Советник.")
+        raise ValueError("Укажите должность: Лидер, Заместитель, Министр или Советник.")
     from app.services.dev_catalog import get_org_tag_lists
 
     position = LEADERSHIP_POSITIONS[role_type]  # type: ignore[index]

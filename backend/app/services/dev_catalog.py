@@ -6,6 +6,7 @@ from copy import deepcopy
 
 from app.models.panel import PanelCatalog
 from app.services.leader_nickname import ADVISOR_TAGS, FACTION_TAGS, MINISTER_TAGS
+from app.services.leader_spheres import DEFAULT_TAG_SPHERES, clean_tag_spheres
 from app.services.role_assign import JUDGE_POSITIONS
 
 DEFAULT_MINISTER_ITEMS: list[dict[str, str]] = [
@@ -29,6 +30,7 @@ def default_catalog() -> dict:
         "ministers": deepcopy(DEFAULT_MINISTER_ITEMS),
         "advisors": deepcopy(DEFAULT_ADVISOR_ITEMS),
         "judge_positions": list(JUDGE_POSITIONS),
+        "tag_spheres": dict(DEFAULT_TAG_SPHERES),
     }
 
 
@@ -87,12 +89,25 @@ def normalize_catalog(raw: object | None) -> dict:
             factions = list(defaults["factions"])
     else:
         factions = _clean_strings(factions_raw, fallback=defaults["factions"])
+    ministers = _clean_items(data.get("ministers") or data.get("minister_tags"), fallback=defaults["ministers"])
+    advisors = _clean_items(data.get("advisors") or data.get("advisor_tags"), fallback=defaults["advisors"])
+    known_tags = [
+        *factions,
+        *(item["value"] for item in ministers),
+        *(item["value"] for item in advisors),
+    ]
     return {
         "factions": factions,
-        "ministers": _clean_items(data.get("ministers") or data.get("minister_tags"), fallback=defaults["ministers"]),
-        "advisors": _clean_items(data.get("advisors") or data.get("advisor_tags"), fallback=defaults["advisors"]),
+        "ministers": ministers,
+        "advisors": advisors,
         "judge_positions": _clean_strings(data.get("judge_positions"), fallback=defaults["judge_positions"]),
+        "tag_spheres": clean_tag_spheres(data.get("tag_spheres"), known_tags=known_tags),
     }
+
+
+async def get_tag_spheres() -> dict[str, str]:
+    catalog = await get_catalog()
+    return catalog.get("tag_spheres") or dict(DEFAULT_TAG_SPHERES)
 
 
 async def get_catalog() -> dict:

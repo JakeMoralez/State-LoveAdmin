@@ -627,6 +627,7 @@ export interface LeaderMember {
   position?: string | null
   note?: string | null
   faction?: string | null
+  sphere?: string | null
   is_leader_flag?: boolean
   is_judge?: boolean
   discord_id?: string | null
@@ -1052,6 +1053,7 @@ export interface DevCatalog {
   ministers: CatalogTagItem[]
   advisors: CatalogTagItem[]
   judge_positions: string[]
+  tag_spheres: Record<string, string>
 }
 
 export interface DevSystemInfo {

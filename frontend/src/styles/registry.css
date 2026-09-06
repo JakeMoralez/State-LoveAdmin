@@ -71,6 +71,11 @@
   grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr);
 }
 
+.leaders-registry--spheres .leaders-registry-head,
+.leaders-registry--spheres .leaders-registry-row {
+  grid-template-columns: 3rem minmax(16rem, 1.4fr) minmax(10rem, 0.85fr) minmax(12rem, 1fr);
+}
+
 .dev-leadership-head,
 .dev-leadership-row {
   grid-template-columns: 3rem minmax(0, 1fr) 8rem;

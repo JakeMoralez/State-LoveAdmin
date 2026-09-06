@@ -12,6 +12,7 @@ from app.models.panel import StaffNote
 from app.services.access import get_access_level
 from app.services.bot_users import ensure_bot_user, ensure_server_access
 from app.services.display_names import invalidate_display_names, resolve_bot_nickname
+from app.services.leader_spheres import resolve_leadership_sphere
 from app.services.staff_nickname import (
     extract_leading_nickname_tag,
     format_staff_nickname,
@@ -353,6 +354,16 @@ def _in_leadership_registry(access: UserServerAccess | None) -> bool:
     return bool(access and (access.is_leader or access.is_judge))
 
 
+def normalize_leader_position(position: str | None) -> str | None:
+    """Старое «Зам» → «Заместитель»; пустое остаётся пустым."""
+    cleaned = (position or "").strip()
+    if not cleaned:
+        return None
+    if cleaned in {"Зам", "Зам."}:
+        return "Заместитель"
+    return cleaned
+
+
 def leader_registry_fields(
     staff_note: StaffNote | None,
     user_note: str,
@@ -373,7 +384,16 @@ def leader_registry_fields(
     if not position and legacy_note:
         position = legacy_note
 
-    return position, note
+    return normalize_leader_position(position), note
+
+
+async def require_office_member(server_id: int, vk_id: int) -> UserServerAccess:
+    """В списке руководства (беседа / флаг / должность) — карточку можно править."""
+    row = await get_ca_leader(server_id, vk_id)
+    if not row:
+        raise ValueError("Пользователь не в реестре руководства")
+    access, _ = await ensure_server_access(vk_id, server_id)
+    return access
 
 
 async def get_leadership_peer_id(server_id: int) -> int | None:
@@ -418,6 +438,7 @@ async def _build_office_row(
     *,
     in_chat: bool,
     notes: dict[tuple[int, int], StaffNote],
+    sphere_map: dict[str, str] | None = None,
 ) -> dict | None:
     user = await User.get_or_none(vk_id=vk_id)
     access = await UserServerAccess.get_or_none(
@@ -441,6 +462,7 @@ async def _build_office_row(
     position, note = leader_registry_fields(panel, user_note)
     bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
     nick_fields = _leader_nick_fields(bot_nickname, vk_id)
+    nick = nick_fields["bot_nickname"] or nick_fields["nickname"]
     return {
         "vk_id": vk_id,
         "bot_nickname": nick_fields["bot_nickname"],
@@ -450,6 +472,7 @@ async def _build_office_row(
         "position": position,
         "note": note,
         "faction": position,
+        "sphere": resolve_leadership_sphere(nick, sphere_map),
         "is_leader_flag": bool(access and access.is_leader),
         "is_judge": bool(access and access.is_judge),
         "in_chat": in_chat,
@@ -458,15 +481,20 @@ async def _build_office_row(
 
 
 async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
+    from app.services.dev_catalog import get_tag_spheres
+
     notes = {
         (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
+    sphere_map = await get_tag_spheres()
     peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
     member_ids, warning = await collect_peer_members(peers)
     result: list[dict] = []
     for vk_id in member_ids:
-        row = await _build_office_row(server_id, vk_id, in_chat=True, notes=notes)
+        row = await _build_office_row(
+            server_id, vk_id, in_chat=True, notes=notes, sphere_map=sphere_map
+        )
         if row:
             result.append(row)
     result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
@@ -474,10 +502,13 @@ async def list_ca_leaders(server_id: int) -> tuple[list[dict], str | None]:
 
 
 async def list_inactive_leaders(server_id: int) -> tuple[list[dict], str | None]:
+    from app.services.dev_catalog import get_tag_spheres
+
     notes = {
         (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
+    sphere_map = await get_tag_spheres()
     peers = await list_role_kind_peers(server_id, LEADER_ROLE, LEADER_CHAT_KIND)
     member_ids, warning = await collect_peer_members(peers)
 
@@ -492,7 +523,9 @@ async def list_inactive_leaders(server_id: int) -> tuple[list[dict], str | None]
     for vk_id in candidates:
         if vk_id in member_ids:
             continue
-        row = await _build_office_row(server_id, vk_id, in_chat=False, notes=notes)
+        row = await _build_office_row(
+            server_id, vk_id, in_chat=False, notes=notes, sphere_map=sphere_map
+        )
         if row:
             result.append(row)
     result.sort(key=lambda r: (r["display_name"] or str(r["vk_id"])).lower())
@@ -551,7 +584,15 @@ async def get_ca_leader(server_id: int, vk_id: int) -> dict | None:
     if not in_chat and not flagged and not (access and access.is_judge):
         return None
     notes = {(note.vk_id, note.server_id): note} if note else {}
-    return await _build_office_row(server_id, vk_id, in_chat=in_chat, notes=notes)
+    from app.services.dev_catalog import get_tag_spheres
+
+    return await _build_office_row(
+        server_id,
+        vk_id,
+        in_chat=in_chat,
+        notes=notes,
+        sphere_map=await get_tag_spheres(),
+    )
 
 
 async def get_judge_member(server_id: int, vk_id: int) -> dict | None:
@@ -695,16 +736,12 @@ async def clear_member_nickname(server_id: int, vk_id: int) -> None:
 
 
 async def clear_ca_leader_nickname(server_id: int, vk_id: int) -> None:
-    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if not access or not _in_leadership_registry(access):
-        raise ValueError("Пользователь не в реестре руководства")
+    await require_office_member(server_id, vk_id)
     await clear_member_nickname(server_id, vk_id)
 
 
 async def update_leader_nickname(server_id: int, vk_id: int, *, nickname: str) -> None:
-    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if not access or not _in_leadership_registry(access):
-        raise ValueError("Пользователь не в реестре руководства")
+    await require_office_member(server_id, vk_id)
     nick = (nickname or "").strip()
     if not nick:
         raise ValueError("Укажите никнейм")
@@ -720,8 +757,8 @@ async def revoke_ca_leader_full(
     *,
     updated_by: int | None = None,
 ) -> None:
-    if not await remove_ca_leader(server_id, vk_id):
-        raise ValueError("Пользователь не в реестре руководства")
+    await require_office_member(server_id, vk_id)
+    await remove_ca_leader(server_id, vk_id)
 
     note_row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
     if note_row:
@@ -754,9 +791,7 @@ async def update_ca_leader_meta(
     note: str | None = None,
     updated_by: int | None = None,
 ) -> None:
-    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    if not access or not _in_leadership_registry(access):
-        raise ValueError("Пользователь не является лидером")
+    access = await require_office_member(server_id, vk_id)
 
     note_row, _ = await StaffNote.get_or_create(
         vk_id=vk_id,
@@ -764,14 +799,16 @@ async def update_ca_leader_meta(
         defaults={},
     )
     if position is not None:
-        note_row.leader_position = position.strip()
+        note_row.leader_position = normalize_leader_position(position.strip()) or ""
     if note is not None:
         note_row.leader_note = note.strip()
     note_row.updated_by = updated_by
     await note_row.save()
 
     if position is not None and access.is_judge:
-        await _sync_judge_position_to_bot(vk_id, server_id, position.strip())
+        await _sync_judge_position_to_bot(
+            vk_id, server_id, normalize_leader_position(position.strip()) or ""
+        )
 
 
 async def list_leadership_candidates(server_id: int) -> list[dict]:
