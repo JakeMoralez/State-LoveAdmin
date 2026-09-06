@@ -317,7 +317,7 @@ export function AssignPage() {
         shrink
         subtitle={
           restoreLocked
-            ? 'Повторное назначение: заполните только то, чего не хватает'
+            ? 'Повторное назначение: подставленные данные можно изменить'
             : 'Новый человек в реестре следящих, судей или конгресса'
         }
       />
@@ -356,7 +356,7 @@ export function AssignPage() {
                   className={cn('control w-full', nickOk && nickname.trim() && 'assign-control--valid')}
                   value={nickname}
                   placeholder="Имя Фамилия"
-                  disabled={saving || restoreLocked}
+                  disabled={saving}
                   onChange={(e) => setNickname(e.target.value)}
                 />
               </div>
@@ -395,7 +395,7 @@ export function AssignPage() {
                   className={cn('control w-full', fieldState(vkTouched, vkOk))}
                   value={vkInput}
                   placeholder="604562391"
-                  disabled={saving || restoreLocked}
+                  disabled={saving}
                   onChange={(e) => setVkInput(e.target.value)}
                   onBlur={() => setVkTouched(true)}
                 />
@@ -420,7 +420,7 @@ export function AssignPage() {
                   className={cn('control w-full', fieldState(discordTouched, discordOk))}
                   value={discordId}
                   placeholder="18–20 цифр"
-                  disabled={saving || (restoreLocked && Boolean(discordId))}
+                  disabled={saving}
                   onChange={(e) => setDiscordId(e.target.value)}
                   onBlur={() => setDiscordTouched(true)}
                 />
@@ -432,7 +432,7 @@ export function AssignPage() {
                   value={forumAccount}
                   onChange={setForumAccount}
                   onBlur={() => setForumTouched(true)}
-                  disabled={saving || (restoreLocked && forumValidation.ok)}
+                  disabled={saving}
                   error={forumError}
                   placeholder="ID или ссылка на профиль"
                   labelClassName="assign-label"
