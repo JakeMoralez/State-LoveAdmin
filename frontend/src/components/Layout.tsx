@@ -7,7 +7,6 @@ import {
   FolderKanban,
   Gavel,
   Gift,
-  Scale,
   Shield,
   History,
   KeyRound,
@@ -58,7 +57,6 @@ const navCategories: NavCategory[] = [
     items: [
       { to: '/leaders', label: 'Руководители', icon: Shield },
       { to: '/staff', label: 'Следящие', icon: Users },
-      { to: '/judges', label: 'Судьи', icon: Scale },
       { to: '/assign', label: 'Назначить', icon: UserPlus, minAccessLevel: 2 },
       { to: '/activity', label: 'Журнал', icon: History, minAccessLevel: 2 },
     ],

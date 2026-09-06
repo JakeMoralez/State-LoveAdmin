@@ -6,6 +6,17 @@ import re
 
 from app.services.staff_nickname import extract_leading_nickname_tag, strip_nickname_tags
 
+_TAG_CHUNK_RE = re.compile(r"^[\[［]([^］\]]+)[\]］]\s*")
+_RANK_TAGS = frozenset({"9", "10"})
+_CONGRESS_ROLES = frozenset({"speaker", "vice-speaker", "congressman", "judge"})
+_GENERIC_ADVISOR = frozenset({"advisor", "adv"})
+INFERRED_POSITIONS = {
+    "leader": "Лидер",
+    "deputy": "Заместитель",
+    "minister": "Министр",
+    "advisor": "Советник",
+}
+
 FACTION_TAGS: tuple[str, ...] = (
     "GOV",
     "LC",
@@ -146,3 +157,136 @@ def format_leadership_nickname(
 def extract_org_tag(raw: str | None) -> str:
     tag = extract_leading_nickname_tag(raw)
     return tag or ""
+
+
+def iter_nickname_tags(raw: str | None) -> tuple[list[str], str]:
+    rest = (raw or "").strip()
+    tags: list[str] = []
+    while True:
+        match = _TAG_CHUNK_RE.match(rest)
+        if not match:
+            break
+        tags.append(match.group(1).strip())
+        rest = rest[match.end() :].lstrip()
+    return tags, rest.strip()
+
+
+def infer_leadership_from_nickname(nickname: str | None) -> dict[str, str | None]:
+    """Должность и тег из формата /snick: [LSPD] [10] Name, [Pr.Min] Name, [Зам.ЛСПД] Name."""
+    empty = {"position": None, "org_tag": None, "role_type": None}
+    tags, _name = iter_nickname_tags(nickname)
+    if not tags:
+        return empty
+
+    from app.services.leader_spheres import canon_org_tag
+
+    first = tags[0]
+    first_fold = first.casefold()
+    role_part = first.split("|", 1)[0].strip().casefold()
+    if role_part == "judge":
+        return {"position": None, "org_tag": "Judge", "role_type": None}
+    if role_part == "speaker":
+        return {"position": "Спикер конгресса", "org_tag": "Speaker", "role_type": None}
+    if role_part == "vice-speaker":
+        return {"position": "Вице-спикер конгресса", "org_tag": "Vice-Speaker", "role_type": None}
+    if role_part == "congressman":
+        org = canon_org_tag(first) or None
+        return {"position": None, "org_tag": org, "role_type": None}
+
+    advisor = _canon(first, _ADVISOR_BY_FOLD)
+    if advisor or first_fold in _GENERIC_ADVISOR:
+        return {
+            "position": INFERRED_POSITIONS["advisor"],
+            "org_tag": advisor,
+            "role_type": "advisor",
+        }
+
+    minister = _canon(first, _MINISTER_BY_FOLD)
+    if minister:
+        return {
+            "position": INFERRED_POSITIONS["minister"],
+            "org_tag": minister,
+            "role_type": "minister",
+        }
+
+    rank = tags[1] if len(tags) >= 2 and tags[1] in _RANK_TAGS else None
+    faction = _canon(first, _FACTION_BY_FOLD)
+    if first in _RANK_TAGS and len(tags) >= 2:
+        rank = first
+        faction = _canon(tags[1], _FACTION_BY_FOLD)
+
+    if not faction:
+        from app.services.leader_spheres import _POS_PREFIX_RE
+
+        prefix = _POS_PREFIX_RE.match(first)
+        org = canon_org_tag(first) or None
+        if prefix and org:
+            head = prefix.group(0).casefold()
+            role = "deputy" if head.startswith("зам") else "leader"
+            return {
+                "position": INFERRED_POSITIONS[role],
+                "org_tag": org,
+                "role_type": role,
+            }
+        return {"position": None, "org_tag": org, "role_type": None}
+
+    if rank == "10":
+        return {
+            "position": INFERRED_POSITIONS["leader"],
+            "org_tag": faction,
+            "role_type": "leader",
+        }
+    if rank == "9":
+        return {
+            "position": INFERRED_POSITIONS["deputy"],
+            "org_tag": faction,
+            "role_type": "deputy",
+        }
+    return {"position": None, "org_tag": faction, "role_type": None}
+
+
+def canonicalize_leadership_nickname(nickname: str | None) -> str | None:
+    """Пробелы и канон тега, как в /snick: [LSPD] [10] Name_Surname. Старые [Зам.ЛСПД] не трогаем."""
+    raw = (nickname or "").strip()
+    if not raw:
+        return None
+    inferred = infer_leadership_from_nickname(raw)
+    tags, name = iter_nickname_tags(raw)
+    name = strip_nickname_tags(name) or name
+    if not tags or not name:
+        return None
+
+    first = tags[0]
+    if first.split("|", 1)[0].strip().casefold() == "judge":
+        try:
+            clean = validate_rp_name(name)
+        except ValueError:
+            clean = name.strip()
+        if not clean:
+            return None
+        canon = f"[Judge] {clean}"
+        return None if canon == raw else canon
+
+    from app.services.leader_spheres import _POS_PREFIX_RE
+
+    if _POS_PREFIX_RE.match(first) and not _canon(first, _FACTION_BY_FOLD):
+        canon = f"[{first}] {name}"
+        return None if canon == raw else canon
+
+    role = inferred.get("role_type")
+    org = inferred.get("org_tag")
+    if not role:
+        return None
+    try:
+        if role in ROLE_RANKS:
+            if not org:
+                return None
+            canon = format_leadership_nickname(role, name, org)
+        elif org:
+            canon = format_leadership_nickname(role, name, org)
+        else:
+            validate_rp_name(name)
+            canon = f"[{first}] {name}"
+    except ValueError:
+        return None
+    return None if canon == raw else canon

@@ -1,5 +1,5 @@
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
@@ -28,9 +28,12 @@ import { StaffPage } from './pages/StaffPage'
 import { StaffMemberPage } from './pages/StaffMemberPage'
 import { LeadersPage } from './pages/LeadersPage'
 import { LeaderMemberPage } from './pages/LeaderMemberPage'
-import { JudgesPage } from './pages/JudgesPage'
-import { JudgeMemberPage } from './pages/JudgeMemberPage'
 import { TasksPage } from './pages/TasksPage'
+
+function RedirectJudgeToLeader() {
+  const { vkId } = useParams()
+  return <Navigate to={vkId ? `/leaders/${vkId}` : '/leaders'} replace />
+}
 
 function AppRoutes() {
   return (
@@ -46,8 +49,8 @@ function AppRoutes() {
           <Route path="/staff/:vkId" element={<StaffMemberPage />} />
           <Route path="/leaders" element={<LeadersPage />} />
           <Route path="/leaders/:vkId" element={<LeaderMemberPage />} />
-          <Route path="/judges" element={<JudgesPage />} />
-          <Route path="/judges/:vkId" element={<JudgeMemberPage />} />
+          <Route path="/judges" element={<Navigate to="/leaders" replace />} />
+          <Route path="/judges/:vkId" element={<RedirectJudgeToLeader />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TasksPage />} />
           <Route path="/checklist" element={<ChecklistPage />} />

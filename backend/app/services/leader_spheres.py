@@ -31,6 +31,9 @@ DEFAULT_TAG_SPHERES: dict[str, str] = {
     "Ad.Min.Just": "justice",
     "Ad.Min.Nat.Sec": "defense",
     "Ad.Min.Soc": "central_apparatus",
+    "Judge": "central_apparatus",
+    "Speaker": "central_apparatus",
+    "Vice-Speaker": "central_apparatus",
 }
 
 # Кириллица и старые написания → канонический тег из справочника.
@@ -62,10 +65,26 @@ TAG_ALIASES: dict[str, str] = {
     "сффд": "SFFD",
     "cnn": "CNN LS",
     "cnn ls": "CNN LS",
+    "judge": "Judge",
+    "судья": "Judge",
+    "speaker": "Speaker",
+    "спикер": "Speaker",
+    "vice-speaker": "Vice-Speaker",
+    "vice speaker": "Vice-Speaker",
+    "вице-спикер": "Vice-Speaker",
 }
 
 _POS_PREFIX_RE = re.compile(r"^(?:заместитель|зам|лидер)[.\s]*", re.IGNORECASE)
 _RANK_TAG_RE = re.compile(r"^(?:9|10)$")
+_CA_OFFICE_ROLES = frozenset({"judge", "speaker", "vice-speaker"})
+
+
+def is_central_apparatus_office_tag(raw: str | None) -> bool:
+    text = " ".join((raw or "").split())
+    if not text:
+        return False
+    role = text.split("|", 1)[0].strip().casefold()
+    return role in _CA_OFFICE_ROLES
 
 
 def canon_org_tag(raw: str | None) -> str:
@@ -87,10 +106,12 @@ def resolve_leadership_sphere(
     raw = extract_org_tag(nickname)
     if not raw or _RANK_TAG_RE.match(raw.strip()):
         return None
+    if is_central_apparatus_office_tag(raw):
+        return "central_apparatus"
     tag = canon_org_tag(raw)
     if not tag:
         return None
-    mapping = tag_spheres or DEFAULT_TAG_SPHERES
+    mapping = {**DEFAULT_TAG_SPHERES, **(tag_spheres or {})}
     folded = {key.casefold(): value for key, value in mapping.items()}
     sphere = folded.get(tag.casefold())
     if sphere == "server":

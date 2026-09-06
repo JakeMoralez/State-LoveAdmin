@@ -13,6 +13,7 @@ import {
   cleanLeadershipName,
   extractLeadershipOrgTag,
   formatLeadershipNickname,
+  inferLeadershipFromNickname,
   leadershipRoleFromPosition,
   looksLikeRpName,
   orgFieldLabel,
@@ -73,11 +74,12 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     if (!member) return
     const judge = member.is_judge === true || (member.badges ?? []).includes('⚖')
     const rawNick = memberNickname(member)
+    const inferred = inferLeadershipFromNickname(rawNick)
     setNickname(judge ? rawNick : cleanLeadershipName(rawNick))
-    setOrgTag(judge ? '' : extractLeadershipOrgTag(rawNick))
+    setOrgTag(judge ? '' : member.org_tag || inferred.orgTag || extractLeadershipOrgTag(rawNick))
     setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
-    setPosition(normalizeLeaderPosition(member.position))
+    setPosition(normalizeLeaderPosition(member.position) || inferred.position || '')
     setNote(member.note ?? '')
     setDiscordId(member.discord_id ?? '')
     setError(null)

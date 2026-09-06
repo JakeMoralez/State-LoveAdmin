@@ -9,12 +9,30 @@ import { Select } from '../ui/Select'
 import { LeaderProfileModal } from './LeaderProfileModal'
 import { useAuth } from '../../context/AuthContext'
 import { canOpenLeaderSettings } from '../../lib/accessLevels'
-import { resolveLeadershipSphere } from '../../lib/leaderNickname'
+import { inferLeadershipFromNickname, resolveLeadershipSphere } from '../../lib/leaderNickname'
 import { SPHERE_OPTIONS, formatSpheresDisplay } from '../../lib/spheres'
 import { staffLabel } from '../../lib/staff'
 
 function memberSphere(m: LeaderMember): string | null {
-  return m.sphere ?? resolveLeadershipSphere(m.bot_nickname || m.nickname)
+  const nick = m.bot_nickname || m.nickname
+  const org = inferLeadershipFromNickname(nick).orgTag?.toLowerCase()
+  if (
+    m.is_judge ||
+    org === 'judge' ||
+    org === 'speaker' ||
+    org === 'vice-speaker'
+  ) {
+    return 'central_apparatus'
+  }
+  return m.sphere ?? resolveLeadershipSphere(nick)
+}
+
+function memberPosition(m: LeaderMember): string {
+  return (
+    m.position?.trim() ||
+    inferLeadershipFromNickname(m.bot_nickname || m.nickname).position ||
+    ''
+  )
 }
 
 type OfficeTab = 'active' | 'inactive'
@@ -109,7 +127,7 @@ export function OfficeRegistryPage({
           'ru',
         ) * dir
       }
-      return (a.position || '—').localeCompare(b.position || '—', 'ru') * dir
+      return (memberPosition(a) || '—').localeCompare(memberPosition(b) || '—', 'ru') * dir
     })
     return rows
   }, [members, sortKey, sortDir, sphere, sphereFilter])
@@ -285,7 +303,7 @@ export function OfficeRegistryPage({
                     )}
                     <span className="staff-badges">{badge}</span>
                   </div>
-                  <div className="staff-col-position staff-col-readonly">{m.position || '—'}</div>
+                  <div className="staff-col-position staff-col-readonly">{memberPosition(m) || '—'}</div>
                   {sphereFilter ? (
                     <div className="staff-col-sphere staff-col-readonly">
                       {rowSphere ? formatSpheresDisplay([rowSphere]) : '—'}

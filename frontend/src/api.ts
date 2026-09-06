@@ -627,6 +627,7 @@ export interface LeaderMember {
   position?: string | null
   note?: string | null
   faction?: string | null
+  org_tag?: string | null
   sphere?: string | null
   is_leader_flag?: boolean
   is_judge?: boolean
