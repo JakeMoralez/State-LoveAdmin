@@ -30,6 +30,7 @@ from app.config import (
 )
 from app.routers.uploads import regenerate_all_gallery_pages
 from app.routers import (
+    academy,
     activity,
     assign,
     auth,
@@ -75,6 +76,9 @@ async def lifespan(app: FastAPI):
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     await ensure_defaults()
+    from app.services.academy import ensure_academy_templates
+
+    await ensure_academy_templates()
     await migrate_legacy_task_statuses()
     galleries = regenerate_all_gallery_pages()
     staff_rows = await list_staff(DEFAULT_SERVER_ID)
@@ -167,6 +171,7 @@ app.include_router(checklist.router)
 app.include_router(question_banks.router)
 app.include_router(forum_judge_list.router)
 app.include_router(assign.router)
+app.include_router(academy.router)
 app.include_router(activity.router)
 app.include_router(dev.router)
 app.include_router(cases.router)

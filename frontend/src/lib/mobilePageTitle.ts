@@ -4,6 +4,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/staff': 'Следящие',
   '/leaders': 'Руководители',
   '/tasks': 'Задачи',
+  '/academy': 'Академия',
   '/checklist': 'Чеклист',
   '/question-banks': 'Банки вопросов',
   '/assign': 'Назначить',
@@ -19,6 +20,7 @@ const ROUTE_TITLES: Record<string, string> = {
 }
 
 export function getMobilePageTitle(pathname: string): string {
+  if (pathname.startsWith('/academy/')) return 'Академик'
   if (pathname.startsWith('/staff/')) return 'Следящий'
   if (pathname.startsWith('/leaders/')) return 'Профиль'
   if (pathname.startsWith('/projects/')) return 'Проект'

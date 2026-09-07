@@ -282,6 +282,7 @@ export function StaffPage() {
                       />
                     </button>
                     )}
+                    {m.is_academy && <span className="academy-chip ml-2">Академ</span>}
                     {m.badges.length > 0 && (
                       <span className="staff-badges">{m.badges.join(' ')}</span>
                     )}

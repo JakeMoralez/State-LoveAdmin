@@ -68,6 +68,14 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
   },
   {
     section: 'Работа',
+    page: 'Академия',
+    path: '/academy',
+    portal: 'Следящий (2+)',
+    sphere: '—',
+    actions: 'Академик — своя карточка и сдача; ЗГС+ — зачисление, этапы, задания, резерв',
+  },
+  {
+    section: 'Работа',
     page: 'Задачи',
     path: '/tasks',
     portal: 'ПГС (1+)',

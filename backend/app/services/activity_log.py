@@ -20,6 +20,7 @@ ACTION_GROUP_PREFIXES: dict[str, tuple[str, ...]] = {
     "projects": ("project_",),
     "banks": ("qb_",),
     "cases": ("loot_case_",),
+    "academy": ("academy_",),
 }
 
 ACTION_MESSAGES: dict[str, str] = {
@@ -75,6 +76,21 @@ ACTION_MESSAGES: dict[str, str] = {
     "loot_case_prize_delete": "удалил приз из кейса",
     "loot_case_prize_bulk": "импортировал призы в кейс",
     "loot_case_prize_shuffle": "перемешал призы в кейсе",
+    "academy_enroll": "зачислил в академию",
+    "academy_updated": "изменил карточку академика",
+    "academy_stage_changed": "сменил этап академии",
+    "academy_graduated": "выпустил академика",
+    "academy_expelled": "отчислил из академии",
+    "academy_frozen": "заморозил академика",
+    "academy_comment": "оставил комментарий в академии",
+    "academy_warning": "выдал предупреждение академии",
+    "academy_template_create": "создал шаблон задания академии",
+    "academy_template_update": "изменил шаблон задания академии",
+    "academy_assignment_create": "выдал задание академии",
+    "academy_report_submit": "сдал отчёт академии",
+    "academy_report_review": "проверил отчёт академии",
+    "academy_session_create": "создал занятие академии",
+    "academy_attendance": "отметил посещаемость академии",
 }
 
 
@@ -89,6 +105,8 @@ def action_label(action: str) -> str:
         return "изменил карточку руководства"
     if action.startswith("dev_"):
         return "обновил настройки"
+    if action.startswith("academy_"):
+        return "изменил академию"
     return "выполнил действие"
 
 

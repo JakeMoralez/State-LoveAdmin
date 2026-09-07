@@ -24,6 +24,8 @@ import { ForumAccountField } from '../ui/ForumAccountField'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
 import { DatePicker } from '../ui/DatePicker'
+import { Checkbox } from '../ui/Checkbox'
+import { ACADEMY_DIRECTIONS, ACADEMY_STAGES, academyCanEnrollLevel } from '../../lib/academy'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from './SphereMultiSelect'
 import { SphereRoleSelect, usesSphereRoles } from './SphereRoleSelect'
 import {
@@ -82,6 +84,12 @@ export function StaffProfileModal({
   const [appointedAt, setAppointedAt] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [inAcademy, setInAcademy] = useState(false)
+  const [academyDirection, setAcademyDirection] = useState('general')
+  const [academyStage, setAcademyStage] = useState('theory')
+  const [academyMentor, setAcademyMentor] = useState('')
+  const [academyEnd, setAcademyEnd] = useState<string | null>(null)
+  const [mentors, setMentors] = useState<{ vk_id: number; nickname: string }[]>([])
 
   useEffect(() => {
     if (!member) return
@@ -101,8 +109,18 @@ export function StaffProfileModal({
     setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
     setAppointedAt(isoToDateInput(member.granted_at) || todayDateInputValue())
+    setInAcademy(Boolean(member.is_academy))
+    setAcademyDirection(member.academy?.direction || 'general')
+    setAcademyStage(member.academy?.stage || 'theory')
+    setAcademyMentor(member.academy?.mentor_vk_id ? String(member.academy.mentor_vk_id) : '')
+    setAcademyEnd(member.academy?.expected_end_at?.slice(0, 10) || null)
     setError(null)
   }, [member])
+
+  useEffect(() => {
+    if (!open || (user?.access_level ?? 0) < 3) return
+    api.academyMentors().then((r) => setMentors(r.mentors)).catch(() => undefined)
+  }, [open, user?.access_level])
 
   const savedSpheres = member?.spheres ?? []
   const savedAppointedAt = member ? isoToDateInput(member.granted_at) : ''
@@ -186,13 +204,18 @@ export function StaffProfileModal({
     member.vk_id !== user?.vk_id &&
     member.access_level < (user?.access_level ?? 0)
 
+  const academyAlready = Boolean(member.is_academy)
+  const canEditAcademy =
+    (user?.access_level ?? 0) >= 3 && (academyAlready || academyCanEnrollLevel(member.access_level))
+
   const canEditAnything =
     permissions.edit_nickname ||
     canEditAccessLevel ||
     canEditSpheres ||
     permissions.edit_discord ||
     permissions.edit_forum_account ||
-    canRevokeAccess
+    canRevokeAccess ||
+    canEditAcademy
 
   const savedCleanName = memberCleanName(member)
   const savedNicknameTag = isDeveloperLevel(parsedLevel)
@@ -215,7 +238,13 @@ export function StaffProfileModal({
     (permissions.edit_forum_account &&
       forumValidation.ok &&
       forumValidation.memberId !== savedForumId) ||
-    (canEditAccessLevel && appointedAt !== savedAppointedAt && appointedAt !== '')
+    (canEditAccessLevel && appointedAt !== savedAppointedAt && appointedAt !== '') ||
+    (canEditAcademy &&
+      (inAcademy !== academyAlready ||
+        academyDirection !== (member.academy?.direction || 'general') ||
+        academyStage !== (member.academy?.stage || 'theory') ||
+        academyMentor !== (member.academy?.mentor_vk_id ? String(member.academy.mentor_vk_id) : '') ||
+        (academyEnd || '') !== (member.academy?.expected_end_at?.slice(0, 10) || '')))
 
   const appendNicknameResync = (body: Record<string, unknown>) => {
     const cleanNick = stripStaffNicknameTags(nickname).trim()
@@ -298,7 +327,36 @@ export function StaffProfileModal({
         body.granted_at = appointedAt
       }
 
+      if (canEditAcademy && inAcademy !== academyAlready) {
+        if (inAcademy) {
+          await api.academyEnroll({
+            vk_id: member.vk_id,
+            direction: academyDirection,
+            stage: academyStage,
+            mentor_vk_id: academyMentor ? Number(academyMentor) : null,
+            expected_end_at: academyEnd,
+          })
+        }
+      } else if (canEditAcademy && academyAlready && inAcademy) {
+        const academyChanged =
+          academyDirection !== (member.academy?.direction || 'general') ||
+          academyStage !== (member.academy?.stage || 'theory') ||
+          academyMentor !== (member.academy?.mentor_vk_id ? String(member.academy.mentor_vk_id) : '') ||
+          (academyEnd || '') !== (member.academy?.expected_end_at?.slice(0, 10) || '')
+        if (academyChanged) {
+          await api.academyPatchCadet(member.vk_id, {
+            direction: academyDirection,
+            stage: academyStage,
+            mentor_vk_id: academyMentor ? Number(academyMentor) : undefined,
+            clear_mentor: !academyMentor,
+            expected_end_at: academyEnd,
+            clear_expected_end: !academyEnd,
+          })
+        }
+      }
+
       if (Object.keys(body).length === 0) {
+        onSaved()
         onClose()
         return
       }
@@ -550,6 +608,49 @@ export function StaffProfileModal({
               </p>
             )}
           </div>
+
+          {(canEditAcademy || academyAlready) && (
+            <div className="staff-profile-field">
+              <label className="ui-checkbox-label staff-profile-check">
+                <Checkbox
+                  checked={inAcademy || academyAlready}
+                  disabled={saving || academyAlready || !canEditAcademy}
+                  onChange={setInAcademy}
+                />
+                Состоит в Академии
+              </label>
+              {academyAlready ? (
+                <p className="staff-profile-hint mt-1 mb-0">
+                  Ник не меняется. Снять статус — выпуск или отчисление на странице Академии.
+                </p>
+              ) : (
+                <p className="staff-profile-hint mt-1 mb-0">Доп. статус, ник и должность не меняются.</p>
+              )}
+              {(inAcademy || academyAlready) && canEditAcademy && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <Select
+                    value={academyDirection}
+                    onChange={setAcademyDirection}
+                    options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
+                  />
+                  <Select
+                    value={academyStage}
+                    onChange={setAcademyStage}
+                    options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
+                  />
+                  <Select
+                    value={academyMentor}
+                    onChange={setAcademyMentor}
+                    options={[
+                      { value: '', label: 'Наставник не назначен' },
+                      ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
+                    ]}
+                  />
+                  <DatePicker value={academyEnd} onChange={setAcademyEnd} showTime={false} />
+                </div>
+              )}
+            </div>
+          )}
 
           {(permissions.edit_nickname ||
             canEditAccessLevel ||

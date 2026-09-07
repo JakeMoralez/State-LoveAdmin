@@ -29,6 +29,8 @@ import { StaffMemberPage } from './pages/StaffMemberPage'
 import { LeadersPage } from './pages/LeadersPage'
 import { LeaderMemberPage } from './pages/LeaderMemberPage'
 import { TasksPage } from './pages/TasksPage'
+import { AcademyPage } from './pages/AcademyPage'
+import { AcademyCadetPage } from './pages/AcademyCadetPage'
 
 function RedirectJudgeToLeader() {
   const { vkId } = useParams()
@@ -53,6 +55,8 @@ function AppRoutes() {
           <Route path="/judges/:vkId" element={<RedirectJudgeToLeader />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TasksPage />} />
+          <Route path="/academy" element={<AcademyPage />} />
+          <Route path="/academy/:vkId" element={<AcademyCadetPage />} />
           <Route path="/checklist" element={<ChecklistPage />} />
           <Route path="/question-banks" element={<QuestionBanksPage />} />
           <Route path="/question-banks/review" element={<QuestionBankReviewPage />} />

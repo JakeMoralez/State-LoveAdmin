@@ -406,3 +406,102 @@ async def post_staff_assign(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
 
     return result
+
+
+class AcademyReportBody(BaseModel):
+    actor_vk_id: int
+    assignment_id: int
+    body: str = ""
+    proof_urls: list[str] = Field(default_factory=list)
+
+
+async def _academy_actor(vk_id: int, server_id: int) -> dict:
+    from app.services.access import get_access_level
+
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    return {
+        "vk_id": vk_id,
+        "access_level": await get_access_level(vk_id, server_id),
+        "is_senior": bool(access and getattr(access, "is_senior", False)),
+    }
+
+
+@router.get("/academy/me/{vk_id}")
+async def internal_academy_me(
+    vk_id: int,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+    from app.services import academy as academy_svc
+
+    actor = await _academy_actor(vk_id, server_id)
+    cadet = await academy_svc.get_cadet(server_id, vk_id)
+    if cadet:
+        data = await academy_svc.serialize_cadet(cadet)
+        assignments = await academy_svc.list_assignments(server_id, actor)
+        data["open_assignments"] = [
+            a
+            for a in assignments
+            if vk_id in (a.get("assignee_vk_ids") or [])
+            and not any(r and r.get("vk_id") == vk_id and r.get("status") == "accepted" for r in (a.get("reports") or []))
+        ]
+        return {"ok": True, "cadet": data, "is_lead": academy_svc.is_academy_lead(actor)}
+    roster = await academy_svc.list_roster(server_id, actor) if academy_svc.is_academy_lead(actor) else []
+    return {"ok": True, "cadet": None, "is_lead": academy_svc.is_academy_lead(actor), "roster": roster[:8]}
+
+
+@router.get("/academy/student/{vk_id}")
+async def internal_academy_student(
+    vk_id: int,
+    actor_vk_id: int = Query(...),
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+    from app.services import academy as academy_svc
+
+    actor = await _academy_actor(actor_vk_id, server_id)
+    cadet = await academy_svc.get_cadet(server_id, vk_id)
+    if not cadet:
+        raise HTTPException(status_code=404, detail="Академик не найден")
+    if not academy_svc.can_view_cadet(actor, cadet):
+        raise HTTPException(status_code=403, detail="Нет доступа")
+    return {"ok": True, "cadet": await academy_svc.serialize_cadet(cadet)}
+
+
+@router.get("/academy/leaderboard")
+async def internal_academy_leaderboard(
+    actor_vk_id: int = Query(...),
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+    from app.services import academy as academy_svc
+
+    actor = await _academy_actor(actor_vk_id, server_id)
+    rows = await academy_svc.list_roster(server_id, actor)
+    return {"ok": True, "members": rows[:10]}
+
+
+@router.post("/academy/report")
+async def internal_academy_report(
+    body: AcademyReportBody,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+    from app.services import academy as academy_svc
+
+    actor = await _academy_actor(body.actor_vk_id, server_id)
+    try:
+        report = await academy_svc.submit_report(
+            body.assignment_id,
+            actor,
+            body=body.body,
+            proof_urls=body.proof_urls,
+        )
+    except (ValueError, PermissionError, LookupError) as exc:
+        status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return {"ok": True, "report": academy_svc._report_payload(report)}

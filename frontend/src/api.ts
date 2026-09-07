@@ -114,6 +114,63 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  academyMeta: () => request<AcademyMeta>('/academy/meta'),
+  academySummary: () => request<AcademySummary>('/academy/summary'),
+  academyRoster: (includeLeft?: boolean) =>
+    request<{ members: AcademyCadet[] }>(`/academy/roster${includeLeft ? '?include_left=true' : ''}`),
+  academyMine: () => request<{ members: AcademyCadet[] }>('/academy/mine'),
+  academyMentors: () => request<{ mentors: { vk_id: number; nickname: string }[] }>('/academy/mentors'),
+  academyReserve: () => request<{ members: AcademyCadet[] }>('/academy/reserve'),
+  academyCadet: (vkId: number) => request<AcademyCadetDetail>(`/academy/cadets/${vkId}`),
+  academyEnroll: (body: AcademyEnrollBody) =>
+    request<AcademyCadet>('/academy/cadets', { method: 'POST', body: JSON.stringify(body) }),
+  academyPatchCadet: (vkId: number, body: AcademyCadetPatch) =>
+    request<AcademyCadet>(`/academy/cadets/${vkId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  academyGraduate: (vkId: number, mentorScore?: number) =>
+    request<AcademyCadet>(`/academy/cadets/${vkId}/graduate`, {
+      method: 'POST',
+      body: JSON.stringify({ mentor_score: mentorScore ?? null }),
+    }),
+  academyComment: (vkId: number, body: string) =>
+    request<{ ok: boolean }>(`/academy/cadets/${vkId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  academyWarning: (vkId: number, body: string) =>
+    request<{ ok: boolean }>(`/academy/cadets/${vkId}/warnings`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  academyTemplates: () => request<{ templates: AcademyTemplate[] }>('/academy/templates'),
+  academyCreateTemplate: (body: AcademyTemplateBody) =>
+    request<AcademyTemplate>('/academy/templates', { method: 'POST', body: JSON.stringify(body) }),
+  academyUpdateTemplate: (id: number, body: AcademyTemplateBody) =>
+    request<AcademyTemplate>(`/academy/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  academyAssignments: () => request<{ assignments: AcademyAssignment[] }>('/academy/assignments'),
+  academyCreateAssignment: (body: AcademyAssignmentBody) =>
+    request<AcademyAssignment>('/academy/assignments', { method: 'POST', body: JSON.stringify(body) }),
+  academySubmitReport: (assignmentId: number, body: { body?: string; proof_urls?: string[] }) =>
+    request<AcademyReport>(`/academy/assignments/${assignmentId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  academyReviewReport: (
+    assignmentId: number,
+    vkId: number,
+    body: { action: string; score?: number; comment?: string },
+  ) =>
+    request<AcademyReport>(`/academy/assignments/${assignmentId}/review/${vkId}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  academySessions: () => request<{ sessions: AcademySession[] }>('/academy/sessions'),
+  academyCreateSession: (body: AcademySessionBody) =>
+    request<AcademySession>('/academy/sessions', { method: 'POST', body: JSON.stringify(body) }),
+  academySetAttendance: (sessionId: number, marks: Record<number, string>) =>
+    request<{ ok: boolean }>(`/academy/sessions/${sessionId}/attendance`, {
+      method: 'PUT',
+      body: JSON.stringify({ marks }),
+    }),
   leaders: (params?: { q?: string; inactive?: boolean }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
@@ -556,6 +613,8 @@ export interface StaffMember {
   // Senior-following fields
   is_senior?: boolean
   senior_spheres?: string[]
+  is_academy?: boolean
+  academy?: StaffAcademyBrief | null
 }
 
 export interface StaffMemberPermissions {
@@ -1212,4 +1271,236 @@ export interface LootCaseSpinResult {
   spin_duration_ms: number
   prize: LootCasePrize
   prizes: LootCasePrize[]
+}
+
+export interface AcademyLabel {
+  value: string
+  label: string
+}
+
+export interface AcademyMeta {
+  directions: AcademyLabel[]
+  stages: AcademyLabel[]
+  statuses: AcademyLabel[]
+  recommendations: AcademyLabel[]
+  categories: AcademyLabel[]
+  reviewer_kinds: AcademyLabel[]
+  proof_kinds: AcademyLabel[]
+  events: Record<string, string>
+}
+
+export interface AcademySummary {
+  cadets: number
+  mentors: number
+  ready_for_attestation: number
+  graduates_month: number
+  is_lead: boolean
+  can_enroll: boolean
+}
+
+export interface StaffAcademyBrief {
+  id: number
+  direction: string
+  stage: string
+  status: string
+  display_status: string
+  mentor_vk_id: number | null
+  enrolled_at: string | null
+  expected_end_at: string | null
+  recommendation: string
+}
+
+export interface AcademyMetrics {
+  assignments_done: number
+  assignments_total: number
+  required_done: number
+  required_total: number
+  average_score: number | null
+  overdue: number
+  practical_checks: number
+  errors: number
+  warnings: number
+  activity: number | null
+  rating: number
+  progress: number
+  stage_ready: boolean
+  stage_required_done: number
+  stage_required_total: number
+  sessions_total: number
+  sessions_present: number
+  sessions_absent: number
+  attendance_pct: number | null
+}
+
+export interface AcademyCadet {
+  id: number
+  vk_id: number
+  nickname: string
+  direction: string
+  direction_label: string
+  stage: string
+  stage_label: string
+  status: string
+  display_status: string
+  mentor_vk_id: number | null
+  mentor_name: string | null
+  enrolled_at: string | null
+  enrolled_by: number | null
+  expected_end_at: string | null
+  left_at: string | null
+  attestation_theory: number | null
+  attestation_practice: number | null
+  attestation_period: number | null
+  attestation_mentor: number | null
+  attestation_total: number | null
+  recommendation: string
+  recommendation_label: string
+  points_adjust: number
+  note: string
+  metrics: AcademyMetrics | null
+  pending_reviews?: number
+}
+
+export interface AcademyEvent {
+  id: number
+  action: string
+  actor_vk_id: number
+  actor_name: string
+  detail: Record<string, unknown> | null
+  created_at: string | null
+}
+
+export interface AcademyCadetDetail extends AcademyCadet {
+  events: AcademyEvent[]
+  warnings: { id: number; author_vk_id: number; body: string; created_at: string | null }[]
+  attestation_suggest: { theory: number; practice: number; period: number }
+  can_manage: boolean
+  is_self: boolean
+}
+
+export interface AcademyEnrollBody {
+  vk_id: number
+  direction?: string
+  stage?: string
+  mentor_vk_id?: number | null
+  enrolled_at?: string | null
+  expected_end_at?: string | null
+  note?: string
+}
+
+export interface AcademyCadetPatch {
+  direction?: string
+  stage?: string
+  status?: string
+  mentor_vk_id?: number | null
+  clear_mentor?: boolean
+  expected_end_at?: string | null
+  clear_expected_end?: boolean
+  note?: string
+  points_adjust?: number
+  attestation_theory?: number
+  attestation_practice?: number
+  attestation_period?: number
+  attestation_mentor?: number
+  recommendation?: string
+}
+
+export interface AcademyTemplate {
+  id: number
+  title: string
+  category: string
+  category_label: string
+  stage: string
+  stage_label: string
+  max_points: number
+  due_days: number
+  required: boolean
+  description: string
+  proof_kinds: string[]
+  reviewer_kind: string
+  is_active: boolean
+  sort_order: number
+}
+
+export interface AcademyTemplateBody {
+  title: string
+  category: string
+  stage: string
+  max_points: number
+  due_days: number
+  required: boolean
+  description: string
+  proof_kinds: string[]
+  reviewer_kind: string
+  is_active: boolean
+  sort_order: number
+}
+
+export interface AcademyReport {
+  id: number
+  vk_id: number
+  body: string
+  proof_urls: string[]
+  status: string
+  score: number | null
+  reviewer_vk_id: number | null
+  review_comment: string
+  submitted_at: string | null
+  reviewed_at: string | null
+}
+
+export interface AcademyAssignment {
+  id: number
+  title: string
+  category: string
+  category_label: string
+  stage: string
+  stage_label: string
+  max_points: number
+  required: boolean
+  description: string
+  proof_kinds: string[]
+  reviewer_kind: string
+  assignee_vk_ids: number[]
+  due_at: string | null
+  created_by: number
+  created_at: string | null
+  pending_count: number
+  reports: (AcademyReport | null)[]
+}
+
+export interface AcademyAssignmentBody {
+  template_id?: number | null
+  title?: string
+  category?: string
+  stage?: string
+  max_points?: number
+  required?: boolean
+  description?: string
+  proof_kinds?: string[]
+  reviewer_kind?: string
+  assignee_vk_ids?: number[]
+  all_active?: boolean
+  due_at?: string
+  due_days?: number
+}
+
+export interface AcademySession {
+  id: number
+  title: string
+  notes: string
+  held_at: string | null
+  status: string
+  created_by: number
+  attendance: Record<string, string>
+  present: number
+  absent: number
+}
+
+export interface AcademySessionBody {
+  title: string
+  held_at?: string
+  notes?: string
+  status?: string
+  attendance?: Record<number, string>
 }

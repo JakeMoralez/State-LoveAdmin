@@ -81,7 +81,9 @@ State-LoveAdmin/
 ### Таблицы `panel.py` (владеет панель)
 Сессии/токены входа, `PanelAuditLog`, `DiscordLink`, `StaffNote`, `DevErrorLog`,
 `Project`/`ProjectMember`, `Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`,
-чек-лист (`Checklist*`), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`).
+чек-лист (`Checklist*`), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`),
+академия (`AcademyCadet`, `AcademyEvent`, `AcademyWarning`, `AcademyAssignment*`,
+`AcademyReport`, `AcademySession`, `AcademyAttendance`).
 
 ## 5. Backend: роутеры → сервисы
 
@@ -96,6 +98,7 @@ State-LoveAdmin/
 | `spheres` | `/api/spheres` | `staff_spheres`, `sphere_work` |
 | `assign` | `/api/assign` | `staff_assign`, `role_assign`, `internal_assign` |
 | `tasks` | `/api/tasks` | `task_helpers`, `task_notifications`, `vk_notify` |
+| `academy` | `/api/academy` | `academy` (зачисление, этапы, задания, занятия, резерв) |
 | `projects` | `/api/projects` | (модели `Project*`) |
 | `checklist` | `/api/checklist` | (модели `Checklist*`) |
 | `question_banks` | `/api/question-banks` | `question_banks` |
@@ -153,7 +156,7 @@ State-LoveAdmin/
 `/login` и `/congress`.
 
 `/dashboard` · `/access` · `/staff` (+ `/staff/:vkId`) · `/leaders` (+ `:vkId`) ·
-`/tasks` (+ `:taskId`) · `/checklist` · `/question-banks` (+ `/review`, `/:id`) ·
+`/tasks` (+ `:taskId`) · `/academy` (+ `/:vkId`) · `/checklist` · `/question-banks` (+ `/review`, `/:id`) ·
 `/assign` · `/activity` · `/forum/judge-list` · `/forum/formatting` ·
 `/projects` (+ `/:id`, `/:id/tasks/:taskId`) · `/profile` ·
 `/dev` · `/dev/leadership` · `/dev/cases` (+ `/:id`, `/:id/spin`).
@@ -208,6 +211,7 @@ npm run dev                                          # http://localhost:5173 (pr
 | Добавить страницу | `pages/*.tsx` + маршрут в `App.tsx` + вызовы в `api.ts` |
 | Env-переменные | `backend/app/config.py` + `.env.example` |
 | Логику сфер | `services/staff_spheres.py`, `lib/spheres.ts` |
+| Академию следящих | `services/academy.py`, `routers/academy.py`, `/academy`, LoveBot `/academy` |
 | Деплой/прод | `deploy/` (`README.md`, nginx, systemd, Docker) |
 | Решения по ТЗ | `docs/decisions.md` |
 | Сессия / синк Arizona Leaders | LoveBot `services/arz_lead_client.py`, панель `services/arz_lead.py`, Dev Settings вкладка «Arizona» |

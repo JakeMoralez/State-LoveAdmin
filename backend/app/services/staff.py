@@ -227,6 +227,9 @@ async def list_staff(server_id: int) -> list[dict]:
         (n.vk_id, n.server_id): n
         for n in await StaffNote.filter(server_id=server_id)
     }
+    from app.services.academy import cadets_by_vk, staff_academy_fields
+
+    academy_map = await cadets_by_vk(server_id)
 
     result: list[dict] = []
     for user, level, access in by_id.values():
@@ -277,6 +280,7 @@ async def list_staff(server_id: int) -> list[dict]:
                 "note": panel_note,
                 "is_senior": bool(access and getattr(access, "is_senior", False)),
                 "senior_spheres": list(getattr(access, "senior_spheres", []) or []),
+                **staff_academy_fields(academy_map.get(user.vk_id)),
             }
         )
 
@@ -1036,6 +1040,15 @@ async def revoke_staff_access(
         note_row.spheres = []
         note_row.updated_by = updated_by
         await note_row.save(update_fields=["spheres", "updated_by", "updated_at"])
+
+    from app.models.panel import AcademyCadet
+    from datetime import datetime, timezone
+
+    cadet = await AcademyCadet.get_or_none(vk_id=vk_id, server_id=server_id)
+    if cadet and cadet.status in ("active", "frozen"):
+        cadet.status = "expelled"
+        cadet.left_at = datetime.now(timezone.utc)
+        await cadet.save(update_fields=["status", "left_at"])
 
     invalidate_display_names(vk_id)
 

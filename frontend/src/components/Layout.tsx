@@ -5,6 +5,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   FolderKanban,
+  GraduationCap,
   Gavel,
   Gift,
   Shield,
@@ -65,6 +66,7 @@ const navCategories: NavCategory[] = [
     title: 'Работа',
     items: [
       { to: '/tasks', label: 'Задачи', icon: ClipboardList },
+      { to: '/academy', label: 'Академия', icon: GraduationCap, minAccessLevel: 2 },
       { to: '/checklist', label: 'Чеклист', icon: ClipboardCheck },
       { to: '/question-banks', label: 'Банки вопросов', icon: Library },
       { to: '/projects', label: 'Проекты', icon: FolderKanban },

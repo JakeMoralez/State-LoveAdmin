@@ -355,3 +355,137 @@ class PanelCatalog(Model):
     class Meta:
         table = "panel_catalog"
 
+
+class AcademyCadet(Model):
+    id = fields.IntField(pk=True)
+    vk_id = fields.BigIntField(index=True)
+    server_id = fields.IntField(index=True)
+    direction = fields.CharField(max_length=64, default="general")
+    stage = fields.CharField(max_length=32, default="theory")
+    status = fields.CharField(max_length=32, default="active", index=True)
+    mentor_vk_id = fields.BigIntField(null=True, index=True)
+    enrolled_at = fields.DatetimeField(auto_now_add=True)
+    enrolled_by = fields.BigIntField(null=True)
+    expected_end_at = fields.DateField(null=True)
+    left_at = fields.DatetimeField(null=True)
+    attestation_theory = fields.IntField(null=True)
+    attestation_practice = fields.IntField(null=True)
+    attestation_period = fields.IntField(null=True)
+    attestation_mentor = fields.IntField(null=True)
+    attestation_total = fields.IntField(null=True)
+    recommendation = fields.CharField(max_length=16, default="none")
+    points_adjust = fields.IntField(default=0)
+    note = fields.TextField(default="")
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "academy_cadets"
+        unique_together = (("vk_id", "server_id"),)
+
+
+class AcademyEvent(Model):
+    id = fields.IntField(pk=True)
+    cadet = fields.ForeignKeyField("models.AcademyCadet", related_name="events")
+    action = fields.CharField(max_length=64, index=True)
+    actor_vk_id = fields.BigIntField()
+    detail = fields.JSONField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True, index=True)
+
+    class Meta:
+        table = "academy_events"
+
+
+class AcademyWarning(Model):
+    id = fields.IntField(pk=True)
+    cadet = fields.ForeignKeyField("models.AcademyCadet", related_name="warnings")
+    author_vk_id = fields.BigIntField()
+    body = fields.TextField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "academy_warnings"
+
+
+class AcademyAssignmentTemplate(Model):
+    id = fields.IntField(pk=True)
+    title = fields.CharField(max_length=256)
+    category = fields.CharField(max_length=32, default="theory")
+    stage = fields.CharField(max_length=32, default="theory")
+    max_points = fields.IntField(default=10)
+    due_days = fields.IntField(default=3)
+    required = fields.BooleanField(default=True)
+    description = fields.TextField(default="")
+    proof_kinds = fields.JSONField(default=list)
+    reviewer_kind = fields.CharField(max_length=32, default="mentor")
+    is_active = fields.BooleanField(default=True)
+    sort_order = fields.IntField(default=0)
+    created_by = fields.BigIntField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "academy_assignment_templates"
+
+
+class AcademyAssignment(Model):
+    id = fields.IntField(pk=True)
+    server_id = fields.IntField(index=True)
+    template_id = fields.IntField(null=True, index=True)
+    title = fields.CharField(max_length=256)
+    category = fields.CharField(max_length=32, default="theory")
+    stage = fields.CharField(max_length=32, default="theory")
+    max_points = fields.IntField(default=10)
+    required = fields.BooleanField(default=True)
+    description = fields.TextField(default="")
+    proof_kinds = fields.JSONField(default=list)
+    reviewer_kind = fields.CharField(max_length=32, default="mentor")
+    assignee_vk_ids = fields.JSONField(default=list)
+    due_at = fields.DatetimeField(null=True)
+    created_by = fields.BigIntField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "academy_assignments"
+
+
+class AcademyReport(Model):
+    id = fields.IntField(pk=True)
+    assignment = fields.ForeignKeyField("models.AcademyAssignment", related_name="reports")
+    vk_id = fields.BigIntField(index=True)
+    body = fields.TextField(default="")
+    proof_urls = fields.JSONField(default=list)
+    status = fields.CharField(max_length=32, default="pending", index=True)
+    score = fields.IntField(null=True)
+    reviewer_vk_id = fields.BigIntField(null=True)
+    review_comment = fields.TextField(default="")
+    submitted_at = fields.DatetimeField(auto_now_add=True)
+    reviewed_at = fields.DatetimeField(null=True)
+
+    class Meta:
+        table = "academy_reports"
+        unique_together = (("assignment_id", "vk_id"),)
+
+
+class AcademySession(Model):
+    id = fields.IntField(pk=True)
+    server_id = fields.IntField(index=True)
+    title = fields.CharField(max_length=256)
+    notes = fields.TextField(default="")
+    held_at = fields.DatetimeField()
+    status = fields.CharField(max_length=32, default="held")
+    created_by = fields.BigIntField()
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "academy_sessions"
+
+
+class AcademyAttendance(Model):
+    id = fields.IntField(pk=True)
+    session = fields.ForeignKeyField("models.AcademySession", related_name="attendance")
+    vk_id = fields.BigIntField(index=True)
+    status = fields.CharField(max_length=16, default="absent")
+
+    class Meta:
+        table = "academy_attendance"
+        unique_together = (("session_id", "vk_id"),)
+
