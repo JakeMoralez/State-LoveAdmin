@@ -505,3 +505,48 @@ async def internal_academy_report(
         status = 403 if isinstance(exc, PermissionError) else 404 if isinstance(exc, LookupError) else 400
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     return {"ok": True, "report": academy_svc._report_payload(report)}
+
+
+class IssuanceCreateBody(BaseModel):
+    actor_vk_id: int
+    kind: str
+    role_title: str = Field(min_length=1, max_length=128)
+    nickname: str = Field(min_length=1, max_length=128)
+    amount: int | str
+    reason: str = Field(min_length=1, max_length=2000)
+    proof_url: str = Field(default="", max_length=1024)
+
+
+async def _issuance_actor(vk_id: int, server_id: int) -> dict:
+    from app.services.access import get_access_level, panel_role
+
+    level = await get_access_level(vk_id, server_id)
+    return {
+        "vk_id": vk_id,
+        "access_level": level,
+        "panel_role": panel_role(level),
+    }
+
+
+@router.post("/issuance")
+async def internal_issuance_create(
+    body: IssuanceCreateBody,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    _check_secret(x_sled_secret)
+    from app.services import issuance as issuance_svc
+
+    actor = await _issuance_actor(body.actor_vk_id, server_id)
+    item = await issuance_svc.create_request(
+        server_id=server_id,
+        user=actor,
+        kind=body.kind,
+        role_title=body.role_title,
+        nickname=body.nickname,
+        amount=body.amount,
+        reason=body.reason,
+        proof_url=body.proof_url,
+    )
+    return {"ok": True, "item": item}
+

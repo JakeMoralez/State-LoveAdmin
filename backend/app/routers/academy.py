@@ -2,16 +2,41 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 
-from app.config import DEFAULT_SERVER_ID
+from app.config import DEFAULT_SERVER_ID, UPLOAD_DIR
 from app.models.bot import AccessLevel
 from app.models.panel import AcademySession
+from app.routers.uploads import MAX_BYTES
 from app.services import academy as svc
+from app.services import messages
 from app.services.auth import require_ca_user
 
 router = APIRouter(prefix="/api/academy", tags=["academy"])
+
+ACADEMY_MATERIAL_EXTS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".odt",
+    ".rtf",
+    ".txt",
+    ".csv",
+    ".zip",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+}
 
 
 def _require_academy(user: dict) -> dict:
@@ -56,6 +81,11 @@ class GraduateBody(BaseModel):
     comment: str = ""
 
 
+class MaterialItem(BaseModel):
+    title: str = ""
+    url: str = ""
+
+
 class TemplateBody(BaseModel):
     title: str = Field(min_length=1, max_length=256)
     category: str = "theory"
@@ -64,6 +94,7 @@ class TemplateBody(BaseModel):
     due_days: int = Field(default=3, ge=1, le=30)
     required: bool = True
     description: str = ""
+    materials: list[MaterialItem] = Field(default_factory=list)
     proof_kinds: list[str] = Field(default_factory=lambda: ["text"])
     reviewer_kind: str = "mentor"
     is_active: bool = True
@@ -78,6 +109,7 @@ class AssignmentBody(BaseModel):
     max_points: int | None = Field(default=None, ge=1, le=20)
     required: bool | None = None
     description: str | None = None
+    materials: list[MaterialItem] | None = None
     proof_kinds: list[str] | None = None
     reviewer_kind: str | None = None
     assignee_vk_ids: list[int] | None = None
@@ -338,6 +370,33 @@ async def academy_templates(user: dict = Depends(require_ca_user)):
     _require_academy(user)
     await svc.ensure_academy_templates()
     return {"templates": await svc.list_templates(include_inactive=svc.is_academy_lead(user))}
+
+
+@router.post("/materials/upload")
+async def academy_upload_material(
+    file: UploadFile = File(...),
+    user: dict = Depends(require_ca_user),
+):
+    _require_academy(user)
+    if not await svc.can_upload_materials(user):
+        raise HTTPException(status_code=403, detail="Прикреплять файлы может наставник или ЗГС+")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_NO_FILE)
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ACADEMY_MATERIAL_EXTS:
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_ACADEMY_BAD_TYPE)
+    data = await file.read()
+    if len(data) > MAX_BYTES:
+        raise HTTPException(status_code=400, detail=messages.UPLOAD_TOO_LARGE)
+    folder = UPLOAD_DIR / "academy"
+    folder.mkdir(parents=True, exist_ok=True)
+    name = f"{uuid.uuid4().hex}{ext}"
+    (folder / name).write_bytes(data)
+    return {
+        "url": f"/uploads/academy/{name}",
+        "filename": Path(file.filename).name[:120],
+        "size": len(data),
+    }
 
 
 @router.post("/templates")

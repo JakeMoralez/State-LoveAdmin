@@ -27,6 +27,8 @@ export function ProfilePage() {
         discord_display_name: user.discord_display_name,
         notify_tasks: user.notify_tasks,
         notify_assign: user.notify_assign,
+        granted_at: user.granted_at,
+        promoted_at: user.promoted_at,
       }}
       showQuickLinks
     />

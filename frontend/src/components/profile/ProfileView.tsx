@@ -44,6 +44,7 @@ export interface ProfileViewData {
   discord_username?: string | null
   discord_display_name?: string | null
   granted_at?: string | null
+  promoted_at?: string | null
   is_senior?: boolean
   senior_spheres?: string[]
   notify_tasks?: boolean
@@ -278,6 +279,12 @@ export function ProfileView({
     ...(discord ? [{ label: 'Discord', value: discord, mono: true as const }] : []),
     ...(profile.granted_at
       ? [{ label: 'В составе с', value: formatGrantedAt(profile.granted_at) }]
+      : []),
+    ...((profile.promoted_at || profile.granted_at)
+      ? [{
+          label: 'Повышение',
+          value: formatGrantedAt(profile.promoted_at || profile.granted_at || ''),
+        }]
       : []),
   ]
 

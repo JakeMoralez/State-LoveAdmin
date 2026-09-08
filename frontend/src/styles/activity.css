@@ -188,6 +188,15 @@
   font-size: 0.8125rem;
 }
 
+.activity-table-empty--skeleton {
+  padding: 0.35rem 0 !important;
+  text-align: left;
+}
+
+.activity-table-empty--skeleton .page-skeleton {
+  min-height: 0;
+}
+
 .activity-table-foot {
   display: flex;
   flex-wrap: wrap;

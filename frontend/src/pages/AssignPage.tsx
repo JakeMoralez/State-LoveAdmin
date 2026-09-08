@@ -21,6 +21,7 @@ import {
   orgOptionsForRole,
   previewLeadershipNickname,
 } from '../lib/leaderNickname'
+import { FieldReq } from '../components/ui/FormField'
 import { ForumAccountField } from '../components/ui/ForumAccountField'
 import { Select } from '../components/ui/Select'
 import { DatePicker } from '../components/ui/DatePicker'
@@ -448,6 +449,7 @@ export function AssignPage() {
               <div className="assign-field">
                 <label className="assign-label" htmlFor="assign-nick">
                   Никнейм
+                  <FieldReq />
                 </label>
                 <input
                   id="assign-nick"
@@ -487,6 +489,7 @@ export function AssignPage() {
               <div className="assign-field">
                 <label className="assign-label" htmlFor="assign-vk">
                   VK ID или ссылка
+                  <FieldReq />
                 </label>
                 <input
                   id="assign-vk"
@@ -502,7 +505,8 @@ export function AssignPage() {
 
               <div className="assign-field">
                 <label className="assign-label" htmlFor="assign-discord">
-                  {isLeadership ? 'ID Discord · необязательно' : 'ID Discord'}
+                  ID Discord
+                  {!isLeadership ? <FieldReq /> : null}
                   <button
                     type="button"
                     className="assign-label-hint"
@@ -528,7 +532,8 @@ export function AssignPage() {
               <div className="assign-field assign-field--full">
                 <ForumAccountField
                   id="assign-forum"
-                  label={isLeadership ? 'Аккаунт на форуме · необязательно' : 'Аккаунт на форуме'}
+                  label="Аккаунт на форуме"
+                  required={!isLeadership}
                   value={forumAccount}
                   onChange={setForumAccount}
                   onBlur={() => setForumTouched(true)}

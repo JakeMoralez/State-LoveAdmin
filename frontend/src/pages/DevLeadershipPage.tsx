@@ -7,6 +7,7 @@ import { Alert } from '../components/ui/Alert'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -102,7 +103,7 @@ export function DevLeadershipPage() {
       {error && <Alert>{error}</Alert>}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="registry" label="Загрузка руководства" />
       ) : (
         <div className="staff-registry dev-leadership-table">
           <div className="staff-registry-head dev-leadership-head">

@@ -6,6 +6,7 @@ import { LeaderProfileModal } from '../components/staff/LeaderProfileModal'
 import { useAuth } from '../context/AuthContext'
 import { effectiveLeaderPermissions } from '../lib/leaderPermissions'
 import { staffLabel } from '../lib/staff'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function JudgeMemberPage() {
   const { user } = useAuth()
@@ -39,7 +40,7 @@ export function JudgeMemberPage() {
     return <div className="text-white/50">Некорректный ID</div>
   }
   if (loading) {
-    return <div className="page-loading">Загрузка…</div>
+    return <PageSkeleton variant="detail" label="Загрузка профиля" />
   }
   if (error || !member) {
     return (

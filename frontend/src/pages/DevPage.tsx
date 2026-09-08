@@ -5,6 +5,7 @@ import { ApiError, api, type DevErrorItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 function formatWhen(iso: string | null) {
   if (!iso) return '—'
@@ -119,7 +120,7 @@ export function DevPage() {
 
         <div className="dev-log-list">
           {loading && items.length === 0 ? (
-            <div className="page-empty-state page-empty-state--card page-loading">Загрузка…</div>
+            <PageSkeleton variant="list" label="Загрузка журнала ошибок" />
           ) : items.length === 0 ? (
             <div className="page-empty-state page-empty-state--card">
               <CheckCircle2 size={32} strokeWidth={1.5} className="page-empty-state-icon" aria-hidden />

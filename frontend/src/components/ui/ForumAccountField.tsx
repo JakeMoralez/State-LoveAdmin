@@ -4,6 +4,7 @@ import {
   forumMemberUrl,
   parseForumMemberUrl,
 } from '../../lib/forumAccount'
+import { FieldReq } from './FormField'
 import { cn } from '../../lib/utils'
 
 interface ForumAccountFieldProps {
@@ -20,6 +21,7 @@ interface ForumAccountFieldProps {
   error?: string | null
   hint?: string | null
   placeholder?: string
+  required?: boolean
 }
 
 export function ForumAccountField({
@@ -36,6 +38,7 @@ export function ForumAccountField({
   error,
   hint = null,
   placeholder = FORUM_MEMBER_URL_EXAMPLE,
+  required,
 }: ForumAccountFieldProps) {
   const readOnlyUrl = readOnlyMemberId ? forumMemberUrl(readOnlyMemberId, vkId) : ''
 
@@ -43,6 +46,7 @@ export function ForumAccountField({
     <div className="forum-field">
       <label className={cn('forum-field-label', labelClassName)} htmlFor={id}>
         {label}
+        {required ? <FieldReq /> : null}
       </label>
       {readOnly ? (
         readOnlyUrl ? (

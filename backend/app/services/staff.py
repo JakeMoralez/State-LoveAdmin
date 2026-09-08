@@ -10,7 +10,14 @@ from tortoise.expressions import Q
 from app.models.bot import AccessLevel, ChatPeerSettings, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
 from app.services.access import get_access_level
-from app.services.bot_users import ensure_bot_user, ensure_server_access
+from app.services.bot_users import (
+    access_senior_state,
+    ensure_bot_user,
+    ensure_server_access,
+    has_usa_promoted_at,
+    has_usa_senior_columns,
+    update_server_access,
+)
 from app.services.display_names import invalidate_display_names, resolve_bot_nickname
 from app.services.leader_nickname import (
     canonicalize_leadership_nickname,
@@ -80,6 +87,18 @@ def format_badges(access: UserServerAccess | None, user: User, spheres: list[str
     if user.is_admin:
         badges.append("👑")
     return badges
+
+
+def _access_dt_iso(access: UserServerAccess | None, field: str) -> str | None:
+    if not access:
+        return None
+    value = getattr(access, field, None)
+    if not value:
+        return None
+    try:
+        return value.isoformat()
+    except Exception:
+        return None
 
 
 FULL_ROLE_TITLES: dict[int, str] = {
@@ -185,18 +204,13 @@ def ca_source(access: UserServerAccess | None) -> str | None:
 
 async def reconcile_supervisor_leader_flags(server_id: int) -> int:
     """Снять is_leader у следящих (ПГС+): лидерский флаг только для реестра руководства без уровня."""
-    rows = await UserServerAccess.filter(server_id=server_id, is_leader=True)
-    cleared = 0
-    for access in rows:
-        if access.access_level >= AccessLevel.PGS:
-            access.is_leader = False
-            await access.save(update_fields=["is_leader"])
-            cleared += 1
-            logger.info(
-                "reconcile: cleared is_leader for vk_id=%s (access_level=%s)",
-                access.user_id,
-                access.access_level,
-            )
+    cleared = await UserServerAccess.filter(
+        server_id=server_id,
+        is_leader=True,
+        access_level__gte=AccessLevel.PGS,
+    ).update(is_leader=False)
+    if cleared:
+        logger.info("reconcile: cleared is_leader for %s staff on server %s", cleared, server_id)
     return cleared
 
 
@@ -276,7 +290,8 @@ async def list_staff(server_id: int) -> list[dict]:
                 "has_ca_access": bool(access and access.has_ca_access),
                 "ca_source": ca_source(access),
                 "granted_by": access.granted_by if access else None,
-                "granted_at": access.granted_at.isoformat() if access and access.granted_at else None,
+                "granted_at": _access_dt_iso(access, "granted_at"),
+                "promoted_at": _access_dt_iso(access, "promoted_at"),
                 "note": panel_note,
                 "is_senior": bool(access and getattr(access, "is_senior", False)),
                 "senior_spheres": list(getattr(access, "senior_spheres", []) or []),
@@ -342,7 +357,8 @@ async def list_former_staff(server_id: int) -> list[dict]:
                 "has_ca_access": False,
                 "ca_source": None,
                 "granted_by": None,
-                "granted_at": access.granted_at.isoformat() if access.granted_at else None,
+                "granted_at": _access_dt_iso(access, "granted_at"),
+                "promoted_at": _access_dt_iso(access, "promoted_at"),
                 "note": "",
                 "is_senior": False,
                 "senior_spheres": [],
@@ -805,7 +821,7 @@ async def set_ca_leader(
         raise ValueError("Пользователь уже в реестре следящих — лидером не назначается")
 
     access.is_leader = True
-    await access.save()
+    await update_server_access(vk_id, server_id, is_leader=True)
 
     if position_clean:
         note_row, _ = await StaffNote.get_or_create(
@@ -1033,7 +1049,14 @@ async def revoke_staff_access(
     access.has_ca_access = False
     access.ca_auto_peer_id = None
     access.granted_by = None
-    await access.save()
+    await update_server_access(
+        vk_id,
+        server_id,
+        access_level=0,
+        has_ca_access=False,
+        ca_auto_peer_id=None,
+        granted_by=None,
+    )
 
     note_row = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
     if note_row:
@@ -1154,13 +1177,14 @@ async def _sync_formatted_staff_nickname(
         elif preserve_dev_tag:
             resolved_tag = normalize_custom_tag(extract_leading_nickname_tag(bot_nick or ""))
 
+    is_senior, senior_spheres = access_senior_state(access)
     formatted = format_staff_nickname(
         clean,
         access.access_level,
         spheres,
         custom_tag=resolved_tag,
-        is_senior=bool(access.is_senior) if access is not None else False,
-        senior_spheres=list(access.senior_spheres or []) if access is not None else None,
+        is_senior=is_senior,
+        senior_spheres=senior_spheres if is_senior else None,
     )
     await _persist_member_nickname(vk_id, server_id, formatted)
 
@@ -1185,13 +1209,17 @@ async def assign_staff_member(
 
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     appointed = granted_at or datetime.now(UTC)
-    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
-        access_level=access_level,
-        granted_by=granted_by,
-        granted_at=appointed,
-        is_senior=bool(is_senior),
-        senior_spheres=list(senior_spheres or []),
-    )
+    assign_fields: dict = {
+        "access_level": access_level,
+        "granted_by": granted_by,
+        "granted_at": appointed,
+    }
+    if has_usa_senior_columns():
+        assign_fields["is_senior"] = bool(is_senior)
+        assign_fields["senior_spheres"] = list(senior_spheres or [])
+    if has_usa_promoted_at():
+        assign_fields["promoted_at"] = appointed
+    await update_server_access(vk_id, server_id, **assign_fields)
 
     normalized_spheres = validate_spheres(spheres, access_level)
     dev_tag = normalize_custom_tag(nickname_tag) if access_level >= AccessLevel.DEVELOPER else None
@@ -1228,6 +1256,8 @@ async def update_staff_member(
     nickname_tag_provided: bool = False,
     granted_at: datetime | None = None,
     granted_at_provided: bool = False,
+    promoted_at: datetime | None = None,
+    promoted_at_provided: bool = False,
     is_senior: bool | None = None,
     senior_spheres: list[str] | None = None,
     **_extra: object,
@@ -1241,18 +1271,37 @@ async def update_staff_member(
 
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     old_level = access.access_level
+    old_senior = bool(getattr(access, "is_senior", False))
+    old_senior_spheres = list(getattr(access, "senior_spheres", []) or [])
+    old_panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    old_spheres = list(old_panel.spheres or []) if old_panel else []
+    rank_changed = False
 
     if granted_at_provided:
         access.granted_at = granted_at or datetime.now(UTC)
         access.granted_by = granted_by
-        await access.save()
+        await update_server_access(
+            vk_id,
+            server_id,
+            granted_at=access.granted_at,
+            granted_by=granted_by,
+        )
 
     if access_level is not None:
+        if access_level != old_level:
+            rank_changed = True
         access.access_level = access_level
         access.granted_by = granted_by
-        await access.save()
+        await update_server_access(
+            vk_id,
+            server_id,
+            access_level=access_level,
+            granted_by=granted_by,
+        )
 
     if spheres is not None:
+        if list(spheres) != old_spheres:
+            rank_changed = True
         await _persist_staff_spheres(vk_id, server_id, spheres, granted_by=granted_by)
     elif has_ca_access is not None:
         panel, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
@@ -1273,6 +1322,8 @@ async def update_staff_member(
                 current.append(CENTRAL_APPARATUS)
             elif not has_ca_access:
                 current = [s for s in current if s != CENTRAL_APPARATUS]
+        if current != old_spheres:
+            rank_changed = True
         await _persist_staff_spheres(vk_id, server_id, current, granted_by=granted_by)
 
     if note is not None:
@@ -1287,17 +1338,26 @@ async def update_staff_member(
 
     # Persist senior flags to access row when provided explicitly.
     if is_senior is not None or senior_spheres is not None:
-        access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-        if access:
-            changed_fields = []
-            if is_senior is not None:
-                access.is_senior = bool(is_senior)
-                changed_fields.append("is_senior")
-            if senior_spheres is not None:
-                access.senior_spheres = list(senior_spheres or [])
-                changed_fields.append("senior_spheres")
-            if changed_fields:
-                await access.save(update_fields=changed_fields)
+        senior_fields: dict = {}
+        if is_senior is not None:
+            if bool(is_senior) != old_senior:
+                rank_changed = True
+            senior_fields["is_senior"] = bool(is_senior)
+        if senior_spheres is not None:
+            if list(senior_spheres or []) != old_senior_spheres:
+                rank_changed = True
+            senior_fields["senior_spheres"] = list(senior_spheres or [])
+        if senior_fields:
+            await update_server_access(vk_id, server_id, **senior_fields)
+
+    if promoted_at_provided:
+        await update_server_access(
+            vk_id,
+            server_id,
+            promoted_at=promoted_at or datetime.now(UTC),
+        )
+    elif rank_changed:
+        await update_server_access(vk_id, server_id, promoted_at=datetime.now(UTC))
 
     if (
         nickname is not None

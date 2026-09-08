@@ -24,6 +24,7 @@ import { PageHeader } from '../components/PageHeader'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { Alert } from '../components/ui/Alert'
+import { PageSkeleton } from '../components/ui/LoadingState'
 import { Select, recordToOptions } from '../components/ui/Select'
 
 export function QuestionBankDetailPage() {
@@ -236,7 +237,7 @@ export function QuestionBankDetailPage() {
       )}
 
       {error && <Alert>{error}</Alert>}
-      {loading && <p className="text-white/40 text-sm">Загрузка…</p>}
+      {loading && <PageSkeleton variant="list" label="Загрузка банка" />}
 
       {bank && permissions && (
         <>

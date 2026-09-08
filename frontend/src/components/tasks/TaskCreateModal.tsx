@@ -10,6 +10,7 @@ import { MultiAssigneePicker } from '../ui/MultiAssigneePicker'
 import { Select } from '../ui/Select'
 import { ModalViewport } from '../ui/ModalViewport'
 import { Alert } from '../ui/Alert'
+import { FieldReq } from '../ui/FormField'
 
 export interface TaskCreatePayload {
   title: string
@@ -125,7 +126,10 @@ export function TaskCreateModal({
             />
           )}
           <div>
-            <label className="text-caption mb-1.5 block">Название *</label>
+            <label className="text-caption mb-1.5 block">
+              Название
+              <FieldReq />
+            </label>
             <input
               autoFocus
               value={title}

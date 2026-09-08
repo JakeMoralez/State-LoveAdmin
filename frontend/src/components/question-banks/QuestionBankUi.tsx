@@ -17,6 +17,7 @@ import { FormField } from '../ui/FormField'
 import { ModalViewport } from '../ui/ModalViewport'
 import { Select } from '../ui/Select'
 import { Alert } from '../ui/Alert'
+import { PageSkeleton } from '../ui/LoadingState'
 import { TagInput } from '../ui/TagInput'
 
 export interface BankFormValues {
@@ -215,7 +216,7 @@ export function QuestionItemModal({
           </button>
         </div>
         <div className="qb-modal-body ll-scroll">
-          <FormField label="Текст вопроса *">
+          <FormField label="Текст вопроса" required>
             <textarea
               className="control qb-field-textarea--question"
               value={body.text}
@@ -642,7 +643,7 @@ export function QuestionHistoryPanel({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 ll-scroll">
-          {loading && <p className="text-white/40 text-sm">Загрузка…</p>}
+          {loading && <PageSkeleton variant="list" className="page-skeleton--compact" label="Загрузка истории" />}
           {!loading && events.length === 0 && <p className="text-white/40 text-sm">История пуста</p>}
           <ol className="qb-history-timeline">
             {groupEventsByDate(events).map((group) => (

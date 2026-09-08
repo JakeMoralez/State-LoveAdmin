@@ -62,7 +62,7 @@ async def get_user_profile(
 
     user = await User.get_or_none(vk_id=vk_id)
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    staff_row = await get_staff_member(vk_id, server_id)
+    staff_row = await get_staff_member(server_id, vk_id)
     level = dev_level if dev_level is not None else await get_access_level(vk_id, server_id)
 
     if dev_spheres is not None:
@@ -102,6 +102,14 @@ async def get_user_profile(
         "sphere": sphere,
         "is_senior": bool(access and getattr(access, "is_senior", False)),
         "senior_spheres": list(getattr(access, "senior_spheres", []) or []) if access else [],
+        "granted_at": (staff_row or {}).get("granted_at")
+        or (access.granted_at.isoformat() if access and access.granted_at else None),
+        "promoted_at": (staff_row or {}).get("promoted_at")
+        or (
+            getattr(access, "promoted_at", None).isoformat()
+            if access and getattr(access, "promoted_at", None)
+            else None
+        ),
         "panel_role": panel_role(level),
         "server_id": server_id,
         "dev_persona": dev_level is not None,

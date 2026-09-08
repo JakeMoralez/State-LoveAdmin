@@ -227,7 +227,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
       <div
-        className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-md flex-col"
+        className="glass-card staff-profile-modal staff-profile-modal--leader modal-pop relative z-10 flex w-full max-w-md flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="staff-profile-header flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
@@ -246,188 +246,192 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
         </div>
 
         <div className="staff-profile-body ll-scroll min-h-0 flex-1 px-6 py-4">
-          <dl className="staff-profile-meta">
-            <div>
-              <dt>VK ID</dt>
-              <dd>
-                <a
-                  href={`https://vk.com/id${member.vk_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="staff-profile-vk link-gold"
-                >
-                  {member.vk_id}
-                  <ExternalLink size={13} className="inline ml-1 opacity-60" />
-                </a>
-              </dd>
-            </div>
-          </dl>
-
-          <div className="staff-profile-field">
-            <label className="staff-profile-label" htmlFor="leader-nickname">
-              Никнейм
-            </label>
-            {canEditRegistry ? (
-              <>
-                <input
-                  id="leader-nickname"
-                  type="text"
-                  className="control w-full"
-                  value={nickname}
-                  placeholder={isJudge ? 'Имя_Фамилия' : 'Kyo_Parker'}
-                  disabled={saving}
-                  onChange={(e) => setNickname(e.target.value)}
-                />
-                {nickPreview ? (
-                  <p className="staff-profile-value mt-2 text-white/50">В реестре: {nickPreview}</p>
-                ) : null}
-              </>
-            ) : (
-              <p className="staff-profile-value">{savedNickname || '—'}</p>
-            )}
-          </div>
-
-          <div className="staff-profile-field">
-            <label className="staff-profile-label" htmlFor="leader-forum">
-              Профиль на форуме
-            </label>
-            {canEditRegistry ? (
-              <>
-                <input
-                  id="leader-forum"
-                  type="url"
-                  className="control w-full"
-                  value={forumAccount}
-                  placeholder={FORUM_MEMBER_URL_EXAMPLE}
-                  disabled={saving}
-                  aria-invalid={forumError ? true : undefined}
-                  aria-describedby={forumError ? 'leader-forum-error' : undefined}
-                  onChange={(e) => setForumAccount(e.target.value)}
-                  onBlur={() => setForumTouched(true)}
-                />
-                {forumError && (
-                  <p id="leader-forum-error" className="assign-field-error" role="alert">
-                    {forumError}
-                  </p>
-                )}
-              </>
-            ) : savedForumUrl ? (
-              <p className="staff-profile-value">
-                <a href={savedForumUrl} target="_blank" rel="noreferrer" className="link-gold">
-                  {savedForumUrl}
-                  <ExternalLink size={13} className="inline ml-1 opacity-60" />
-                </a>
-              </p>
-            ) : (
-              <p className="staff-profile-value">—</p>
-            )}
-          </div>
-
-          {canEditRegistry && (
+          <section className="staff-profile-section">
+            <h3 className="staff-profile-section-title">Аккаунт</h3>
             <div className="staff-profile-field">
-              <label className="staff-profile-label" htmlFor="leader-position">
-                Должность
+              <span className="staff-profile-label">VK ID</span>
+              <a
+                href={`https://vk.com/id${member.vk_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="staff-profile-vk link-gold"
+              >
+                {member.vk_id}
+                <ExternalLink size={13} className="inline ml-1 opacity-60" />
+              </a>
+            </div>
+
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="leader-forum">
+                Профиль на форуме
               </label>
-              <Select
-                value={position}
-                options={officePositionOptions}
-                disabled={saving}
-                onChange={(next) => {
-                  setPosition(next)
-                  const nextRole = leadershipRoleFromPosition(next)
-                  const nextOrgs = nextRole ? orgOptionsForRole(nextRole) : []
-                  if (orgTag && !nextOrgs.some((o) => o.value === orgTag)) setOrgTag('')
-                }}
-              />
-              {leadershipRole ? (
-                <div className="mt-3">
-                  <label className="staff-profile-label" htmlFor="leader-org">
-                    {orgFieldLabel(leadershipRole)}
+              {canEditRegistry ? (
+                <>
+                  <input
+                    id="leader-forum"
+                    type="url"
+                    className="control w-full"
+                    value={forumAccount}
+                    placeholder={FORUM_MEMBER_URL_EXAMPLE}
+                    disabled={saving}
+                    aria-invalid={forumError ? true : undefined}
+                    aria-describedby={forumError ? 'leader-forum-error' : undefined}
+                    onChange={(e) => setForumAccount(e.target.value)}
+                    onBlur={() => setForumTouched(true)}
+                  />
+                  {forumError && (
+                    <p id="leader-forum-error" className="assign-field-error" role="alert">
+                      {forumError}
+                    </p>
+                  )}
+                </>
+              ) : savedForumUrl ? (
+                <p className="staff-profile-value">
+                  <a href={savedForumUrl} target="_blank" rel="noreferrer" className="link-gold">
+                    {savedForumUrl}
+                    <ExternalLink size={13} className="inline ml-1 opacity-60" />
+                  </a>
+                </p>
+              ) : (
+                <p className="staff-profile-value">—</p>
+              )}
+            </div>
+
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="leader-discord">
+                Discord ID
+                <button
+                  type="button"
+                  className="assign-label-hint"
+                  aria-label="Что такое Discord ID"
+                  title="Числовой ID Discord для входа на портал. В Discord: режим разработчика → ПКМ по профилю → «Скопировать ID пользователя»."
+                >
+                  <HelpCircle size={14} aria-hidden />
+                </button>
+              </label>
+              {!perms.edit_discord ? (
+                <p className="staff-profile-value">
+                  {member.discord_id ? (
+                    <>
+                      {member.discord_display_name || member.discord_username || member.discord_id}
+                      <span className="staff-discord-id block mt-1">{member.discord_id}</span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </p>
+              ) : (
+                <input
+                  id="leader-discord"
+                  type="text"
+                  inputMode="numeric"
+                  className="control w-full"
+                  value={discordId}
+                  placeholder="123456789012345678"
+                  disabled={saving}
+                  onChange={(e) => setDiscordId(e.target.value)}
+                />
+              )}
+            </div>
+          </section>
+
+          <section className="staff-profile-section">
+            <h3 className="staff-profile-section-title">Должность</h3>
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="leader-nickname">
+                Никнейм
+              </label>
+              {canEditRegistry ? (
+                <>
+                  <input
+                    id="leader-nickname"
+                    type="text"
+                    className="control w-full"
+                    value={nickname}
+                    placeholder={isJudge ? 'Имя_Фамилия' : 'Kyo_Parker'}
+                    disabled={saving}
+                    onChange={(e) => setNickname(e.target.value)}
+                  />
+                  {nickPreview ? (
+                    <p className="staff-profile-hint">
+                      Ник в реестре: <span className="text-white/70 font-medium">{nickPreview}</span>
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="staff-profile-value">{savedNickname || '—'}</p>
+              )}
+            </div>
+
+            {canEditRegistry ? (
+              <>
+                <div className="staff-profile-field">
+                  <label className="staff-profile-label" htmlFor="leader-position">
+                    Должность
                   </label>
                   <Select
-                    value={orgTag}
-                    options={orgOptions}
-                    placeholder={orgFieldLabel(leadershipRole)}
+                    value={position}
+                    options={officePositionOptions}
                     disabled={saving}
-                    onChange={setOrgTag}
+                    onChange={(next) => {
+                      setPosition(next)
+                      const nextRole = leadershipRoleFromPosition(next)
+                      const nextOrgs = nextRole ? orgOptionsForRole(nextRole) : []
+                      if (orgTag && !nextOrgs.some((o) => o.value === orgTag)) setOrgTag('')
+                    }}
                   />
                 </div>
-              ) : null}
-            </div>
-          )}
-
-          {!canEditRegistry && (member.position ?? '').trim() && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label">Должность</label>
-              <p className="staff-profile-value">{member.position}</p>
-            </div>
-          )}
-
-          {canEditRegistry && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label" htmlFor="leader-note">
-                Заметка
-              </label>
-              <input
-                id="leader-note"
-                type="text"
-                className="control w-full"
-                value={note}
-                placeholder="Служебная заметка"
-                disabled={saving}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </div>
-          )}
-
-          {!canEditRegistry && (member.note ?? '').trim() && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label">Заметка</label>
-              <p className="staff-profile-value">{member.note}</p>
-            </div>
-          )}
-
-          <div className="staff-profile-field">
-            <label className="staff-profile-label" htmlFor="leader-discord">
-              Discord ID
-              <button
-                type="button"
-                className="assign-label-hint"
-                aria-label="Что такое Discord ID"
-                title="Числовой ID Discord для входа на портал. В Discord: режим разработчика → ПКМ по профилю → «Скопировать ID пользователя»."
-              >
-                <HelpCircle size={14} aria-hidden />
-              </button>
-            </label>
-            {!perms.edit_discord ? (
-              <p className="staff-profile-value">
-                {member.discord_id ? (
-                  <>
-                    {member.discord_display_name || member.discord_username || member.discord_id}
-                    <span className="staff-discord-id block mt-1">{member.discord_id}</span>
-                  </>
-                ) : (
-                  '—'
-                )}
-              </p>
+                {leadershipRole ? (
+                  <div className="staff-profile-field">
+                    <label className="staff-profile-label" htmlFor="leader-org">
+                      {orgFieldLabel(leadershipRole)}
+                    </label>
+                    <Select
+                      value={orgTag}
+                      options={orgOptions}
+                      placeholder={orgFieldLabel(leadershipRole)}
+                      disabled={saving}
+                      onChange={setOrgTag}
+                    />
+                  </div>
+                ) : null}
+                <div className="staff-profile-field">
+                  <label className="staff-profile-label" htmlFor="leader-note">
+                    Заметка
+                  </label>
+                  <input
+                    id="leader-note"
+                    type="text"
+                    className="control w-full"
+                    value={note}
+                    placeholder="Служебная заметка"
+                    disabled={saving}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                </div>
+              </>
             ) : (
-              <input
-                id="leader-discord"
-                type="text"
-                inputMode="numeric"
-                className="control w-full"
-                value={discordId}
-                placeholder="123456789012345678"
-                disabled={saving}
-                onChange={(e) => setDiscordId(e.target.value)}
-              />
+              <>
+                {(member.position ?? '').trim() ? (
+                  <div className="staff-profile-field">
+                    <span className="staff-profile-label">Должность</span>
+                    <p className="staff-profile-value">{member.position}</p>
+                  </div>
+                ) : null}
+                {(member.note ?? '').trim() ? (
+                  <div className="staff-profile-field">
+                    <span className="staff-profile-label">Заметка</span>
+                    <p className="staff-profile-value">{member.note}</p>
+                  </div>
+                ) : null}
+              </>
             )}
-          </div>
+          </section>
 
           {(perms.clear_nickname || perms.remove_from_registry) && (
             <div className="staff-profile-danger">
               <div className="staff-profile-danger-title">Действия</div>
-              <div className="flex flex-col gap-2">
+              <div className="staff-profile-subfields">
                 {perms.clear_nickname && (
                   <button
                     type="button"

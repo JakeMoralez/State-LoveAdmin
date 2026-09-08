@@ -96,7 +96,7 @@
 
 .staff-registry-head,
 .staff-registry-row {
-  grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr) minmax(13rem, 1.1fr);
+  grid-template-columns: 3rem minmax(18rem, 1.8fr) minmax(11rem, 0.95fr) minmax(12rem, 1fr);
   gap: 1rem;
   align-items: center;
 }
@@ -183,6 +183,34 @@
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+}
+
+.staff-col-nick > .staff-nick,
+.staff-col-nick > .staff-nick-link {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.staff-nick-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.staff-nick-cluster > .staff-nick,
+.staff-nick-cluster > .staff-nick-link {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.staff-col-nick .academy-chip--inline {
+  flex-shrink: 0;
+}
+
+.staff-col-nick .staff-settings-btn {
+  margin-left: auto;
 }
 
 /* Tag in nick — same font/color as name (no separate styling) */
@@ -285,7 +313,7 @@
   .staff-registry-head,
   .staff-registry-row {
     display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1.5fr) minmax(7.25rem, 0.95fr) minmax(6.5rem, 0.85fr);
+    grid-template-columns: 2.25rem minmax(12rem, 1.7fr) minmax(7rem, 0.9fr) minmax(6.5rem, 0.8fr);
     grid-template-rows: auto;
     gap: 0.5rem 0.75rem;
   }

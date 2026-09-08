@@ -2,11 +2,12 @@ import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ActivityLogItem } from '../../api'
-import { activityVerb } from '../../lib/activityLabels'
+import { activityVerb, formatStaffUpdateDetail, staffUpdateVerb } from '../../lib/activityLabels'
 import { parseStaffNick } from '../../lib/staff'
 import { rewriteLegacyNicknameTags } from '../../lib/staffNickname'
 import { cn } from '../../lib/utils'
 import { Select } from '../ui/Select'
+import { PageSkeleton } from '../ui/LoadingState'
 
 export const ACTIVITY_PAGE_SIZE_OPTIONS = [
   { value: '10', label: 'На странице 10' },
@@ -75,19 +76,7 @@ export function formatActivityStamp(iso: string): { date: string; time: string }
 
 export function formatActivityDetail(detail: Record<string, unknown>, action: string): string | null {
   if (action === 'staff_update') {
-    const bits: string[] = []
-    const level = detail.access_level
-    if (level && typeof level === 'object') {
-      const ch = level as { from_name?: string; to_name?: string; from?: unknown; to?: unknown }
-      const from = ch.from_name ?? ch.from
-      const to = ch.to_name ?? ch.to
-      if (from != null && to != null) bits.push(`[Было: ${from} | Стало: ${to}]`)
-    }
-    if (detail.nickname) bits.push('ник')
-    if (detail.spheres) bits.push('сферы')
-    if (detail.has_ca_access != null) bits.push('доступ к порталу')
-    if (detail.note) bits.push('заметка')
-    return bits.length ? bits.join(' · ') : null
+    return formatStaffUpdateDetail(detail)
   }
   if (action === 'task_update' && detail.status) {
     return `статус: ${String(detail.status)}`
@@ -101,6 +90,10 @@ export function formatActivityDetail(detail: Record<string, unknown>, action: st
   }
   if (action === 'loot_case_prize_bulk' && detail.count != null) {
     return `${detail.count}`
+  }
+  if (action.startsWith('issuance_')) {
+    const label = typeof detail.amount_label === 'string' ? detail.amount_label.trim() : ''
+    if (label) return `[${label}]`
   }
   if (action === 'dev_catalog_update' && Array.isArray(detail.keys)) {
     const labels: Record<string, string> = {
@@ -153,6 +146,9 @@ function actorPath(vkId: number) {
 function targetPath(item: ActivityLogItem): string | null {
   if (item.target_vk_id == null) return null
   if (item.entity_type === 'leader') return `/leaders/${item.target_vk_id}`
+  if (item.entity_type === 'academy_cadet' || item.action.startsWith('academy_')) {
+    return `/academy/${item.target_vk_id}`
+  }
   return `/staff/${item.target_vk_id}`
 }
 
@@ -165,8 +161,11 @@ export function pageWindow(current: number, last: number): number[] {
 }
 
 function ActivityActionLine({ item }: { item: ActivityLogItem }) {
-  const extra = formatActivityDetail(item.detail, item.action)
-  const verb = activityVerb(item.action, item.action_label)
+  const extra = formatActivityDetail(item.detail ?? {}, item.action)
+  const verb =
+    item.action === 'staff_update'
+      ? staffUpdateVerb(item.detail ?? {})
+      : activityVerb(item.action, item.action_label)
   return (
     <p className="activity-action">
       <ActivityNick label={item.actor_name} to={actorPath(item.actor_vk_id)} />{' '}
@@ -231,8 +230,8 @@ export function ActivityTable({
           <tbody>
             {loading && items.length === 0 ? (
               <tr>
-                <td colSpan={2} className="activity-table-empty">
-                  Загрузка…
+                <td colSpan={2} className="activity-table-empty activity-table-empty--skeleton">
+                  <PageSkeleton variant="table" label="Загрузка журнала" />
                 </td>
               </tr>
             ) : items.length === 0 ? (

@@ -182,11 +182,293 @@
   width: 42%;
 }
 
+/* Shared page skeletons — same gold shimmer as the tasks kanban */
+.page-skeleton {
+  flex: 1;
+  min-height: 14rem;
+  min-width: 0;
+  animation: sl-fade-in var(--motion-base) var(--ease) both;
+}
+
+.page-skeleton--compact {
+  min-height: 8rem;
+}
+
+.page-skeleton-in {
+  animation: sl-fade-in 0.42s var(--ease) both;
+  animation-delay: calc(var(--sk, 0) * 55ms);
+}
+
+.page-skeleton .kanban-column.tasks-loading-column {
+  animation: sl-fade-in 0.45s var(--ease) both !important;
+  animation-delay: calc(var(--sk, 0) * 90ms) !important;
+}
+
+.page-skeleton-line {
+  height: 0.625rem;
+  width: 88%;
+}
+
+.page-skeleton-line--wide {
+  height: 0.75rem;
+  width: 96%;
+}
+
+.page-skeleton-line--short {
+  width: 42%;
+}
+
+.page-skeleton-line--title {
+  height: 0.875rem;
+  width: min(18rem, 72%);
+}
+
+.page-skeleton-line--meta {
+  height: 0.625rem;
+  width: min(10rem, 42%);
+}
+
+.page-skeleton-line--th {
+  height: 0.5rem;
+  width: 4rem;
+}
+
+.page-skeleton-line--num {
+  height: 0.625rem;
+  width: 1.25rem;
+}
+
+.page-skeleton-line--label {
+  height: 0.5rem;
+  width: 5rem;
+}
+
+.page-skeleton-line--stat {
+  height: 1.5rem;
+  width: 3.5rem;
+}
+
+.page-skeleton-line--stamp {
+  height: 0.75rem;
+  width: 5.5rem;
+  flex-shrink: 0;
+}
+
+.page-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+}
+
+.page-skeleton-card--tile {
+  padding: var(--space-4);
+  gap: var(--space-3);
+  min-height: 7.5rem;
+}
+
+.page-skeleton-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+}
+
+.page-skeleton-avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.page-skeleton-avatar--lg {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.page-skeleton-list-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.page-skeleton--cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-3);
+  align-content: start;
+}
+
+.page-skeleton--dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.page-skeleton-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-3);
+}
+
+.page-skeleton-stat {
+  min-height: 5.5rem;
+  justify-content: center;
+}
+
+.page-skeleton-panel {
+  padding: var(--space-4);
+  gap: var(--space-3);
+}
+
+.page-skeleton--checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.page-skeleton-pills {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.page-skeleton-pill {
+  height: 1.75rem;
+  width: 5.5rem;
+  border-radius: 999px;
+}
+
+.page-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  padding: var(--space-3);
+}
+
+.page-skeleton-cell {
+  height: 2.25rem;
+}
+
+.page-skeleton--detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.page-skeleton-hero {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.page-skeleton-hero-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.page-skeleton-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.page-skeleton-control {
+  height: 2.25rem;
+  width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.page-skeleton--table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.page-skeleton-table-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--sl-border);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+}
+
+.page-skeleton--registry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.page-skeleton-registry-head {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(6rem, 0.8fr) minmax(6rem, 0.8fr);
+  gap: var(--space-3);
+  padding: 0.35rem 0.75rem 0.6rem;
+  opacity: 0.65;
+}
+
+.page-skeleton-registry-row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(6rem, 0.8fr) minmax(6rem, 0.8fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--sl-border);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+}
+
+.page-skeleton-nick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.page-skeleton--form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 36rem;
+}
+
+.drawer-panel > .page-skeleton {
+  width: 100%;
+  padding: var(--space-5);
+}
+
+@media (max-width: 720px) {
+  .page-skeleton-registry-head,
+  .page-skeleton-registry-row {
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(4.5rem, 0.7fr);
+  }
+
+  .page-skeleton-registry-head > :last-child,
+  .page-skeleton-registry-row > :last-child {
+    display: none;
+  }
+
+  .page-skeleton-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sl-loading-spinner,
   .page-loading::before,
   .login-loading::before,
-  .sl-skeleton {
+  .sl-skeleton,
+  .page-skeleton,
+  .page-skeleton-in,
+  .page-skeleton .kanban-column.tasks-loading-column {
     animation: none !important;
   }
 

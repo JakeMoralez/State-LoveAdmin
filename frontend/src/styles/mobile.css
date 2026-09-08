@@ -273,6 +273,10 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     background: rgba(8, 8, 12, 0.98);
   }
 
+  .staff-profile-dates {
+    grid-template-columns: 1fr;
+  }
+
   .drawer-panel {
     max-width: 100%;
     border-left: none;

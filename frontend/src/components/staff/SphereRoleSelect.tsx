@@ -29,11 +29,13 @@ function withLocked(next: string[], locked: string[]): string[] {
 
 function RoleChip({
   label,
+  title,
   on,
   disabled,
   onClick,
 }: {
   label: string
+  title: string
   on: boolean
   disabled: boolean
   onClick: () => void
@@ -43,6 +45,8 @@ function RoleChip({
       type="button"
       className={cn('sphere-role-chip', on && 'sphere-role-chip--on')}
       aria-pressed={on}
+      aria-label={title}
+      title={title}
       disabled={disabled}
       onClick={onClick}
     >
@@ -73,8 +77,14 @@ export function SphereRoleSelect({
   const splitLists = accessLevel >= 5
   const primaryOptions = sphereOptionsForLevel(accessLevel)
   const extraOptions = splitLists ? sphereOptionsForLevel(2) : primaryOptions
-  const primaryChip = accessLevel <= 2 ? 'След.' : 'Должность'
-  const extraChip = accessLevel <= 2 ? 'Ст. След.' : 'След.'
+  const primaryChip =
+    accessLevel <= 2
+      ? { label: 'Следящий', title: 'Следящий' }
+      : { label: 'Должность', title: 'Должность по сфере' }
+  const extraChip =
+    accessLevel <= 2
+      ? { label: 'Старший', title: 'Старший следящий' }
+      : { label: 'Следящий', title: 'Следящий' }
 
   const canToggle = (key: string) => {
     if (disabled) return false
@@ -113,7 +123,8 @@ export function SphereRoleSelect({
         <span className="sphere-role-chips">
           {chips.primary ? (
             <RoleChip
-              label={primaryChip}
+              label={primaryChip.label}
+              title={primaryChip.title}
               on={primaryOn}
               disabled={toggleDisabled}
               onClick={() => togglePrimary(key)}
@@ -121,7 +132,8 @@ export function SphereRoleSelect({
           ) : null}
           {chips.extra ? (
             <RoleChip
-              label={extraChip}
+              label={extraChip.label}
+              title={extraChip.title}
               on={extraOn}
               disabled={toggleDisabled}
               onClick={() => toggleExtra(key)}

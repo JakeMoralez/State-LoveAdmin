@@ -285,6 +285,11 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
   text-align: left;
+  cursor: pointer;
+}
+
+.sphere-filter-trigger--static {
+  cursor: default;
 }
 
 .sphere-filter-menu {

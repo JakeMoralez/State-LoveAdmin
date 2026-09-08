@@ -21,6 +21,9 @@ async def _table_exists(table: str) -> bool:
 
 async def ensure_defaults() -> None:
     from app.config import PANEL_DATABASE_URL, is_sqlite_url
+    from app.services.bot_users import ensure_user_server_access_senior_columns
+
+    await ensure_user_server_access_senior_columns()
 
     if not is_sqlite_url(PANEL_DATABASE_URL):
         return

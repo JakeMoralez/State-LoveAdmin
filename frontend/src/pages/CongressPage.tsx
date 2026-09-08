@@ -389,7 +389,7 @@ export function CongressPage() {
                             />
                           </Field>
                         ) : null}
-                        <Field label="Пояснение" hint="Необязательно">
+                        <Field label="Пояснение">
                           <textarea
                             className="control cg-textarea cg-textarea--note"
                             rows={3}

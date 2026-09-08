@@ -12,6 +12,7 @@ import { canOpenLeaderSettings } from '../../lib/accessLevels'
 import { inferLeadershipFromNickname, resolveLeadershipSphere } from '../../lib/leaderNickname'
 import { SPHERE_OPTIONS, formatSpheresDisplay } from '../../lib/spheres'
 import { staffLabel } from '../../lib/staff'
+import { PageSkeleton } from '../ui/LoadingState'
 
 function memberSphere(m: LeaderMember): string | null {
   const nick = m.bot_nickname || m.nickname
@@ -230,7 +231,7 @@ export function OfficeRegistryPage({
       {settingsError && <Alert className="shrink-0">{settingsError}</Alert>}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="registry" label="Загрузка реестра" />
       ) : (
         <div className={`staff-registry leaders-registry${sphereFilter ? ' leaders-registry--spheres' : ''}`}>
           <div className="staff-registry-head leaders-registry-head">

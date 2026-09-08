@@ -3,6 +3,7 @@ import { FolderKanban } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api'
 import { TasksWorkspace } from './TasksPage'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function ProjectDetailPage() {
   const { id, taskId } = useParams()
@@ -13,7 +14,7 @@ export function ProjectDetailPage() {
     api.project(projectId).then(setProject)
   }, [projectId])
 
-  if (!project) return <div className="page-loading">Загрузка…</div>
+  if (!project) return <PageSkeleton variant="kanban" label="Загрузка проекта" />
 
   return (
     <TasksWorkspace

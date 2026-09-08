@@ -14,6 +14,39 @@ export const ACADEMY_STAGES = [
   { value: 'attestation', label: 'Аттестация' },
 ] as const
 
+export const ACADEMY_CATEGORIES = [
+  { value: 'theory', label: 'Теория' },
+  { value: 'practice', label: 'Практика' },
+  { value: 'management', label: 'Управление' },
+] as const
+
+export const ACADEMY_PROOF_KINDS: Record<string, string> = {
+  text: 'Текст',
+  link: 'Ссылка',
+  file: 'Файл / URL',
+  proof: 'Доказательство',
+}
+
+export const ACADEMY_REVIEWER_KINDS = [
+  { value: 'mentor', label: 'Наставник' },
+  { value: 'academy_lead', label: 'Руководство Академии' },
+] as const
+
+export function academyCategoryForStage(stage: string): string {
+  if (stage === 'practice') return 'practice'
+  if (stage === 'attestation') return 'management'
+  if (stage === 'mentored') return 'practice'
+  return 'theory'
+}
+
+export function academyProofLabel(kind: string): string {
+  return ACADEMY_PROOF_KINDS[kind] || kind
+}
+
+export function academyReviewerLabel(kind: string): string {
+  return ACADEMY_REVIEWER_KINDS.find((item) => item.value === kind)?.label || kind
+}
+
 export const ACADEMY_STATUSES = [
   { value: 'active', label: 'Обучается' },
   { value: 'frozen', label: 'Заморожен' },
@@ -95,4 +128,41 @@ export function academyCanEnrollLevel(level: number): boolean {
 export function academyProgressPct(done: number, total: number): number {
   if (total <= 0) return 0
   return Math.max(0, Math.min(100, Math.round((done / total) * 100)))
+}
+
+const ACADEMY_FILE_PATH_RE = /\/uploads\/academy\/([a-f0-9]{32}\.[a-z0-9]{1,8})(?:\?.*)?$/i
+
+export const ACADEMY_MATERIAL_ACCEPT =
+  '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.rtf,.txt,.csv,.zip,.png,.jpg,.jpeg,.gif,.webp'
+
+export function academyMaterialFilePath(url: string): string | null {
+  const match = url.trim().match(ACADEMY_FILE_PATH_RE)
+  return match ? `/uploads/academy/${match[1].toLowerCase()}` : null
+}
+
+export function isAcademyMaterialFile(url: string): boolean {
+  return academyMaterialFilePath(url) != null
+}
+
+export function academyMaterialHref(url: string): string {
+  return academyMaterialFilePath(url) || url.trim()
+}
+
+export function academyMaterials(items?: { title: string; url: string }[] | null): { title: string; url: string }[] {
+  return (items || []).filter((item) => {
+    const url = item.url.trim()
+    return /^https?:\/\//i.test(url) || isAcademyMaterialFile(url)
+  })
+}
+
+export function cleanMaterials(items: { title: string; url: string }[]): { title: string; url: string }[] {
+  return items
+    .map((item) => {
+      const title = item.title.trim()
+      const file = academyMaterialFilePath(item.url)
+      const url = file || item.url.trim()
+      return { title, url }
+    })
+    .filter((item) => /^https?:\/\//i.test(item.url) || isAcademyMaterialFile(item.url))
+    .slice(0, 8)
 }

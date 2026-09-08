@@ -21,6 +21,7 @@ import './styles/cases.css'
 import './styles/dev-settings.css'
 import './styles/profile-cabinet.css'
 import './styles/academy.css'
+import './styles/issuance.css'
 import App from './App.tsx'
 import { installGlobalErrorHandlers } from './lib/errorReporter'
 

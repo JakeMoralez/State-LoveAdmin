@@ -11,16 +11,17 @@ import {
   type AcademyTemplate,
   type StaffMember,
 } from '../api'
+import { AssignModal, TemplateCatalogModal } from '../components/academy/AcademyAssignmentModals'
+import { AssignmentMaterials } from '../components/academy/AssignmentMaterials'
 import { PageHeader } from '../components/PageHeader'
 import { Alert } from '../components/ui/Alert'
-import { Checkbox } from '../components/ui/Checkbox'
 import { Select } from '../components/ui/Select'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
-import { ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
+import { ASSIGN_STAFF_MIN_LEVEL, accessLevelShort } from '../lib/accessLevels'
+import { PageSkeleton } from '../components/ui/LoadingState'
 import {
   ACADEMY_DIRECTIONS,
-  ACADEMY_STAGES,
   academyCanEnrollLevel,
   academyDueOverdue,
   academyReportLabel,
@@ -65,6 +66,7 @@ export function AcademyPage() {
   const [error, setError] = useState<string | null>(null)
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const [submitFor, setSubmitFor] = useState<AcademyAssignment | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -165,6 +167,11 @@ export function AcademyPage() {
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            {canLead ? (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setTemplatesOpen(true)}>
+                Шаблоны
+              </button>
+            ) : null}
             {canAssign ? (
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignOpen(true)}>
                 Выдать задание
@@ -198,7 +205,7 @@ export function AcademyPage() {
       {error && <Alert className="shrink-0">{error}</Alert>}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="registry" label="Загрузка академии" />
       ) : activeTab === 'roster' ? (
         <>
           <div className="academy-stats">
@@ -242,13 +249,6 @@ export function AcademyPage() {
             ))}
           </div>
           <RosterList rows={filteredRoster} />
-          {canLead ? (
-            <TemplateEditor
-              templates={templates}
-              onSaved={load}
-              onError={setError}
-            />
-          ) : null}
         </>
       ) : activeTab === 'reviews' ? (
         <ReviewQueue items={reviews} onChanged={load} onError={setError} />
@@ -283,6 +283,7 @@ export function AcademyPage() {
         onClose={() => setAssignOpen(false)}
         templates={templates.filter((t) => t.is_active)}
         people={canLead ? roster.filter((c) => c.status === 'active') : mine}
+        mentees={mine}
         canLead={canLead}
         saving={saving}
         onSubmit={async (payload) => {
@@ -297,6 +298,13 @@ export function AcademyPage() {
             setSaving(false)
           }
         }}
+      />
+
+      <TemplateCatalogModal
+        open={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        templates={templates}
+        onSaved={load}
       />
 
       <SubmitModal
@@ -323,55 +331,57 @@ function RosterList({ rows, reserve }: { rows: AcademyCadet[]; reserve?: boolean
   }
   return (
     <div className={`staff-registry academy-registry${reserve ? ' academy-registry--reserve' : ''}`}>
-      <div className="staff-registry-head">
-        <span className="staff-registry-th staff-col-num">№</span>
-        <span className="staff-registry-th staff-col-nick">Академик</span>
-        <span className="staff-registry-th academy-col-dir">Направление</span>
-        <span className="staff-registry-th academy-col-mentor">Наставник</span>
-        {reserve ? (
-          <span className="staff-registry-th academy-col-rec">Рекомендация</span>
-        ) : (
-          <>
-            <span className="staff-registry-th academy-col-stage">Этап</span>
-            <span className="staff-registry-th academy-col-tasks">Задания</span>
-            <span className="staff-registry-th academy-col-overdue">Просрочки</span>
-          </>
-        )}
-      </div>
-      <div className="staff-registry-body ll-scroll">
-        {rows.map((c, i) => {
-          const overdue = (c.metrics?.overdue ?? 0) > 0
-          return (
-            <div key={c.id} className="staff-registry-row">
-              <div className="staff-col-num">{i + 1}</div>
-              <div className="staff-col-nick">
-                <span className="staff-avatar-wrap">
-                  <img src={c.avatar_url || DEFAULT_AVATAR} alt="" className="staff-avatar" loading="lazy" />
-                </span>
-                <Link to={`/academy/${c.vk_id}`} className="staff-nick staff-nick-link no-underline">
-                  {c.nickname}
-                </Link>
+      <div className="academy-registry-scroll ll-scroll">
+        <div className="staff-registry-head">
+          <span className="staff-registry-th staff-col-num">№</span>
+          <span className="staff-registry-th staff-col-nick">Академик</span>
+          <span className="staff-registry-th academy-col-dir">Направление</span>
+          <span className="staff-registry-th academy-col-mentor">Наставник</span>
+          {reserve ? (
+            <span className="staff-registry-th academy-col-rec">Рекомендация</span>
+          ) : (
+            <>
+              <span className="staff-registry-th academy-col-stage">Этап</span>
+              <span className="staff-registry-th academy-col-tasks">Задания</span>
+              <span className="staff-registry-th academy-col-overdue">Просрочки</span>
+            </>
+          )}
+        </div>
+        <div className="staff-registry-body">
+          {rows.map((c, i) => {
+            const overdue = (c.metrics?.overdue ?? 0) > 0
+            return (
+              <div key={c.id} className="staff-registry-row">
+                <div className="staff-col-num">{i + 1}</div>
+                <div className="staff-col-nick">
+                  <span className="staff-avatar-wrap">
+                    <img src={c.avatar_url || DEFAULT_AVATAR} alt="" className="staff-avatar" loading="lazy" />
+                  </span>
+                  <Link to={`/academy/${c.vk_id}`} className="staff-nick staff-nick-link no-underline">
+                    {c.nickname}
+                  </Link>
+                </div>
+                <div className="academy-col-dir">{c.direction_label}</div>
+                <div className="academy-col-mentor">{c.mentor_name || '—'}</div>
+                {reserve ? (
+                  <div className="academy-col-rec">{c.recommendation_label}</div>
+                ) : (
+                  <>
+                    <div className="academy-col-stage">
+                      <span className={academyStageChipClass(c.stage, c.status, overdue)}>{c.stage_label}</span>
+                    </div>
+                    <div className="academy-col-tasks">
+                      {c.metrics?.assignments_done ?? 0}/{c.metrics?.assignments_total ?? 0}
+                    </div>
+                    <div className={`academy-col-overdue${overdue ? ' academy-col-overdue--warn' : ''}`}>
+                      {c.metrics?.overdue ?? 0}
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="academy-col-dir">{c.direction_label}</div>
-              <div className="academy-col-mentor">{c.mentor_name || '—'}</div>
-              {reserve ? (
-                <div className="academy-col-rec">{c.recommendation_label}</div>
-              ) : (
-                <>
-                  <div className="academy-col-stage">
-                    <span className={academyStageChipClass(c.stage, c.status, overdue)}>{c.stage_label}</span>
-                  </div>
-                  <div className="academy-col-tasks">
-                    {c.metrics?.assignments_done ?? 0}/{c.metrics?.assignments_total ?? 0}
-                  </div>
-                  <div className={`academy-col-overdue${overdue ? ' academy-col-overdue--warn' : ''}`}>
-                    {c.metrics?.overdue ?? 0}
-                  </div>
-                </>
-              )}
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -532,6 +542,7 @@ function MyTasks({
               </span>
             </div>
             {item.description ? <p className="academy-task-desc">{item.description}</p> : null}
+            <AssignmentMaterials items={item.materials} />
             {canSubmit ? (
               <button type="button" className="btn btn-gold btn-sm mt-3" onClick={() => onSubmit(item)}>
                 Сдать
@@ -563,6 +574,7 @@ function EnrollModal({
   const [direction, setDirection] = useState('general')
   const [mentor, setMentor] = useState('')
   const [formError, setFormError] = useState('')
+  const picked = candidates.find((m) => String(m.vk_id) === vkId) || null
 
   useEffect(() => {
     if (!open) return
@@ -574,45 +586,61 @@ function EnrollModal({
 
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
-      <div className="glass-card academy-modal modal-pop relative z-10 flex w-full flex-col" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="glass-card academy-modal academy-modal--assign modal-pop relative z-10 flex w-full flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
           <h2 className="m-0 text-lg font-semibold">Зачислить в Академию</h2>
           <button type="button" className="btn-icon" onClick={onClose} aria-label="Закрыть">
             <X size={18} />
           </button>
         </div>
-        <div className="px-6 py-4 space-y-3 ll-scroll">
-          <div>
-            <label className="staff-profile-label">Кто</label>
+        <div className="academy-modal-body px-6 py-4 space-y-3">
+          <div className="staff-profile-field">
+            <span className="staff-profile-label">Кто</span>
             <Select
               value={vkId}
               onChange={setVkId}
               options={[
-                { value: '', label: 'Выберите следящего' },
+                { value: '', label: candidates.length ? 'Выберите следящего' : 'Нет кандидатов ПГС / Следящий' },
                 ...candidates.map((m) => ({ value: String(m.vk_id), label: staffLabel(m) })),
               ]}
             />
           </div>
-          <div>
-            <label className="staff-profile-label">Направление</label>
-            <Select
-              value={direction}
-              onChange={setDirection}
-              options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
-            />
+          {picked ? (
+            <div className="academy-assign-preview academy-enroll-preview">
+              <img src={picked.avatar_url || DEFAULT_AVATAR} alt="" className="academy-enroll-avatar" />
+              <div className="min-w-0">
+                <div className="academy-enroll-name">{staffLabel(picked)}</div>
+                <div className="academy-assign-preview-meta">
+                  <span>{accessLevelShort(picked.access_level)}</span>
+                  <span>старт: Теория</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <div className="academy-form-grid">
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">Направление</span>
+              <Select
+                value={direction}
+                onChange={setDirection}
+                options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
+              />
+            </div>
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">Наставник</span>
+              <Select
+                value={mentor}
+                onChange={setMentor}
+                options={[
+                  { value: '', label: 'Не назначен' },
+                  ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
+                ]}
+              />
+            </div>
           </div>
-          <div>
-            <label className="staff-profile-label">Наставник</label>
-            <Select
-              value={mentor}
-              onChange={setMentor}
-              options={[
-                { value: '', label: 'Не назначен' },
-                ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
-              ]}
-            />
-          </div>
-          <p className="staff-profile-hint m-0">Ник и должность не меняются.</p>
           {formError ? <Alert>{formError}</Alert> : null}
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/[0.06]">
@@ -636,120 +664,6 @@ function EnrollModal({
             }}
           >
             Зачислить
-          </button>
-        </div>
-      </div>
-    </ModalViewport>
-  )
-}
-
-function AssignModal({
-  open,
-  onClose,
-  templates,
-  people,
-  canLead,
-  saving,
-  onSubmit,
-}: {
-  open: boolean
-  onClose: () => void
-  templates: AcademyTemplate[]
-  people: AcademyCadet[]
-  canLead: boolean
-  saving: boolean
-  onSubmit: (body: {
-    template_id: number
-    assignee_vk_ids?: number[]
-    all_active?: boolean
-    all_mentees?: boolean
-  }) => Promise<void>
-}) {
-  const [templateId, setTemplateId] = useState('')
-  const [target, setTarget] = useState('')
-  const [confirmAll, setConfirmAll] = useState(false)
-  const [formError, setFormError] = useState('')
-
-  useEffect(() => {
-    if (!open) return
-    setTemplateId('')
-    setTarget('')
-    setConfirmAll(false)
-    setFormError('')
-  }, [open])
-
-  return (
-    <ModalViewport open={open} onBackdropClick={onClose}>
-      <div className="glass-card academy-modal modal-pop relative z-10 flex w-full flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-          <h2 className="m-0 text-lg font-semibold">Выдать задание</h2>
-          <button type="button" className="btn-icon" onClick={onClose} aria-label="Закрыть">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="px-6 py-4 space-y-3">
-          <div>
-            <label className="staff-profile-label">Шаблон</label>
-            <Select
-              value={templateId}
-              onChange={setTemplateId}
-              options={[
-                { value: '', label: 'Выберите шаблон' },
-                ...templates.map((t) => ({ value: String(t.id), label: `${t.title} · ${t.stage_label}` })),
-              ]}
-            />
-          </div>
-          <div>
-            <label className="staff-profile-label">Кому</label>
-            <Select
-              value={target}
-              onChange={setTarget}
-              options={[
-                { value: '', label: 'Выберите академика' },
-                { value: 'mine', label: 'Всем моим подопечным' },
-                ...(canLead ? [{ value: 'all', label: 'Всем активным' }] : []),
-                ...people.map((c) => ({ value: String(c.vk_id), label: c.nickname })),
-              ]}
-            />
-          </div>
-          {target === 'all' ? (
-            <label className="ui-checkbox-label staff-profile-check">
-              <Checkbox checked={confirmAll} onChange={setConfirmAll} />
-              Да, выдать всем активным академикам
-            </label>
-          ) : null}
-          {formError ? <Alert>{formError}</Alert> : null}
-        </div>
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/[0.06]">
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Отмена
-          </button>
-          <button
-            type="button"
-            className="btn btn-gold"
-            disabled={saving}
-            onClick={() => {
-              if (!templateId) {
-                setFormError('Выберите шаблон')
-                return
-              }
-              if (!target) {
-                setFormError('Выберите, кому выдать задание')
-                return
-              }
-              if (target === 'all' && !confirmAll) {
-                setFormError('Подтвердите выдачу всем активным')
-                return
-              }
-              void onSubmit({
-                template_id: Number(templateId),
-                all_active: target === 'all',
-                all_mentees: target === 'mine',
-                assignee_vk_ids: target === 'all' || target === 'mine' ? undefined : [Number(target)],
-              })
-            }}
-          >
-            Выдать
           </button>
         </div>
       </div>
@@ -788,6 +702,8 @@ function SubmitModal({
           </button>
         </div>
         <div className="px-6 py-4 space-y-3">
+          {assignment?.description ? <p className="academy-task-desc">{assignment.description}</p> : null}
+          <AssignmentMaterials items={assignment?.materials} />
           <div>
             <label className="staff-profile-label" htmlFor="academy-submit-body">
               Текст отчёта
@@ -839,96 +755,5 @@ function SubmitModal({
         </div>
       </div>
     </ModalViewport>
-  )
-}
-
-function TemplateEditor({
-  templates,
-  onSaved,
-  onError,
-}: {
-  templates: AcademyTemplate[]
-  onSaved: () => Promise<void>
-  onError: (msg: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [title, setTitle] = useState('')
-  const [stage, setStage] = useState('theory')
-  const [description, setDescription] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  if (!open) {
-    return (
-      <button type="button" className="btn btn-ghost btn-sm w-fit" onClick={() => setOpen(true)}>
-        Шаблоны заданий
-      </button>
-    )
-  }
-
-  return (
-    <div className="academy-manage">
-      <h2 className="academy-manage-title">Шаблоны заданий</h2>
-      <ul className="m-0 mb-3 pl-4 text-sm text-white/70">
-        {templates.map((t) => (
-          <li key={t.id}>
-            {t.title} · {t.stage_label}
-          </li>
-        ))}
-      </ul>
-      <div className="academy-form-grid">
-        <div>
-          <label className="staff-profile-label">Название</label>
-          <input className="control w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
-        </div>
-        <div>
-          <label className="staff-profile-label">Этап</label>
-          <Select
-            value={stage}
-            onChange={setStage}
-            options={ACADEMY_STAGES.map((s) => ({ value: s.value, label: s.label }))}
-          />
-        </div>
-        <div className="col-span-full">
-          <label className="staff-profile-label">Описание</label>
-          <textarea className="control w-full" value={description} onChange={(e) => setDescription(e.target.value)} />
-        </div>
-      </div>
-      <div className="mt-3 flex gap-2">
-        <button
-          type="button"
-          className="btn btn-gold btn-sm"
-          disabled={saving || !title.trim()}
-          onClick={() => {
-            setSaving(true)
-            void api
-              .academyCreateTemplate({
-                title: title.trim(),
-                category: stage === 'practice' ? 'practice' : 'theory',
-                stage,
-                max_points: 10,
-                due_days: 3,
-                required: true,
-                description,
-                proof_kinds: ['text', 'link'],
-                reviewer_kind: 'mentor',
-                is_active: true,
-                sort_order: templates.length,
-              })
-              .then(() => {
-                setTitle('')
-                setDescription('')
-                return onSaved()
-              })
-              .catch((e: unknown) => onError(errText(e)))
-              .finally(() => setSaving(false))
-          }}
-        >
-          Добавить шаблон
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>
-          Скрыть
-        </button>
-      </div>
-    </div>
   )
 }

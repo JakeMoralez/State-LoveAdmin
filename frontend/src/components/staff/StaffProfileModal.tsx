@@ -82,6 +82,8 @@ export function StaffProfileModal({
   const [forumAccount, setForumAccount] = useState('')
   const [forumTouched, setForumTouched] = useState(false)
   const [appointedAt, setAppointedAt] = useState('')
+  const [promotedAt, setPromotedAt] = useState('')
+  const [promotedTouched, setPromotedTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [inAcademy, setInAcademy] = useState(false)
@@ -109,6 +111,10 @@ export function StaffProfileModal({
     setForumAccount(forumMemberUrl(member.username, member.vk_id))
     setForumTouched(false)
     setAppointedAt(isoToDateInput(member.granted_at) || todayDateInputValue())
+    setPromotedAt(
+      isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at) || todayDateInputValue(),
+    )
+    setPromotedTouched(false)
     setInAcademy(Boolean(member.is_academy))
     setAcademyDirection(member.academy?.direction || 'general')
     setAcademyStage(member.academy?.stage || 'theory')
@@ -124,6 +130,9 @@ export function StaffProfileModal({
 
   const savedSpheres = member?.spheres ?? []
   const savedAppointedAt = member ? isoToDateInput(member.granted_at) : ''
+  const savedPromotedAt = member
+    ? isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at)
+    : ''
   const savedForumUrl = member ? forumMemberUrl(member.username, member.vk_id) : ''
   const savedForumId = useMemo(() => {
     const fromUrl = parseForumMemberUrl(savedForumUrl)
@@ -160,6 +169,22 @@ export function StaffProfileModal({
       setNicknameTag((tag) => (isLegacyStaffTag(tag) ? '' : tag))
     }
   }, [parsedLevel, canEditAccessLevel])
+
+  useEffect(() => {
+    if (!member || promotedTouched) return
+    const rankChanged =
+      parseInt(accessLevel, 10) !== member.access_level ||
+      !spheresEqual(spheres, member.spheres ?? []) ||
+      isSenior !== Boolean(member.is_senior) ||
+      !spheresEqual(seniorSpheres, member.senior_spheres ?? [])
+    if (rankChanged) {
+      setPromotedAt(todayDateInputValue())
+      return
+    }
+    setPromotedAt(
+      isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at) || todayDateInputValue(),
+    )
+  }, [accessLevel, spheres, isSenior, seniorSpheres, member, promotedTouched])
 
   const levelOptions = useMemo(() => {
     const max = permissions.max_access_level
@@ -241,6 +266,7 @@ export function StaffProfileModal({
       forumValidation.ok &&
       forumValidation.memberId !== savedForumId) ||
     (canEditAccessLevel && appointedAt !== savedAppointedAt && appointedAt !== '') ||
+    (canEditAccessLevel && promotedAt !== savedPromotedAt && promotedAt !== '') ||
     (canEditAcademy &&
       (inAcademy !== academyAlready ||
         academyDirection !== (member.academy?.direction || 'general') ||
@@ -328,6 +354,9 @@ export function StaffProfileModal({
       if (canEditAccessLevel && appointedAt && appointedAt !== savedAppointedAt) {
         body.granted_at = appointedAt
       }
+      if (canEditAccessLevel && promotedAt && promotedAt !== savedPromotedAt) {
+        body.promoted_at = promotedAt
+      }
 
       if (canEnrollAcademy && inAcademy !== academyAlready) {
         if (inAcademy) {
@@ -397,7 +426,7 @@ export function StaffProfileModal({
   return (
     <ModalViewport open={open} onBackdropClick={onClose}>
       <div
-        className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-lg flex-col"
+        className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-xl flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="staff-profile-header flex items-start justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
@@ -419,261 +448,279 @@ export function StaffProfileModal({
         </div>
 
         <div className="staff-profile-body ll-scroll min-h-0 flex-1 px-6 py-4">
-          <dl className="staff-profile-meta">
-            <div>
-              <dt>VK ID</dt>
-              <dd>
-                <a
-                  href={`https://vk.com/id${member.vk_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="staff-profile-vk link-gold"
-                >
-                  {member.vk_id}
-                  <ExternalLink size={13} className="inline ml-1 opacity-60" />
-                </a>
-              </dd>
-            </div>
-          </dl>
-
-          <div className="staff-profile-field">
-            <ForumAccountField
-              id="staff-forum"
-              labelClassName="staff-profile-label"
-              label="Аккаунт на форуме"
-              value={forumAccount}
-              onChange={setForumAccount}
-              onBlur={() => setForumTouched(true)}
-              disabled={saving}
-              readOnly={!permissions.edit_forum_account}
-              readOnlyMemberId={member.username}
-              vkId={member.vk_id}
-              error={forumError}
-            />
-          </div>
-
-          <div className="staff-profile-field">
-            <label className="staff-profile-label" htmlFor="staff-discord">
-              Discord ID
-              <button
-                type="button"
-                className="assign-label-hint"
-                aria-label="Что такое Discord ID"
-                title={DISCORD_ID_HELP}
+          <section className="staff-profile-section">
+            <h3 className="staff-profile-section-title">Аккаунт</h3>
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">VK ID</span>
+              <a
+                href={`https://vk.com/id${member.vk_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="staff-profile-vk link-gold"
               >
-                <HelpCircle size={14} aria-hidden />
-              </button>
-            </label>
-            {!permissions.edit_discord ? (
-              <p className="staff-profile-value">
-                {member.discord_id ? (
-                  <>
-                    {member.discord_display_name || member.discord_username || member.discord_id}
-                    <span className="staff-discord-id block mt-1">{member.discord_id}</span>
-                  </>
-                ) : (
-                  '—'
-                )}
-              </p>
-            ) : (
-              <input
-                id="staff-discord"
-                type="text"
-                inputMode="numeric"
-                className="control w-full"
-                value={discordId}
-                placeholder="123456789012345678"
-                disabled={saving}
-                onChange={(e) => setDiscordId(e.target.value)}
-              />
-            )}
-          </div>
+                {member.vk_id}
+                <ExternalLink size={13} className="inline ml-1 opacity-60" />
+              </a>
+            </div>
 
-          {permissions.edit_nickname ? (
             <div className="staff-profile-field">
-              <label className="staff-profile-label" htmlFor="staff-nickname">
-                Имя
+              <ForumAccountField
+                id="staff-forum"
+                labelClassName="staff-profile-label"
+                label="Аккаунт на форуме"
+                value={forumAccount}
+                onChange={setForumAccount}
+                onBlur={() => setForumTouched(true)}
+                disabled={saving}
+                readOnly={!permissions.edit_forum_account}
+                readOnlyMemberId={member.username}
+                vkId={member.vk_id}
+                error={forumError}
+              />
+            </div>
+
+            <div className="staff-profile-field">
+              <label className="staff-profile-label" htmlFor="staff-discord">
+                Discord ID
+                <button
+                  type="button"
+                  className="assign-label-hint"
+                  aria-label="Что такое Discord ID"
+                  title={DISCORD_ID_HELP}
+                >
+                  <HelpCircle size={14} aria-hidden />
+                </button>
               </label>
-              <input
-                id="staff-nickname"
-                type="text"
-                className="control w-full"
-                value={nickname}
-                placeholder="Имя Фамилия"
-                disabled={saving}
-                onChange={(e) => setNickname(e.target.value)}
-              />
-            </div>
-          ) : savedCleanName ? (
-            <div className="staff-profile-field">
-              <span className="staff-profile-label">Имя</span>
-              <p className="staff-profile-value">{savedCleanName}</p>
-            </div>
-          ) : null}
-
-          {canEditAccessLevel ? (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label">Уровень доступа</label>
-              <Select
-                value={accessLevel}
-                onChange={setAccessLevel}
-                options={levelOptions}
-                disabled={saving}
-              />
-            </div>
-          ) : (
-            <div className="staff-profile-field">
-              <span className="staff-profile-label">Уровень доступа</span>
-              <p className="staff-profile-value">
-                {member.access_role_title || member.access_level_name}
-              </p>
-            </div>
-          )}
-
-          {canEditAccessLevel ? (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label">Дата назначения</label>
-              <DatePicker
-                value={appointedAt || null}
-                onChange={(iso) => setAppointedAt(iso ?? todayDateInputValue())}
-                showTime={false}
-                allowEmpty={false}
-              />
-            </div>
-          ) : (
-            <div className="staff-profile-field">
-              <span className="staff-profile-label">Дата назначения</span>
-              <p className="staff-profile-value">{formatGrantedAtDisplay(member.granted_at)}</p>
-            </div>
-          )}
-
-          {permissions.edit_nickname && showDevTag && (
-            <div className="staff-profile-field">
-              <label className="staff-profile-label" htmlFor="staff-nick-tag">
-                Тег в нике
-              </label>
-              <input
-                id="staff-nick-tag"
-                type="text"
-                className="control w-full"
-                value={nicknameTag}
-                placeholder={DEFAULT_DEVELOPER_TAG}
-                disabled={saving}
-                onChange={(e) => setNicknameTag(e.target.value)}
-              />
-              {devTagError ? (
-                <p className="staff-profile-error mt-1 mb-0">{devTagError}</p>
-              ) : null}
-            </div>
-          )}
-
-          <div className="staff-profile-field">
-            <span className="staff-profile-label">{sphereFieldLabel(parsedLevel)}</span>
-            {canEditSpheres ? (
-              usesSphereRoles(parsedLevel) ? (
-                <SphereRoleSelect
-                  spheres={spheres}
-                  seniorSpheres={seniorSpheres}
-                  onChange={(next) => {
-                    setSpheres(next.spheres)
-                    setSeniorSpheres(next.seniorSpheres)
-                    setIsSenior(next.isSenior)
-                  }}
-                  disabled={saving}
-                  accessLevel={parsedLevel}
-                  lockedSpheres={permissions.locked_spheres}
-                  grantableSpheres={
-                    permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
-                  }
-                />
-              ) : (
-                <SphereMultiSelect
-                  value={spheres}
-                  onChange={setSpheres}
-                  disabled={saving}
-                  accessLevel={parsedLevel}
-                  showHint={false}
-                  lockedSpheres={permissions.locked_spheres}
-                  grantableSpheres={
-                    permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
-                  }
-                />
-              )
-            ) : (
-              <p className="staff-profile-value">
-                {formatSpheresDisplay(member.spheres) || member.sphere || '—'}
-                {member.is_senior && (member.senior_spheres?.length ?? 0) > 0
-                  ? parsedLevel <= 2
-                    ? ` · Ст. След.: ${formatSpheresDisplay(member.senior_spheres)}`
-                    : ` · След.: ${formatSpheresDisplay(member.senior_spheres)}`
-                  : ''}
-              </p>
-            )}
-          </div>
-
-          {(canEditAcademy || academyAlready) && (
-            <div className="staff-profile-field">
-              <label className="ui-checkbox-label staff-profile-check">
-                <Checkbox
-                  checked={inAcademy || academyAlready}
-                  disabled={saving || academyAlready || !canEnrollAcademy}
-                  onChange={setInAcademy}
-                />
-                Состоит в Академии
-              </label>
-              {academyAlready ? (
-                <p className="staff-profile-hint mt-1 mb-0">
-                  Ник не меняется. Снять статус — выпуск или отчисление на странице Академии.
+              {!permissions.edit_discord ? (
+                <p className="staff-profile-value">
+                  {member.discord_id ? (
+                    <>
+                      {member.discord_display_name || member.discord_username || member.discord_id}
+                      <span className="staff-discord-id block mt-1">{member.discord_id}</span>
+                    </>
+                  ) : (
+                    '—'
+                  )}
                 </p>
               ) : (
-                <p className="staff-profile-hint mt-1 mb-0">Доп. статус, ник и должность не меняются.</p>
+                <input
+                  id="staff-discord"
+                  type="text"
+                  inputMode="numeric"
+                  className="control w-full"
+                  value={discordId}
+                  placeholder="123456789012345678"
+                  disabled={saving}
+                  onChange={(e) => setDiscordId(e.target.value)}
+                />
               )}
-              {(inAcademy || academyAlready) && canEditAcademy && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <div>
-                    <label className="staff-profile-label">Направление</label>
-                    <Select
-                      value={academyDirection}
-                      onChange={setAcademyDirection}
-                      options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="staff-profile-label">Этап</label>
-                    <Select
-                      value={academyStage}
-                      onChange={setAcademyStage}
-                      options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="staff-profile-label">Наставник</label>
-                    <Select
-                      value={academyMentor}
-                      onChange={setAcademyMentor}
-                      options={[
-                        { value: '', label: 'Наставник не назначен' },
-                        ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="staff-profile-label">Окончание</label>
-                    <DatePicker value={academyEnd} onChange={setAcademyEnd} showTime={false} />
-                  </div>
+            </div>
+
+            {permissions.edit_nickname ? (
+              <div className="staff-profile-field">
+                <label className="staff-profile-label" htmlFor="staff-nickname">
+                  Имя
+                </label>
+                <input
+                  id="staff-nickname"
+                  type="text"
+                  className="control w-full"
+                  value={nickname}
+                  placeholder="Имя Фамилия"
+                  disabled={saving}
+                  onChange={(e) => setNickname(e.target.value)}
+                />
+              </div>
+            ) : savedCleanName ? (
+              <div className="staff-profile-field">
+                <span className="staff-profile-label">Имя</span>
+                <p className="staff-profile-value">{savedCleanName}</p>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="staff-profile-section">
+            <h3 className="staff-profile-section-title">Должность</h3>
+            {canEditAccessLevel ? (
+              <div className="staff-profile-field">
+                <label className="staff-profile-label">Уровень доступа</label>
+                <Select
+                  value={accessLevel}
+                  onChange={setAccessLevel}
+                  options={levelOptions}
+                  disabled={saving}
+                />
+              </div>
+            ) : (
+              <div className="staff-profile-field">
+                <span className="staff-profile-label">Уровень доступа</span>
+                <p className="staff-profile-value">
+                  {member.access_role_title || member.access_level_name}
+                </p>
+              </div>
+            )}
+
+            <div className="staff-profile-dates">
+              {canEditAccessLevel ? (
+                <div className="staff-profile-field">
+                  <label className="staff-profile-label">Дата назначения</label>
+                  <DatePicker
+                    value={appointedAt || null}
+                    onChange={(iso) => setAppointedAt(iso ?? todayDateInputValue())}
+                    showTime={false}
+                    allowEmpty={false}
+                  />
+                </div>
+              ) : (
+                <div className="staff-profile-field">
+                  <span className="staff-profile-label">Дата назначения</span>
+                  <p className="staff-profile-value">{formatGrantedAtDisplay(member.granted_at)}</p>
+                </div>
+              )}
+              {canEditAccessLevel ? (
+                <div className="staff-profile-field">
+                  <label className="staff-profile-label">Дата повышения</label>
+                  <DatePicker
+                    value={promotedAt || null}
+                    onChange={(iso) => {
+                      setPromotedTouched(true)
+                      setPromotedAt(iso ?? todayDateInputValue())
+                    }}
+                    showTime={false}
+                    allowEmpty={false}
+                  />
+                </div>
+              ) : (
+                <div className="staff-profile-field">
+                  <span className="staff-profile-label">Дата повышения</span>
+                  <p className="staff-profile-value">
+                    {formatGrantedAtDisplay(member.promoted_at || member.granted_at)}
+                  </p>
                 </div>
               )}
             </div>
-          )}
 
-          {(permissions.edit_nickname ||
-            canEditAccessLevel ||
-            canEditSpheres) &&
-            nicknamePreview && (
-            <p className="staff-profile-hint m-0">
-              Ник в реестре:{' '}
-              <span className="text-white/70 font-medium">{nicknamePreview}</span>
-            </p>
+            {permissions.edit_nickname && showDevTag && (
+              <div className="staff-profile-field">
+                <label className="staff-profile-label" htmlFor="staff-nick-tag">
+                  Тег в нике
+                </label>
+                <input
+                  id="staff-nick-tag"
+                  type="text"
+                  className="control w-full"
+                  value={nicknameTag}
+                  placeholder={DEFAULT_DEVELOPER_TAG}
+                  disabled={saving}
+                  onChange={(e) => setNicknameTag(e.target.value)}
+                />
+                {devTagError ? (
+                  <p className="staff-profile-error mt-1 mb-0">{devTagError}</p>
+                ) : null}
+              </div>
+            )}
+
+            <div className="staff-profile-field">
+              <span className="staff-profile-label">{sphereFieldLabel(parsedLevel)}</span>
+              {canEditSpheres ? (
+                usesSphereRoles(parsedLevel) ? (
+                  <SphereRoleSelect
+                    spheres={spheres}
+                    seniorSpheres={seniorSpheres}
+                    onChange={(next) => {
+                      setSpheres(next.spheres)
+                      setSeniorSpheres(next.seniorSpheres)
+                      setIsSenior(next.isSenior)
+                    }}
+                    disabled={saving}
+                    accessLevel={parsedLevel}
+                    lockedSpheres={permissions.locked_spheres}
+                    grantableSpheres={
+                      permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
+                    }
+                  />
+                ) : (
+                  <SphereMultiSelect
+                    value={spheres}
+                    onChange={setSpheres}
+                    disabled={saving}
+                    accessLevel={parsedLevel}
+                    showHint={false}
+                    lockedSpheres={permissions.locked_spheres}
+                    grantableSpheres={
+                      permissions.unrestricted_sphere_edit ? undefined : permissions.grantable_spheres
+                    }
+                  />
+                )
+              ) : (
+                <p className="staff-profile-value">
+                  {formatSpheresDisplay(member.spheres) || member.sphere || '—'}
+                  {member.is_senior && (member.senior_spheres?.length ?? 0) > 0
+                    ? parsedLevel <= 2
+                      ? ` · Ст. След.: ${formatSpheresDisplay(member.senior_spheres)}`
+                      : ` · След.: ${formatSpheresDisplay(member.senior_spheres)}`
+                    : ''}
+                </p>
+              )}
+            </div>
+
+            {(permissions.edit_nickname || canEditAccessLevel || canEditSpheres) && nicknamePreview && (
+              <p className="staff-profile-hint m-0">
+                Ник в реестре:{' '}
+                <span className="text-white/70 font-medium">{nicknamePreview}</span>
+              </p>
+            )}
+          </section>
+
+          {(canEditAcademy || academyAlready) && (
+            <section className="staff-profile-section">
+              <h3 className="staff-profile-section-title">Академия</h3>
+              <div className="staff-profile-field">
+                <label className="ui-checkbox-label staff-profile-check">
+                  <Checkbox
+                    checked={inAcademy || academyAlready}
+                    disabled={saving || academyAlready || !canEnrollAcademy}
+                    onChange={setInAcademy}
+                  />
+                  Состоит в Академии
+                </label>
+                {(inAcademy || academyAlready) && canEditAcademy && (
+                  <div className="staff-profile-subfields">
+                    <div className="staff-profile-field">
+                      <label className="staff-profile-label">Направление</label>
+                      <Select
+                        value={academyDirection}
+                        onChange={setAcademyDirection}
+                        options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
+                      />
+                    </div>
+                    <div className="staff-profile-field">
+                      <label className="staff-profile-label">Этап</label>
+                      <Select
+                        value={academyStage}
+                        onChange={setAcademyStage}
+                        options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
+                      />
+                    </div>
+                    <div className="staff-profile-field">
+                      <label className="staff-profile-label">Наставник</label>
+                      <Select
+                        value={academyMentor}
+                        onChange={setAcademyMentor}
+                        options={[
+                          { value: '', label: 'Наставник не назначен' },
+                          ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
+                        ]}
+                      />
+                    </div>
+                    <div className="staff-profile-field">
+                      <label className="staff-profile-label">Окончание</label>
+                      <DatePicker value={academyEnd} onChange={setAcademyEnd} showTime={false} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           )}
 
           {canRevokeAccess && (

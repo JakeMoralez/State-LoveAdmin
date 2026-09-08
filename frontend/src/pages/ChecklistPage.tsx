@@ -8,6 +8,7 @@ import { SphereTabs, useActiveSphere } from '../components/SphereTabs'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { Alert } from '../components/ui/Alert'
+import { PageSkeleton } from '../components/ui/LoadingState'
 import { COMPACT_QUERY, MOBILE_NAV_QUERY, matchesMediaQuery, useMediaQuery } from '../hooks/useMediaQuery'
 
 function mondayOf(d: Date): string {
@@ -339,7 +340,7 @@ export function ChecklistPage() {
       )}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="checklist" label="Загрузка чеклиста" />
       ) : error ? (
         <div className="glass-card modal-card modal-card--sm">
           <Alert className="mb-3">{error}</Alert>

@@ -40,6 +40,7 @@ from app.routers import (
     dev,
     forum_judge_list,
     internal,
+    issuance,
     profile,
     projects,
     question_banks,
@@ -172,6 +173,7 @@ app.include_router(question_banks.router)
 app.include_router(forum_judge_list.router)
 app.include_router(assign.router)
 app.include_router(academy.router)
+app.include_router(issuance.router)
 app.include_router(activity.router)
 app.include_router(dev.router)
 app.include_router(cases.router)

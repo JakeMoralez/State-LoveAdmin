@@ -1,13 +1,17 @@
-"""Академия следящих — зачисление, этапы, задания, резерв."""
+﻿"""Академия следящих — зачисление, этапы, задания, резерв."""
 
 from __future__ import annotations
 
+import json
+import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
+from tortoise import Tortoise
 from tortoise.expressions import Q
 
-from app.config import DEFAULT_SERVER_ID
+from app.config import DEFAULT_SERVER_ID, PANEL_DATABASE_URL, is_sqlite_url
 from app.models.bot import AccessLevel, UserServerAccess
 from app.models.panel import (
     AcademyAssignment,
@@ -24,6 +28,8 @@ from app.services.audit import log_audit
 from app.services.display_names import resolve_bot_nickname, resolve_display_names, resolve_vk_photos
 from app.services.staff_permissions import ASSIGN_STAFF_MIN_LEVEL
 from app.services.vk_notify import notify_vk, notify_vk_many
+
+logger = logging.getLogger(__name__)
 
 LEAD_MIN_LEVEL = AccessLevel.ZGS
 CADET_MAX_LEVEL = AccessLevel.SUPERVISOR
@@ -82,6 +88,18 @@ CATEGORY_LABELS: dict[str, str] = {
     "practice": "Практика",
     "management": "Управление",
 }
+REVIEWER_KIND_LABELS: dict[str, str] = {
+    "mentor": "Наставник",
+    "academy_lead": "Руководство Академии",
+}
+PROOF_KIND_LABELS: dict[str, str] = {
+    "text": "Текст",
+    "link": "Ссылка",
+    "file": "Файл / URL",
+    "proof": "Доказательство",
+}
+MAX_MATERIALS = 8
+ACADEMY_FILE_RE = re.compile(r"/uploads/academy/([a-f0-9]{32}\.[a-z0-9]{1,8})(?:\?.*)?$", re.I)
 
 DEFAULT_TEMPLATES: tuple[dict[str, Any], ...] = (
     {
@@ -297,6 +315,12 @@ def is_academy_lead(user: dict) -> bool:
     return int(user.get("access_level") or 0) >= LEAD_MIN_LEVEL
 
 
+async def can_upload_materials(actor: dict) -> bool:
+    if is_academy_lead(actor):
+        return True
+    return await AcademyCadet.filter(mentor_vk_id=int(actor["vk_id"]), status="active").exists()
+
+
 def can_enroll(user: dict) -> bool:
     return int(user.get("access_level") or 0) >= ASSIGN_STAFF_MIN_LEVEL
 
@@ -369,6 +393,19 @@ async def _nick(vk_id: int, server_id: int, names: dict[int, str]) -> str:
     return names.get(vk_id) or f"id{vk_id}"
 
 
+async def _cadet_audit_detail(cadet: AcademyCadet, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    names = await _names(int(cadet.vk_id))
+    nick = await _nick(int(cadet.vk_id), int(cadet.server_id), names)
+    payload: dict[str, Any] = {
+        "vk_id": int(cadet.vk_id),
+        "target_vk_id": int(cadet.vk_id),
+        "target_nickname": nick,
+    }
+    if extra:
+        payload.update(extra)
+    return payload
+
+
 def _parse_date(raw: str | None) -> date | None:
     if not raw:
         return None
@@ -419,7 +456,85 @@ def _recommendation_for_total(total: int) -> str:
     return "none"
 
 
+def _normalize_material_url(url: str) -> str | None:
+    raw = url.strip()
+    if not raw or len(raw) > 1024:
+        return None
+    match = ACADEMY_FILE_RE.search(raw)
+    if match:
+        return f"/uploads/academy/{match.group(1).lower()}"
+    if raw.startswith(("http://", "https://")):
+        return raw
+    return None
+
+
+def _normalize_materials(raw: Any) -> list[dict[str, str]]:
+    if not raw:
+        return []
+    data = raw
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(data, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in data[:MAX_MATERIALS]:
+        if hasattr(item, "model_dump"):
+            item = item.model_dump()
+        if isinstance(item, str):
+            url = item.strip()
+            title = ""
+        elif isinstance(item, dict):
+            title = str(item.get("title") or "").strip()[:120]
+            url = str(item.get("url") or "").strip()
+        else:
+            continue
+        normalized = _normalize_material_url(url)
+        if not normalized:
+            continue
+        out.append({"title": title or normalized, "url": normalized})
+    return out
+
+
+def _category_for_stage(stage: str) -> str:
+    if stage == "practice":
+        return "practice"
+    if stage == "attestation":
+        return "management"
+    if stage == "mentored":
+        return "practice"
+    return "theory"
+
+
+async def _table_column_names(table: str) -> set[str]:
+    conn = Tortoise.get_connection("default")
+    if is_sqlite_url(PANEL_DATABASE_URL):
+        rows = await conn.execute_query_dict(f"PRAGMA table_info({table})")
+        return {str(r.get("name") or "") for r in rows}
+    rows = await conn.execute_query_dict(
+        "SELECT column_name AS name FROM information_schema.columns "
+        f"WHERE table_name = '{table}'"
+    )
+    return {str(r.get("name") or "") for r in rows}
+
+
+async def ensure_academy_schema() -> None:
+    conn = Tortoise.get_connection("default")
+    for table in ("academy_assignment_templates", "academy_assignments"):
+        names = await _table_column_names(table)
+        if not names or "materials" in names:
+            continue
+        try:
+            await conn.execute_query(f"ALTER TABLE {table} ADD COLUMN materials JSON DEFAULT '[]'")
+            logger.info("panel schema: added %s.materials", table)
+        except Exception as exc:
+            logger.warning("panel schema: could not add %s.materials: %s", table, exc)
+
+
 async def ensure_academy_templates() -> int:
+    await ensure_academy_schema()
     count = await AcademyAssignmentTemplate.all().count()
     if count:
         return 0
@@ -706,7 +821,7 @@ async def enroll(
         int(actor["vk_id"]),
         {"direction": direction, "stage": stage, "mentor_vk_id": mentor_vk_id},
     )
-    await log_audit(int(actor["vk_id"]), "academy_enroll", "academy_cadet", cadet.id, {"vk_id": vk_id})
+    await log_audit(int(actor["vk_id"]), "academy_enroll", "academy_cadet", cadet.id, await _cadet_audit_detail(cadet))
     names = await _names(vk_id)
     await notify_vk(
         vk_id,
@@ -818,7 +933,7 @@ async def update_cadet(
         if changes.get("status") == "frozen":
             action = "frozen"
         await _add_event(cadet, action, int(actor["vk_id"]), changes)
-        await log_audit(int(actor["vk_id"]), f"academy_{action}", "academy_cadet", cadet.id, changes)
+        await log_audit(int(actor["vk_id"]), f"academy_{action}", "academy_cadet", cadet.id, await _cadet_audit_detail(cadet, changes))
     return cadet
 
 
@@ -946,7 +1061,7 @@ async def add_comment(cadet: AcademyCadet, actor: dict, body: str) -> None:
     if not text:
         raise ValueError("Пустой комментарий")
     await _add_event(cadet, "comment", int(actor["vk_id"]), {"text": text})
-    await log_audit(int(actor["vk_id"]), "academy_comment", "academy_cadet", cadet.id, {})
+    await log_audit(int(actor["vk_id"]), "academy_comment", "academy_cadet", cadet.id, await _cadet_audit_detail(cadet))
 
 
 async def add_warning(cadet: AcademyCadet, actor: dict, body: str) -> AcademyWarning:
@@ -957,7 +1072,7 @@ async def add_warning(cadet: AcademyCadet, actor: dict, body: str) -> AcademyWar
         raise ValueError("Пустое предупреждение")
     row = await AcademyWarning.create(cadet=cadet, author_vk_id=int(actor["vk_id"]), body=text)
     await _add_event(cadet, "warning", int(actor["vk_id"]), {"text": text, "warning_id": row.id})
-    await log_audit(int(actor["vk_id"]), "academy_warning", "academy_cadet", cadet.id, {})
+    await log_audit(int(actor["vk_id"]), "academy_warning", "academy_cadet", cadet.id, await _cadet_audit_detail(cadet))
     await notify_vk(cadet.vk_id, f"Предупреждение Академии:\n{text}", category="assign")
     return row
 
@@ -981,6 +1096,7 @@ async def list_events(cadet: AcademyCadet) -> list[dict[str, Any]]:
 
 
 def serialize_template(row: AcademyAssignmentTemplate) -> dict[str, Any]:
+    reviewer = row.reviewer_kind
     return {
         "id": row.id,
         "title": row.title,
@@ -992,8 +1108,10 @@ def serialize_template(row: AcademyAssignmentTemplate) -> dict[str, Any]:
         "due_days": row.due_days,
         "required": row.required,
         "description": row.description,
+        "materials": _normalize_materials(getattr(row, "materials", None)),
         "proof_kinds": list(row.proof_kinds or []),
-        "reviewer_kind": row.reviewer_kind,
+        "reviewer_kind": reviewer,
+        "reviewer_kind_label": REVIEWER_KIND_LABELS.get(reviewer, reviewer),
         "is_active": row.is_active,
         "sort_order": row.sort_order,
     }
@@ -1012,10 +1130,10 @@ async def upsert_template(actor: dict, body: dict[str, Any], template_id: int | 
     title = str(body.get("title") or "").strip()
     if not title:
         raise ValueError("Укажите название шаблона")
-    category = str(body.get("category") or "theory")
+    stage = _validate_stage(str(body.get("stage") or "theory"))
+    category = str(body.get("category") or _category_for_stage(stage))
     if category not in CATEGORIES:
         raise ValueError("Неизвестная категория")
-    stage = _validate_stage(str(body.get("stage") or "theory"))
     reviewer = str(body.get("reviewer_kind") or "mentor")
     if reviewer not in REVIEWER_KINDS:
         raise ValueError("Кто проверяет: наставник или руководство")
@@ -1028,6 +1146,7 @@ async def upsert_template(actor: dict, body: dict[str, Any], template_id: int | 
         "due_days": max(1, min(30, int(body.get("due_days") or 3))),
         "required": bool(body.get("required", True)),
         "description": str(body.get("description") or ""),
+        "materials": _normalize_materials(body.get("materials")),
         "proof_kinds": kinds,
         "reviewer_kind": reviewer,
         "is_active": bool(body.get("is_active", True)),
@@ -1078,6 +1197,7 @@ async def create_assignment(
     max_points: int | None = None,
     required: bool | None = None,
     description: str | None = None,
+    materials: list[dict[str, Any]] | None = None,
     proof_kinds: list[str] | None = None,
     reviewer_kind: str | None = None,
     assignee_vk_ids: list[int] | None = None,
@@ -1109,6 +1229,10 @@ async def create_assignment(
     if reviewer not in REVIEWER_KINDS:
         raise ValueError("Некорректный проверяющий")
     kinds = [k for k in (proof_kinds or (template.proof_kinds if template else ["text"])) if k in PROOF_KINDS] or ["text"]
+    if materials is not None:
+        materials_f = _normalize_materials(materials)
+    else:
+        materials_f = _normalize_materials(getattr(template, "materials", None) if template else None)
     ids = await _resolve_assignees(
         server_id,
         actor,
@@ -1140,6 +1264,7 @@ async def create_assignment(
         max_points=max(1, min(20, int(max_points if max_points is not None else (template.max_points if template else 10)))),
         required=bool(required if required is not None else (template.required if template else True)),
         description=(description if description is not None else (template.description if template else "")),
+        materials=materials_f,
         proof_kinds=kinds,
         reviewer_kind=reviewer,
         assignee_vk_ids=ids,
@@ -1222,6 +1347,7 @@ async def serialize_assignment(
         "max_points": row.max_points,
         "required": row.required,
         "description": row.description,
+        "materials": _normalize_materials(getattr(row, "materials", None)),
         "proof_kinds": list(row.proof_kinds or []),
         "reviewer_kind": row.reviewer_kind,
         "assignee_vk_ids": list(row.assignee_vk_ids or []),
@@ -1303,7 +1429,13 @@ async def submit_report(
             submitted_at=now,
         )
     await _add_event(cadet, "report_submitted", int(actor["vk_id"]), {"assignment_id": assignment.id, "title": assignment.title})
-    await log_audit(int(actor["vk_id"]), "academy_report_submit", "academy_assignment", assignment.id, {"vk_id": target})
+    await log_audit(
+        int(actor["vk_id"]),
+        "academy_report_submit",
+        "academy_assignment",
+        assignment.id,
+        {"vk_id": target, "target_vk_id": target, "title": assignment.title},
+    )
     reviewers: set[int] = set()
     if assignment.reviewer_kind == "mentor" and cadet.mentor_vk_id:
         reviewers.add(int(cadet.mentor_vk_id))
@@ -1367,7 +1499,13 @@ async def review_report(
             "comment": report.review_comment,
         },
     )
-    await log_audit(int(actor["vk_id"]), "academy_report_review", "academy_assignment", assignment.id, {"vk_id": vk_id, "status": report.status})
+    await log_audit(
+        int(actor["vk_id"]),
+        "academy_report_review",
+        "academy_assignment",
+        assignment.id,
+        {"vk_id": vk_id, "target_vk_id": vk_id, "status": report.status, "title": assignment.title},
+    )
     score_line = f"{report.score}/{assignment.max_points}" if report.score is not None else "—"
     await notify_vk(
         vk_id,
@@ -1533,16 +1671,8 @@ def labels_payload() -> dict[str, Any]:
         "statuses": [{"value": k, "label": STATUS_LABELS[k]} for k in STATUSES],
         "recommendations": [{"value": k, "label": RECOMMENDATION_LABELS[k]} for k in RECOMMENDATIONS],
         "categories": [{"value": k, "label": CATEGORY_LABELS[k]} for k in CATEGORIES],
-        "reviewer_kinds": [
-            {"value": "mentor", "label": "Наставник"},
-            {"value": "academy_lead", "label": "Руководство Академии"},
-        ],
-        "proof_kinds": [
-            {"value": "text", "label": "Текст"},
-            {"value": "link", "label": "Ссылка"},
-            {"value": "file", "label": "Файл / URL"},
-            {"value": "proof", "label": "Доказательство"},
-        ],
+        "reviewer_kinds": [{"value": k, "label": REVIEWER_KIND_LABELS[k]} for k in REVIEWER_KINDS],
+        "proof_kinds": [{"value": k, "label": PROOF_KIND_LABELS[k]} for k in PROOF_KINDS],
         "events": EVENT_LABELS,
         "report_statuses": [{"value": k, "label": REPORT_STATUS_LABELS[k]} for k in REPORT_STATUSES],
     }

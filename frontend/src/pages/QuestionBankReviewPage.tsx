@@ -16,6 +16,7 @@ import {
 import { PageHeader } from '../components/PageHeader'
 import { PageSearch } from '../components/ui/PageSearch'
 import { Alert } from '../components/ui/Alert'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function QuestionBankReviewPage() {
   const [items, setItems] = useState<QuestionBankPendingItem[]>([])
@@ -103,7 +104,7 @@ export function QuestionBankReviewPage() {
       )}
 
       {error && <Alert>{error}</Alert>}
-      {loading && <p className="text-white/40 text-sm">Загрузка…</p>}
+      {loading && <PageSkeleton variant="list" label="Загрузка очереди" />}
 
       {!loading && visibleItems.length > 0 && (
         <ul className="qb-review-queue">

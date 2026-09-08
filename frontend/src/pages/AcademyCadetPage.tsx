@@ -3,6 +3,7 @@ import { GraduationCap, X } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, type AcademyAssignment, type AcademyCadetDetail } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { AssignmentMaterials } from '../components/academy/AssignmentMaterials'
 import { Alert } from '../components/ui/Alert'
 import { DatePicker } from '../components/ui/DatePicker'
 import { Select } from '../components/ui/Select'
@@ -20,12 +21,36 @@ import {
 } from '../lib/academy'
 import { useAuth } from '../context/AuthContext'
 import { ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
 function errText(e: unknown): string {
   if (e instanceof ApiError || e instanceof Error) return e.message
   return 'Не удалось открыть карточку'
+}
+
+function academyEventText(ev: {
+  actor_name: string
+  action: string
+  detail?: Record<string, unknown> | null
+}): string {
+  const bits = [
+    ev.actor_name,
+    ACADEMY_EVENT_LABELS[ev.action] || ev.action,
+    ev.detail?.title ? `«${String(ev.detail.title)}»` : '',
+    ev.detail?.score != null ? `— ${String(ev.detail.score)}` : '',
+    typeof ev.detail?.text === 'string' ? `— ${ev.detail.text}` : '',
+    typeof ev.detail?.comment === 'string' && ev.detail.comment ? `— ${ev.detail.comment}` : '',
+  ]
+  return bits.filter(Boolean).join(' ').replace(/\s+—/g, ' —')
+}
+
+function formatHistoryStamp(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 function parseLinks(raw: string): string[] {
@@ -114,7 +139,7 @@ export function AcademyCadetPage() {
       />
       {error && <Alert>{error}</Alert>}
       {!data ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="detail" label="Загрузка карточки" />
       ) : (
         <>
           <div className="academy-profile-head">
@@ -188,6 +213,7 @@ export function AcademyCadetPage() {
                         </span>
                       </div>
                       {item.description ? <p className="academy-task-desc">{item.description}</p> : null}
+                      <AssignmentMaterials items={item.materials} />
                       {data.is_self && status !== 'accepted' ? (
                         <button type="button" className="btn btn-gold btn-sm mt-3" onClick={() => setSubmitFor(item)}>
                           Сдать
@@ -204,7 +230,7 @@ export function AcademyCadetPage() {
             <div className="academy-manage">
               <h2 className="academy-manage-title">Управление</h2>
               <div className="academy-form-grid">
-                <div>
+                <div className="staff-profile-field">
                   <label className="staff-profile-label">Направление</label>
                   <Select
                     value={direction}
@@ -212,7 +238,7 @@ export function AcademyCadetPage() {
                     options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
                   />
                 </div>
-                <div>
+                <div className="staff-profile-field">
                   <label className="staff-profile-label">Этап</label>
                   <Select
                     value={stage}
@@ -220,7 +246,7 @@ export function AcademyCadetPage() {
                     options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
                   />
                 </div>
-                <div>
+                <div className="staff-profile-field">
                   <label className="staff-profile-label">Наставник</label>
                   <Select
                     value={mentor}
@@ -231,11 +257,11 @@ export function AcademyCadetPage() {
                     ]}
                   />
                 </div>
-                <div>
+                <div className="staff-profile-field">
                   <label className="staff-profile-label">Окончание</label>
                   <DatePicker value={endAt} onChange={setEndAt} showTime={false} />
                 </div>
-                <div>
+                <div className="staff-profile-field">
                   <label className="staff-profile-label">Статус</label>
                   <Select
                     value={status === 'graduated' ? 'active' : status}
@@ -248,7 +274,7 @@ export function AcademyCadetPage() {
                   />
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="academy-manage-actions">
                 <button type="button" className="btn btn-gold" disabled={saving} onClick={() => void saveManage()}>
                   Сохранить
                 </button>
@@ -258,7 +284,7 @@ export function AcademyCadetPage() {
                   </button>
                 ) : null}
               </div>
-              <div className="mt-4">
+              <div className="staff-profile-field">
                 <label className="staff-profile-label" htmlFor="academy-comment">
                   Комментарий в ленту
                 </label>
@@ -271,7 +297,7 @@ export function AcademyCadetPage() {
                 />
                 <button
                   type="button"
-                  className="btn btn-sm btn-secondary mt-2"
+                  className="btn btn-gold academy-manage-add"
                   disabled={!comment.trim()}
                   onClick={() => {
                     void api.academyComment(id, comment).then(() => {
@@ -299,22 +325,23 @@ export function AcademyCadetPage() {
             </div>
           ) : null}
 
-          <h2 className="academy-manage-title">История обучения</h2>
-          <div className="academy-timeline">
-            {data.events.map((ev) => (
-              <div key={ev.id} className="academy-timeline-item">
-                <div className="academy-timeline-date">{formatAcademyDate(ev.created_at)}</div>
-                <div>
-                  {ev.actor_name} {ACADEMY_EVENT_LABELS[ev.action] || ev.action}
-                  {ev.detail?.title ? ` «${String(ev.detail.title)}»` : ''}
-                  {ev.detail?.score != null ? ` — ${String(ev.detail.score)}` : ''}
-                  {typeof ev.detail?.text === 'string' ? ` — ${ev.detail.text}` : ''}
-                  {typeof ev.detail?.comment === 'string' && ev.detail.comment ? ` — ${ev.detail.comment}` : ''}
-                </div>
-              </div>
-            ))}
-            {data.events.length === 0 ? <div className="text-white/45">Записей пока нет</div> : null}
-          </div>
+          <section className="glass-card lk-card">
+            <h2 className="profile-section-title">История обучения</h2>
+            {data.events.length === 0 ? (
+              <p className="lk-history-text m-0 text-white/45">Записей пока нет</p>
+            ) : (
+              <ol className="lk-history-list">
+                {data.events.map((ev) => (
+                  <li key={ev.id} className="lk-history-item">
+                    <span className="lk-history-date">
+                      {ev.created_at ? formatHistoryStamp(ev.created_at) : '—'}
+                    </span>
+                    <span className="lk-history-text">{academyEventText(ev)}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
         </>
       )}
 
@@ -460,6 +487,8 @@ function CadetSubmitModal({
           </button>
         </div>
         <div className="px-6 py-4 space-y-3">
+          {assignment?.description ? <p className="academy-task-desc">{assignment.description}</p> : null}
+          <AssignmentMaterials items={assignment?.materials} />
           <div>
             <label className="staff-profile-label" htmlFor="cadet-submit-body">
               Текст отчёта

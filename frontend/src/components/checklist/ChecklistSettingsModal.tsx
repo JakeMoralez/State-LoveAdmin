@@ -3,6 +3,7 @@ import { AlertCircle, Plus, Trash2, User, Users, X } from 'lucide-react'
 import { ApiError, api, type ChecklistSettings } from '../../api'
 import { useAuth } from '../../context/AuthContext'
 import { ModalViewport } from '../ui/ModalViewport'
+import { PageSkeleton } from '../ui/LoadingState'
 
 interface ChecklistSettingsModalProps {
   open: boolean
@@ -230,7 +231,7 @@ export function ChecklistSettingsModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 ll-scroll">
           {loading ? (
-            <p className="text-white/40">Загрузка…</p>
+            <PageSkeleton variant="form" className="page-skeleton--compact" label="Загрузка настроек" />
           ) : !canManage ? (
             <div className="checklist-self-setup">
               <div className="checklist-self-icon">

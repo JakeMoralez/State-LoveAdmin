@@ -8,6 +8,7 @@ import { SphereBadge, SphereTabs, useWorkSphereQuery } from '../components/Spher
 import { useAuth } from '../context/AuthContext'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { Alert } from '../components/ui/Alert'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function ProjectsPage() {
   const { user } = useAuth()
@@ -24,16 +25,22 @@ export function ProjectsPage() {
   )
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setCreateSphere((prev) => pickDefaultCreateSphere(activeSpheres, prev))
   }, [activeSpheres])
 
-  const load = () =>
-    api.projects(apiSpheres).then((r) => {
-      setProjects(r.projects)
-      setCanCreate(r.permissions?.can_create ?? false)
-    })
+  const load = ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
+    return api
+      .projects(apiSpheres)
+      .then((r) => {
+        setProjects(r.projects)
+        setCanCreate(r.permissions?.can_create ?? false)
+      })
+      .finally(() => setLoading(false))
+  }
 
   useEffect(() => {
     if (spheres.length > 0) load()
@@ -55,7 +62,7 @@ export function ProjectsPage() {
       setTitle('')
       setDescription('')
       setShowForm(false)
-      load()
+      load({ silent: true })
     } catch (err: unknown) {
       setFormError(err instanceof ApiError || err instanceof Error ? err.message : 'Не удалось создать проект')
     } finally {
@@ -140,6 +147,10 @@ export function ProjectsPage() {
             </form>
           </ModalViewport>
 
+          {loading ? (
+            <PageSkeleton variant="cards" label="Загрузка проектов" />
+          ) : (
+            <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((p) => (
               <Link
@@ -157,6 +168,8 @@ export function ProjectsPage() {
 
           {projects.length === 0 && (
             <div className="staff-registry-empty">Нет проектов в выбранных сферах</div>
+          )}
+            </>
           )}
         </>
       )}

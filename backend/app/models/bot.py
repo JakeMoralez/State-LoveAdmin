@@ -99,6 +99,7 @@ class UserServerAccess(Model):
     # Старший следящий: флаг и выбранные сферы (JSON list of sphere keys)
     is_senior = fields.BooleanField(default=False)
     senior_spheres = fields.JSONField(default=list)
+    promoted_at = fields.DatetimeField(null=True)
 
     class Meta:
         table = "user_server_access"

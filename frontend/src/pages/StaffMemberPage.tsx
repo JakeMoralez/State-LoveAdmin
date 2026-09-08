@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { ProfileView } from '../components/profile/ProfileView'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { staffLabel } from '../lib/staff'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function StaffMemberPage() {
   const { vkId } = useParams()
@@ -39,7 +40,7 @@ export function StaffMemberPage() {
   }
 
   if (loading) {
-    return <div className="text-white/50 animate-fade-in">Загрузка профиля…</div>
+    return <PageSkeleton variant="detail" label="Загрузка профиля" />
   }
 
   if (error || !member) {
@@ -92,6 +93,7 @@ export function StaffMemberPage() {
           discord_username: member.discord_username,
           discord_display_name: member.discord_display_name,
           granted_at: member.granted_at,
+          promoted_at: member.promoted_at,
         }}
         backTo={{ label: 'Следящие', href: '/staff' }}
       />

@@ -92,6 +92,14 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
   },
   {
     section: 'Работа',
+    page: 'Выдачи',
+    path: '/issuance',
+    portal: 'ЗГС (3+)',
+    sphere: '—',
+    actions: 'Заявки на АЗ и вирты: создаёт ЗГС/ГС сферы (3+); «Выдан» и отклонение — Следящий структуры (5+)',
+  },
+  {
+    section: 'Работа',
     page: 'Проекты',
     path: '/projects',
     portal: 'ПГС (1+)',

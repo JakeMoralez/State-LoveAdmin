@@ -415,6 +415,7 @@ class AcademyAssignmentTemplate(Model):
     due_days = fields.IntField(default=3)
     required = fields.BooleanField(default=True)
     description = fields.TextField(default="")
+    materials = fields.JSONField(default=list)
     proof_kinds = fields.JSONField(default=list)
     reviewer_kind = fields.CharField(max_length=32, default="mentor")
     is_active = fields.BooleanField(default=True)
@@ -436,6 +437,7 @@ class AcademyAssignment(Model):
     max_points = fields.IntField(default=10)
     required = fields.BooleanField(default=True)
     description = fields.TextField(default="")
+    materials = fields.JSONField(default=list)
     proof_kinds = fields.JSONField(default=list)
     reviewer_kind = fields.CharField(max_length=32, default="mentor")
     assignee_vk_ids = fields.JSONField(default=list)
@@ -488,4 +490,24 @@ class AcademyAttendance(Model):
     class Meta:
         table = "academy_attendance"
         unique_together = (("session_id", "vk_id"),)
+
+
+class IssuanceRequest(Model):
+    id = fields.IntField(pk=True)
+    server_id = fields.IntField(index=True)
+    kind = fields.CharField(max_length=16, index=True)
+    role_title = fields.CharField(max_length=128)
+    nickname = fields.CharField(max_length=128)
+    amount = fields.BigIntField()
+    reason = fields.TextField(default="")
+    proof_url = fields.CharField(max_length=1024, default="")
+    status = fields.CharField(max_length=16, default="pending", index=True)
+    created_by_vk_id = fields.BigIntField(index=True)
+    reviewed_by_vk_id = fields.BigIntField(null=True)
+    reviewed_at = fields.DatetimeField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "issuance_requests"
 

@@ -43,6 +43,7 @@ from app.services.staff import (
 )
 from app.services.activity_log import staff_assign_detail
 from app.services.audit import log_audit
+from app.services.staff_spheres import format_spheres_display
 from app.services.staff_assign import assign_via_site_message
 from app.services.staff_permissions import (
     assert_can_edit_staff_nickname,
@@ -118,6 +119,7 @@ class StaffMemberUpdate(BaseModel):
     discord_id: str | None = None
     forum_account: str | None = None
     granted_at: str | None = None
+    promoted_at: str | None = None
     revoke_staff_access: bool | None = None
     resync_nickname: bool | None = None
 
@@ -895,7 +897,9 @@ async def patch_staff_member(
         from app.models.bot import UserServerAccess as _UserServerAccess
 
         access_row = await _UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-        current_senior = list(access_row.senior_spheres or []) if access_row else []
+        from app.services.bot_users import access_senior_state
+
+        _, current_senior = access_senior_state(access_row)
         if not body.senior_spheres:
             kwargs["senior_spheres"] = []
         else:
@@ -926,6 +930,17 @@ async def patch_staff_member(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         kwargs["granted_at_provided"] = True
 
+    if "promoted_at" in fields_set:
+        if not perms["edit_access_level"]:
+            raise HTTPException(status_code=403, detail=messages.PROMOTED_AT_FORBIDDEN)
+        from app.services.staff import parse_appointment_date
+
+        try:
+            kwargs["promoted_at"] = parse_appointment_date(body.promoted_at)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        kwargs["promoted_at_provided"] = True
+
     if body.resync_nickname:
         row = await get_staff_member(server_id, vk_id)
         if not row:
@@ -953,27 +968,44 @@ async def patch_staff_member(
         raise HTTPException(status_code=400, detail=messages.NOTHING_TO_UPDATE)
 
     if kwargs:
+        old_level = int(row_before.get("access_level") or target_level or 0)
         audit_detail: dict = {
             "target_vk_id": vk_id,
             "target_nickname": row_before.get("nickname"),
         }
         if "access_level" in kwargs:
-            audit_detail["access_level"] = {
-                "from": target_level,
-                "from_name": AccessLevel.title(target_level),
-                "to": kwargs["access_level"],
-                "to_name": AccessLevel.title(int(kwargs["access_level"])),
-            }
-        if "nickname" in kwargs or "nickname_tag" in kwargs:
-            audit_detail["nickname"] = True
+            new_level = int(kwargs["access_level"])
+            if new_level != old_level:
+                audit_detail["access_level"] = {
+                    "from": old_level,
+                    "from_name": AccessLevel.title(old_level),
+                    "to": new_level,
+                    "to_name": AccessLevel.title(new_level),
+                }
+        if "nickname" in kwargs:
+            old_nick = (row_before.get("nickname") or "").strip()
+            new_nick = (kwargs.get("nickname") or "").strip()
+            if old_nick != new_nick:
+                audit_detail["nickname"] = {"from": old_nick, "to": new_nick}
         if "spheres" in kwargs:
-            audit_detail["spheres"] = list(kwargs["spheres"])
+            old_spheres = list(row_before.get("spheres") or [])
+            new_spheres = list(kwargs["spheres"] or [])
+            if sorted(old_spheres) != sorted(new_spheres):
+                audit_detail["spheres"] = {
+                    "from": old_spheres,
+                    "to": new_spheres,
+                    "from_display": format_spheres_display(old_spheres),
+                    "to_display": format_spheres_display(new_spheres),
+                }
+                audit_detail["spheres_display"] = format_spheres_display(new_spheres)
         if "has_ca_access" in kwargs:
             audit_detail["has_ca_access"] = kwargs["has_ca_access"]
         if "note" in kwargs:
             audit_detail["note"] = True
         if kwargs.get("granted_at_provided"):
             audit_detail["granted_at"] = True
+        if kwargs.get("promoted_at_provided"):
+            audit_detail["promoted_at"] = True
 
         try:
             await update_staff_member(

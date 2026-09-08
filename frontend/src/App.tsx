@@ -31,6 +31,7 @@ import { LeaderMemberPage } from './pages/LeaderMemberPage'
 import { TasksPage } from './pages/TasksPage'
 import { AcademyPage } from './pages/AcademyPage'
 import { AcademyCadetPage } from './pages/AcademyCadetPage'
+import { IssuancePage } from './pages/IssuancePage'
 
 function RedirectJudgeToLeader() {
   const { vkId } = useParams()
@@ -66,6 +67,7 @@ function AppRoutes() {
           <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
           <Route path="/forum/formatting" element={<ForumFormattingPage />} />
           <Route path="/forum/judge-assign" element={<Navigate to="/assign?type=judge" replace />} />
+          <Route path="/issuance" element={<IssuancePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />

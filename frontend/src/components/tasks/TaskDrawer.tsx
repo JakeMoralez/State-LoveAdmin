@@ -13,6 +13,7 @@ import {
 } from '../../api'
 import { useAuth } from '../../context/AuthContext'
 import { normalizeLabels, type TaskLabel } from '../../lib/labels'
+import { PageSkeleton } from '../ui/LoadingState'
 import { cn, statusBadgeClass } from '../../lib/utils'
 import { TaskTypePicker } from './TaskTypePicker'
 import { DatePicker } from '../ui/DatePicker'
@@ -181,7 +182,9 @@ export function TaskDrawer({
     return (
       <div className="fixed inset-0 z-50 flex justify-end">
         <div className="absolute inset-0 bg-black/50 overlay-backdrop" onClick={onClose} />
-        <div className="drawer-panel items-center justify-center page-loading">Загрузка…</div>
+        <div className="drawer-panel">
+          <PageSkeleton variant="form" className="page-skeleton--compact" label="Загрузка задачи" />
+        </div>
       </div>
     )
   }

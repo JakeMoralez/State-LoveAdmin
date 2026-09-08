@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS, ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
 import { SPHERE_OPTIONS } from '../lib/spheres'
 import { staffLabel } from '../lib/staff'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 type StaffTab = 'active' | 'inactive'
 type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
@@ -211,7 +212,7 @@ export function StaffPage() {
       {settingsError && <Alert className="shrink-0">{settingsError}</Alert>}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="registry" label="Загрузка состава" />
       ) : (
         <div className="staff-registry">
           <div className="staff-registry-head">
@@ -250,12 +251,19 @@ export function StaffPage() {
                         loading="lazy"
                       />
                     </span>
-                    <Link
-                      to={`/staff/${m.vk_id}`}
-                      className="staff-nick staff-nick-btn staff-nick-link no-underline"
-                    >
-                      {staffLabel(m)}
-                    </Link>
+                    <span className="staff-nick-cluster">
+                      <Link
+                        to={`/staff/${m.vk_id}`}
+                        className="staff-nick staff-nick-btn staff-nick-link no-underline"
+                      >
+                        {staffLabel(m)}
+                      </Link>
+                      {m.is_academy && (
+                        <span className="academy-chip academy-chip--inline" title="В Академии">
+                          Академ
+                        </span>
+                      )}
+                    </span>
                     {tab === 'inactive' ? (
                       canAssign ? (
                         <Link
@@ -282,7 +290,6 @@ export function StaffPage() {
                       />
                     </button>
                     )}
-                    {m.is_academy && <span className="academy-chip ml-2">Академ</span>}
                     {m.badges.length > 0 && (
                       <span className="staff-badges">{m.badges.join(' ')}</span>
                     )}

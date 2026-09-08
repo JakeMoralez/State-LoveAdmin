@@ -145,6 +145,26 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+  academyUploadMaterial: async (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`${API}/academy/materials/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      body: form,
+    })
+    if (!res.ok) {
+      let detail = res.statusText
+      try {
+        const body = await res.json()
+        detail = formatApiDetail(body.detail) || detail
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(res.status, detail)
+    }
+    return res.json() as Promise<{ url: string; filename: string; size: number }>
+  },
   academyTemplates: () => request<{ templates: AcademyTemplate[] }>('/academy/templates'),
   academyCreateTemplate: (body: AcademyTemplateBody) =>
     request<AcademyTemplate>('/academy/templates', { method: 'POST', body: JSON.stringify(body) }),
@@ -236,6 +256,17 @@ export const api = {
   project: (id: number) => request<ProjectDetail>(`/projects/${id}`),
   createProject: (data: { title: string; description?: string }, sphere?: string) =>
     request<Project>(withSphere('/projects', sphere), { method: 'POST', body: JSON.stringify(data) }),
+  issuance: (kind: IssuanceKind) =>
+    request<IssuanceListResponse>(`/issuance?kind=${encodeURIComponent(kind)}`),
+  createIssuance: (body: IssuanceBody) =>
+    request<IssuanceItem>('/issuance', { method: 'POST', body: JSON.stringify(body) }),
+  updateIssuance: (id: number, body: Partial<Omit<IssuanceBody, 'kind'>>) =>
+    request<IssuanceItem>(`/issuance/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  issueIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/issue`, { method: 'POST' }),
+  unissueIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/unissue`, { method: 'POST' }),
+  rejectIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/reject`, { method: 'POST' }),
+  unrejectIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/unreject`, { method: 'POST' }),
+  deleteIssuance: (id: number) => request<{ ok: boolean }>(`/issuance/${id}`, { method: 'DELETE' }),
   tasks: (params?: {
     view?: string
     mine?: boolean
@@ -550,6 +581,8 @@ export interface UserProfile {
   notify_tasks?: boolean
   notify_assign?: boolean
   work_spheres?: WorkSphere[]
+  granted_at?: string | null
+  promoted_at?: string | null
 }
 
 export interface ProfileUpdateBody {
@@ -610,6 +643,7 @@ export interface StaffMember {
   ca_source: string | null
   granted_by: number | null
   granted_at: string | null
+  promoted_at?: string | null
   note: string
   discord_id?: string | null
   discord_username?: string | null
@@ -666,6 +700,7 @@ export interface StaffMemberUpdateBody {
   revoke_staff_access?: boolean
   resync_nickname?: boolean
   granted_at?: string | null
+  promoted_at?: string | null
 }
 
 export type StaffMemberUpdateResponse = StaffMemberDetail & {
@@ -1415,6 +1450,11 @@ export interface AcademyCadetPatch {
   recommendation?: string
 }
 
+export interface AcademyMaterial {
+  title: string
+  url: string
+}
+
 export interface AcademyTemplate {
   id: number
   title: string
@@ -1426,8 +1466,10 @@ export interface AcademyTemplate {
   due_days: number
   required: boolean
   description: string
+  materials: AcademyMaterial[]
   proof_kinds: string[]
   reviewer_kind: string
+  reviewer_kind_label?: string
   is_active: boolean
   sort_order: number
 }
@@ -1440,6 +1482,7 @@ export interface AcademyTemplateBody {
   due_days: number
   required: boolean
   description: string
+  materials: AcademyMaterial[]
   proof_kinds: string[]
   reviewer_kind: string
   is_active: boolean
@@ -1471,6 +1514,7 @@ export interface AcademyAssignment {
   max_points: number
   required: boolean
   description: string
+  materials: AcademyMaterial[]
   proof_kinds: string[]
   reviewer_kind: string
   assignee_vk_ids: number[]
@@ -1508,6 +1552,7 @@ export interface AcademyAssignmentBody {
   max_points?: number
   required?: boolean
   description?: string
+  materials?: AcademyMaterial[] | null
   proof_kinds?: string[]
   reviewer_kind?: string
   assignee_vk_ids?: number[]
@@ -1535,4 +1580,54 @@ export interface AcademySessionBody {
   notes?: string
   status?: string
   attendance?: Record<number, string>
+}
+
+export type IssuanceKind = 'az' | 'virts'
+export type IssuanceStatus = 'pending' | 'issued' | 'rejected'
+
+export interface IssuanceRowPermissions {
+  can_edit: boolean
+  can_delete: boolean
+  can_issue: boolean
+  can_unissue: boolean
+  can_reject: boolean
+  can_unreject: boolean
+}
+
+export interface IssuanceItem {
+  id: number
+  server_id: number
+  kind: IssuanceKind
+  role_title: string
+  nickname: string
+  amount: number
+  amount_label: string
+  reason: string
+  proof_url: string
+  status: IssuanceStatus
+  created_by_vk_id: number
+  created_by_name: string | null
+  reviewed_by_vk_id: number | null
+  issued_by_vk_id: number | null
+  issued_by_name: string | null
+  reviewed_at: string | null
+  created_at: string | null
+  permissions: IssuanceRowPermissions
+}
+
+export interface IssuanceListResponse {
+  kind: IssuanceKind
+  items: IssuanceItem[]
+  total_issued: number
+  total_issued_label: string
+  permissions: { can_create: boolean; can_review: boolean }
+}
+
+export interface IssuanceBody {
+  kind: IssuanceKind
+  role_title: string
+  nickname: string
+  amount: number | string
+  reason: string
+  proof_url: string
 }

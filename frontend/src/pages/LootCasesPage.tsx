@@ -7,6 +7,7 @@ import { ModalViewport } from '../components/ui/ModalViewport'
 import { Alert } from '../components/ui/Alert'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { useAuth } from '../context/AuthContext'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function LootCasesPage() {
   const navigate = useNavigate()
@@ -136,7 +137,7 @@ export function LootCasesPage() {
       {error && <Alert>{error}</Alert>}
 
       {loading ? (
-        <div className="page-loading">Загрузка…</div>
+        <PageSkeleton variant="cards" label="Загрузка кейсов" />
       ) : filtered.length === 0 ? (
         <div className="page-empty-state page-empty-state--card">
           <p className="page-empty-state-title">{q.trim() ? 'Ничего не найдено' : 'Кейсов пока нет'}</p>

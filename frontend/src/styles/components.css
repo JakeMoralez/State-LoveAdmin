@@ -255,6 +255,12 @@ button.glass-card:hover {
 }
 
 /* Forms */
+.field-req {
+  margin-left: 0.2rem;
+  color: #ef6b6b;
+  font-weight: 650;
+}
+
 .control {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
@@ -281,6 +287,22 @@ button.glass-card:hover {
   min-height: 2.375rem;
   padding: 0 0.75rem;
   font-size: 0.8125rem;
+}
+
+.select-root {
+  min-width: 0;
+}
+
+button.control,
+select.control,
+.select-root .control {
+  cursor: pointer;
+}
+
+button.control:disabled,
+select.control:disabled,
+.select-root .control:disabled {
+  cursor: not-allowed;
 }
 
 .control:focus,

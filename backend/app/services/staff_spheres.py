@@ -166,8 +166,11 @@ def merge_spheres_for_display(stored: list[str] | None, access: UserServerAccess
 
 async def sync_ca_access_from_spheres(access: UserServerAccess, spheres: list[str]) -> None:
     """Write has_ca_access from sphere selection; preserve ca_auto_peer_id."""
-    access.has_ca_access = has_central_apparatus(spheres)
-    await access.save(update_fields=["has_ca_access"])
+    from app.services.bot_users import update_server_access
+
+    flag = has_central_apparatus(spheres)
+    access.has_ca_access = flag
+    await update_server_access(access.user_id, access.server_id, has_ca_access=flag)
 
 
 def migrate_legacy_sphere(

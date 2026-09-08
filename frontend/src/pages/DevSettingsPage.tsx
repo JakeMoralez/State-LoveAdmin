@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext'
 import { DEFAULT_TAG_SPHERES } from '../lib/leaderNickname'
 import { SPHERE_OPTIONS } from '../lib/spheres'
 import { cn } from '../lib/utils'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 const SPHERE_SELECT_OPTIONS = SPHERE_OPTIONS.filter((s) => s.value !== 'server').map((s) => ({
   value: s.value,
@@ -564,7 +565,7 @@ export function DevSettingsPage() {
 
       {tab === 'chats' && (
         <div className="dev-settings-chats">
-          {loading && !chats.length ? <div className="page-loading">Загрузка…</div> : null}
+          {loading && !chats.length ? <PageSkeleton variant="list" label="Загрузка бесед" /> : null}
           {!loading && !chats.length && !error ? (
             <div className="staff-registry-empty">Бесед пока нет — или бот не видит зарегистрированные чаты.</div>
           ) : null}

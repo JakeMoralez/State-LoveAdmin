@@ -12,6 +12,7 @@ import { Alert } from '../components/ui/Alert'
 import { PageSearch, PageToolbarActions, PageToolbarRow } from '../components/ui/PageSearch'
 import { bankCountLabel } from '../lib/questionBanks'
 import { BankIcon } from '../components/question-banks/BankIcon'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function QuestionBanksPage() {
   const { user } = useAuth()
@@ -115,7 +116,7 @@ export function QuestionBanksPage() {
           </PageToolbarRow>
 
           {error && <Alert>{error}</Alert>}
-          {loading && <div className="page-loading m-0">Загрузка…</div>}
+          {loading && <PageSkeleton variant="cards" label="Загрузка банков" />}
 
           {!loading && !error && (
             <div className="qb-bank-grid">

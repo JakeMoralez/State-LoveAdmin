@@ -16,6 +16,7 @@ import { Checkbox } from '../components/ui/Checkbox'
 import { FormField } from '../components/ui/FormField'
 import { Select } from '../components/ui/Select'
 import { cn } from '../lib/utils'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 const REQUIRED_FORUM_URL = 'https://forum.arizona-rp.com/forums/3758/'
 
@@ -350,7 +351,7 @@ export function JudgeForumListPage() {
         </div>
       )}
 
-      {loading && <div className="page-loading">Загрузка настроек…</div>}
+      {loading && <PageSkeleton variant="form" label="Загрузка настроек" />}
 
       {!loading && form && (
         <div className="jfl-grid">

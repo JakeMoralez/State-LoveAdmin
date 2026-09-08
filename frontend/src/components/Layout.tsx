@@ -69,6 +69,7 @@ const navCategories: NavCategory[] = [
       { to: '/academy', label: 'Академия', icon: GraduationCap, minAccessLevel: 1 },
       { to: '/checklist', label: 'Чеклист', icon: ClipboardCheck },
       { to: '/question-banks', label: 'Банки вопросов', icon: Library },
+      { to: '/issuance', label: 'Выдачи', icon: Gift, minAccessLevel: 3 },
       { to: '/projects', label: 'Проекты', icon: FolderKanban },
     ],
   },

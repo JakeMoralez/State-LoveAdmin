@@ -3,6 +3,7 @@ import { LayoutDashboard } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, STATUS_LABELS } from '../api'
 import { PageHeader } from '../components/PageHeader'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 
 
@@ -20,7 +21,14 @@ export function DashboardPage() {
 
 
 
-  if (!data) return <div className="page-loading">Загрузка…</div>
+  if (!data) {
+    return (
+      <div className="page-stack">
+        <PageHeader section="Обзор" title="Сводка" icon={LayoutDashboard} shrink />
+        <PageSkeleton variant="dashboard" label="Загрузка сводки" />
+      </div>
+    )
+  }
 
 
 

@@ -11,6 +11,7 @@ import { rarityLabel, normalizeRarity, dropChanceRatio, formatDropChance, DEFAUL
 import { useAuth } from '../context/AuthContext'
 import { Alert } from '../components/ui/Alert'
 import { useToast } from '../context/ToastContext'
+import { PageSkeleton } from '../components/ui/LoadingState'
 
 const PRIZE_LIST_PLACEHOLDER = `1кк | 20 | легендарный
 5кк | 15 | эпический
@@ -250,7 +251,7 @@ export function LootCaseEditPage() {
     return <Navigate to="/dashboard" replace />
   }
 
-  if (loading) return <div className="page-loading">Загрузка…</div>
+  if (loading) return <PageSkeleton variant="form" label="Загрузка кейса" />
   if (error || !data) {
     return <Alert>{error ?? 'Кейс не найден'}</Alert>
   }
@@ -299,7 +300,7 @@ export function LootCaseEditPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              placeholder="Необязательно — для себя и оператора"
+              placeholder="Для себя и оператора"
             />
           </label>
           <div className="case-field case-field--full">
