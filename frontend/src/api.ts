@@ -121,15 +121,19 @@ export const api = {
   academyMine: () => request<{ members: AcademyCadet[] }>('/academy/mine'),
   academyMentors: () => request<{ mentors: { vk_id: number; nickname: string }[] }>('/academy/mentors'),
   academyReserve: () => request<{ members: AcademyCadet[] }>('/academy/reserve'),
+  academyReviews: () => request<{ items: AcademyReviewItem[] }>('/academy/reviews'),
   academyCadet: (vkId: number) => request<AcademyCadetDetail>(`/academy/cadets/${vkId}`),
   academyEnroll: (body: AcademyEnrollBody) =>
     request<AcademyCadet>('/academy/cadets', { method: 'POST', body: JSON.stringify(body) }),
   academyPatchCadet: (vkId: number, body: AcademyCadetPatch) =>
     request<AcademyCadet>(`/academy/cadets/${vkId}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  academyGraduate: (vkId: number, mentorScore?: number) =>
+  academyGraduate: (vkId: number, body?: { mentor_score?: number | null; comment?: string }) =>
     request<AcademyCadet>(`/academy/cadets/${vkId}/graduate`, {
       method: 'POST',
-      body: JSON.stringify({ mentor_score: mentorScore ?? null }),
+      body: JSON.stringify({
+        mentor_score: body?.mentor_score ?? null,
+        comment: body?.comment ?? '',
+      }),
     }),
   academyComment: (vkId: number, body: string) =>
     request<{ ok: boolean }>(`/academy/cadets/${vkId}/comments`, {
@@ -1287,6 +1291,7 @@ export interface AcademyMeta {
   reviewer_kinds: AcademyLabel[]
   proof_kinds: AcademyLabel[]
   events: Record<string, string>
+  report_statuses?: AcademyLabel[]
 }
 
 export interface AcademySummary {
@@ -1294,7 +1299,10 @@ export interface AcademySummary {
   mentors: number
   ready_for_attestation: number
   graduates_month: number
+  pending_reviews: number
   is_lead: boolean
+  is_mentor: boolean
+  is_cadet: boolean
   can_enroll: boolean
 }
 
@@ -1336,6 +1344,7 @@ export interface AcademyCadet {
   id: number
   vk_id: number
   nickname: string
+  avatar_url?: string | null
   direction: string
   direction_label: string
   stage: string
@@ -1376,6 +1385,7 @@ export interface AcademyCadetDetail extends AcademyCadet {
   attestation_suggest: { theory: number; practice: number; period: number }
   can_manage: boolean
   is_self: boolean
+  assignments: AcademyAssignment[]
 }
 
 export interface AcademyEnrollBody {
@@ -1439,9 +1449,11 @@ export interface AcademyTemplateBody {
 export interface AcademyReport {
   id: number
   vk_id: number
+  nickname?: string | null
   body: string
   proof_urls: string[]
   status: string
+  status_label?: string
   score: number | null
   reviewer_vk_id: number | null
   review_comment: string
@@ -1466,7 +1478,26 @@ export interface AcademyAssignment {
   created_by: number
   created_at: string | null
   pending_count: number
+  viewer_status?: string | null
+  viewer_status_label?: string | null
   reports: (AcademyReport | null)[]
+}
+
+export interface AcademyReviewItem {
+  assignment_id: number
+  title: string
+  max_points: number
+  due_at: string | null
+  vk_id: number
+  nickname: string
+  avatar_url?: string | null
+  status: string
+  status_label: string
+  body: string
+  proof_urls: string[]
+  submitted_at: string | null
+  stage_label?: string | null
+  cadet_stage_label?: string | null
 }
 
 export interface AcademyAssignmentBody {
@@ -1481,6 +1512,7 @@ export interface AcademyAssignmentBody {
   reviewer_kind?: string
   assignee_vk_ids?: number[]
   all_active?: boolean
+  all_mentees?: boolean
   due_at?: string
   due_days?: number
 }

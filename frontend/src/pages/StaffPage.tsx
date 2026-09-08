@@ -8,7 +8,7 @@ import { Alert } from '../components/ui/Alert'
 import { Select } from '../components/ui/Select'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { useAuth } from '../context/AuthContext'
-import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
+import { ACCESS_LEVEL_OPTIONS, ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
 import { SPHERE_OPTIONS } from '../lib/spheres'
 import { staffLabel } from '../lib/staff'
 
@@ -50,7 +50,7 @@ export function StaffPage() {
   const [listError, setListError] = useState<string | null>(null)
   const [reloadTick, setReloadTick] = useState(0)
 
-  const canAssign = (user?.access_level ?? 0) >= 3
+  const canAssign = (user?.access_level ?? 0) >= ASSIGN_STAFF_MIN_LEVEL
 
   useEffect(() => {
     let cancelled = false

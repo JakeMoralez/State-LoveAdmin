@@ -35,6 +35,39 @@ export const ACADEMY_EVENT_LABELS: Record<string, string> = {
   report_reviewed: 'задание проверено',
 }
 
+export const ACADEMY_REPORT_STATUS_LABELS: Record<string, string> = {
+  pending: 'На проверке',
+  accepted: 'Принято',
+  revision: 'На доработку',
+  rejected: 'Отклонено',
+  open: 'Не сдано',
+}
+
+export function academyReportLabel(status: string | null | undefined): string {
+  if (!status) return 'Не сдано'
+  return ACADEMY_REPORT_STATUS_LABELS[status] || status
+}
+
+export function academyStageChipClass(
+  stage: string,
+  status?: string,
+  overdue?: boolean,
+): string {
+  if (status === 'frozen') return 'academy-chip academy-chip--muted'
+  if (overdue) return 'academy-chip academy-chip--warn'
+  if (stage === 'practice') return 'academy-chip academy-chip--gold'
+  if (stage === 'attestation') return 'academy-chip academy-chip--bright'
+  if (stage === 'mentored') return 'academy-chip academy-chip--gold'
+  return 'academy-chip'
+}
+
+export function academyStatusChipClass(status: string | null | undefined): string {
+  if (status === 'accepted') return 'academy-chip academy-chip--ok'
+  if (status === 'revision' || status === 'rejected') return 'academy-chip academy-chip--warn'
+  if (status === 'pending') return 'academy-chip academy-chip--gold'
+  return 'academy-chip academy-chip--muted'
+}
+
 export function formatAcademyDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -42,6 +75,24 @@ export function formatAcademyDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('ru-RU')
 }
 
+export function formatAcademyDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16)
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+export function academyDueOverdue(dueAt: string | null | undefined, status?: string | null): boolean {
+  if (!dueAt || status === 'accepted') return false
+  const t = new Date(dueAt).getTime()
+  return !Number.isNaN(t) && t < Date.now()
+}
+
 export function academyCanEnrollLevel(level: number): boolean {
   return level >= 1 && level <= 2
+}
+
+export function academyProgressPct(done: number, total: number): number {
+  if (total <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((done / total) * 100)))
 }

@@ -21,7 +21,8 @@ from app.models.panel import (
 )
 from app.services.access import get_access_level
 from app.services.audit import log_audit
-from app.services.display_names import resolve_bot_nickname, resolve_display_names
+from app.services.display_names import resolve_bot_nickname, resolve_display_names, resolve_vk_photos
+from app.services.staff_permissions import ASSIGN_STAFF_MIN_LEVEL
 from app.services.vk_notify import notify_vk, notify_vk_many
 
 LEAD_MIN_LEVEL = AccessLevel.ZGS
@@ -64,6 +65,12 @@ STATUS_LABELS: dict[str, str] = {
     "frozen": "Заморожен",
     "graduated": "Выпускник",
     "expelled": "Отчислен",
+}
+REPORT_STATUS_LABELS: dict[str, str] = {
+    "pending": "На проверке",
+    "accepted": "Принято",
+    "revision": "На доработку",
+    "rejected": "Отклонено",
 }
 RECOMMENDATION_LABELS: dict[str, str] = {
     "none": "Без рекомендации",
@@ -288,6 +295,10 @@ def display_status(cadet: AcademyCadet) -> str:
 
 def is_academy_lead(user: dict) -> bool:
     return int(user.get("access_level") or 0) >= LEAD_MIN_LEVEL
+
+
+def can_enroll(user: dict) -> bool:
+    return int(user.get("access_level") or 0) >= ASSIGN_STAFF_MIN_LEVEL
 
 
 def is_mentor_of(user: dict, cadet: AcademyCadet) -> bool:
@@ -579,20 +590,34 @@ def suggest_attestation(metrics: dict[str, Any]) -> dict[str, int]:
     return {"theory": theory, "practice": practice, "period": period}
 
 
+async def _attach_avatars(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ids = {int(r["vk_id"]) for r in rows if r.get("vk_id")}
+    photos = await resolve_vk_photos(ids) if ids else {}
+    for row in rows:
+        row["avatar_url"] = photos.get(int(row["vk_id"])) if row.get("vk_id") else None
+    return rows
+
+
 async def serialize_cadet(
     cadet: AcademyCadet,
     *,
     names: dict[int, str] | None = None,
     metrics: dict[str, Any] | None = None,
     include_metrics: bool = True,
+    avatar_url: str | None = None,
+    skip_avatar: bool = False,
 ) -> dict[str, Any]:
     names = names or await _names(cadet.vk_id, cadet.mentor_vk_id, cadet.enrolled_by)
     if metrics is None and include_metrics:
         metrics = await compute_metrics(cadet)
+    if avatar_url is None and not skip_avatar:
+        photos = await resolve_vk_photos({int(cadet.vk_id)})
+        avatar_url = photos.get(int(cadet.vk_id))
     return {
         "id": cadet.id,
         "vk_id": cadet.vk_id,
         "nickname": await _nick(cadet.vk_id, cadet.server_id, names),
+        "avatar_url": avatar_url,
         "direction": cadet.direction,
         "direction_label": DIRECTION_LABELS.get(cadet.direction, cadet.direction),
         "stage": cadet.stage,
@@ -630,8 +655,8 @@ async def enroll(
     expected_end_at: str | None = None,
     note: str = "",
 ) -> AcademyCadet:
-    if not is_academy_lead(actor):
-        raise PermissionError("Зачислять в академию может ЗГС и выше")
+    if not can_enroll(actor):
+        raise PermissionError("Зачислять в академию может Следящий структуры (5) и выше")
     await _assert_can_enroll_target(vk_id, server_id)
     await _assert_mentor(mentor_vk_id, server_id)
     existing = await get_cadet(server_id, vk_id)
@@ -797,7 +822,13 @@ async def update_cadet(
     return cadet
 
 
-async def graduate(cadet: AcademyCadet, actor: dict, *, mentor_score: int | None = None) -> AcademyCadet:
+async def graduate(
+    cadet: AcademyCadet,
+    actor: dict,
+    *,
+    mentor_score: int | None = None,
+    comment: str = "",
+) -> AcademyCadet:
     if not is_academy_lead(actor):
         raise PermissionError("Выпускает ЗГС+")
     metrics = await compute_metrics(cadet)
@@ -806,7 +837,7 @@ async def graduate(cadet: AcademyCadet, actor: dict, *, mentor_score: int | None
     practice = cadet.attestation_practice if cadet.attestation_practice is not None else suggested["practice"]
     period = cadet.attestation_period if cadet.attestation_period is not None else suggested["period"]
     mentor = mentor_score if mentor_score is not None else (cadet.attestation_mentor or 0)
-    return await update_cadet(
+    cadet = await update_cadet(
         cadet,
         actor,
         status="graduated",
@@ -817,7 +848,10 @@ async def graduate(cadet: AcademyCadet, actor: dict, *, mentor_score: int | None
         attestation_mentor=mentor,
         recommendation=_recommendation_for_total(theory + practice + period + mentor),
     )
-
+    text = (comment or "").strip()
+    if text:
+        await _add_event(cadet, "comment", int(actor["vk_id"]), {"text": text, "kind": "graduate"})
+    return cadet
 
 async def list_roster(server_id: int, user: dict, *, include_left: bool = False) -> list[dict[str, Any]]:
     qs = AcademyCadet.filter(server_id=server_id)
@@ -828,9 +862,14 @@ async def list_roster(server_id: int, user: dict, *, include_left: bool = False)
     names = await _names(*[c.vk_id for c in visible], *[c.mentor_vk_id for c in visible])
     out: list[dict[str, Any]] = []
     for cadet in visible:
-        out.append(await serialize_cadet(cadet, names=names))
-    out.sort(key=lambda r: (-int((r.get("metrics") or {}).get("rating") or 0), r["nickname"].lower()))
-    return out
+        out.append(await serialize_cadet(cadet, names=names, skip_avatar=True))
+    out.sort(
+        key=lambda r: (
+            -float((r.get("metrics") or {}).get("average_score") or 0),
+            r["nickname"].lower(),
+        )
+    )
+    return await _attach_avatars(out)
 
 
 async def summary(server_id: int, user: dict) -> dict[str, Any]:
@@ -850,13 +889,19 @@ async def summary(server_id: int, user: dict) -> dict[str, Any]:
         for c in visible
         if c.status == "graduated" and c.left_at and _as_aware(c.left_at).date() >= month_start
     ]
+    pending = await pending_reviews(server_id, user)
+    self_cadet = next((c for c in active if int(c.vk_id) == int(user.get("vk_id") or 0)), None)
+    is_mentor = any(int(c.mentor_vk_id or 0) == int(user.get("vk_id") or 0) for c in active)
     return {
         "cadets": len(active),
         "mentors": len(mentors),
         "ready_for_attestation": len(ready),
         "graduates_month": len(graduates),
+        "pending_reviews": len(pending),
         "is_lead": is_academy_lead(user),
-        "can_enroll": is_academy_lead(user),
+        "is_mentor": is_mentor,
+        "is_cadet": self_cadet is not None,
+        "can_enroll": can_enroll(user),
     }
 
 
@@ -869,7 +914,7 @@ async def mine(server_id: int, user: dict) -> list[dict[str, Any]]:
     names = await _names(*[c.vk_id for c in rows])
     out: list[dict[str, Any]] = []
     for cadet in rows:
-        item = await serialize_cadet(cadet, names=names)
+        item = await serialize_cadet(cadet, names=names, skip_avatar=True)
         pending = 0
         for assignment in await _assignments_for(server_id, cadet.vk_id):
             report = await AcademyReport.get_or_none(assignment_id=assignment.id, vk_id=cadet.vk_id)
@@ -877,7 +922,7 @@ async def mine(server_id: int, user: dict) -> list[dict[str, Any]]:
                 pending += 1
         item["pending_reviews"] = pending
         out.append(item)
-    return out
+    return await _attach_avatars(out)
 
 
 async def list_mentors(server_id: int) -> list[dict[str, Any]]:
@@ -1007,16 +1052,19 @@ async def _resolve_assignees(
     actor: dict,
     assignee_vk_ids: list[int] | None,
     all_active: bool,
-    mentor_only: bool,
+    all_mentees: bool,
 ) -> list[int]:
     if assignee_vk_ids:
         return sorted({int(v) for v in assignee_vk_ids})
-    qs = AcademyCadet.filter(server_id=server_id, status="active")
-    if mentor_only and not is_academy_lead(actor):
-        qs = qs.filter(mentor_vk_id=int(actor["vk_id"]))
-    if all_active or mentor_only:
+    if all_active:
+        if not is_academy_lead(actor):
+            raise PermissionError("Всем активным академикам задание выдаёт только ЗГС+")
+        qs = AcademyCadet.filter(server_id=server_id, status="active")
         return sorted({int(c.vk_id) for c in await qs})
-    raise ValueError("Укажите академиков или выдайте всем активным")
+    if all_mentees:
+        qs = AcademyCadet.filter(server_id=server_id, status="active", mentor_vk_id=int(actor["vk_id"]))
+        return sorted({int(c.vk_id) for c in await qs})
+    raise ValueError("Выберите академика или выдайте задание всем своим подопечным")
 
 
 async def create_assignment(
@@ -1034,6 +1082,7 @@ async def create_assignment(
     reviewer_kind: str | None = None,
     assignee_vk_ids: list[int] | None = None,
     all_active: bool = False,
+    all_mentees: bool = False,
     due_at: str | None = None,
     due_days: int | None = None,
 ) -> AcademyAssignment:
@@ -1065,7 +1114,7 @@ async def create_assignment(
         actor,
         assignee_vk_ids,
         all_active,
-        mentor_only=not is_academy_lead(actor),
+        all_mentees,
     )
     if not ids:
         raise ValueError("Нет академиков для выдачи")
@@ -1111,15 +1160,17 @@ async def create_assignment(
     return row
 
 
-def _report_payload(report: AcademyReport | None) -> dict[str, Any] | None:
+def _report_payload(report: AcademyReport | None, *, nickname: str | None = None) -> dict[str, Any] | None:
     if not report:
         return None
     return {
         "id": report.id,
         "vk_id": report.vk_id,
+        "nickname": nickname,
         "body": report.body,
         "proof_urls": list(report.proof_urls or []),
         "status": report.status,
+        "status_label": REPORT_STATUS_LABELS.get(report.status, report.status),
         "score": report.score,
         "reviewer_vk_id": report.reviewer_vk_id,
         "review_comment": report.review_comment,
@@ -1145,6 +1196,22 @@ async def serialize_assignment(
         mentees.add(int(viewer["vk_id"]))
         visible_reports = [r for r in reports if int(r.vk_id) in mentees]
     pending = sum(1 for r in visible_reports if r.status == "pending")
+    names = await _names(*[r.vk_id for r in visible_reports], *list(row.assignee_vk_ids or []), row.created_by)
+    viewer_id = int(viewer["vk_id"]) if viewer else 0
+    my_report = next((r for r in visible_reports if int(r.vk_id) == viewer_id), None)
+    if my_report:
+        viewer_status = my_report.status
+        viewer_status_label = REPORT_STATUS_LABELS.get(my_report.status, my_report.status)
+    elif viewer_id and viewer_id in {int(v) for v in (row.assignee_vk_ids or [])}:
+        viewer_status = "open"
+        viewer_status_label = "Не сдано"
+    else:
+        viewer_status = None
+        viewer_status_label = None
+    report_rows = []
+    for report in visible_reports:
+        nick = await _nick(int(report.vk_id), row.server_id, names)
+        report_rows.append(_report_payload(report, nickname=nick))
     return {
         "id": row.id,
         "title": row.title,
@@ -1162,7 +1229,9 @@ async def serialize_assignment(
         "created_by": row.created_by,
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "pending_count": pending,
-        "reports": [_report_payload(r) for r in visible_reports],
+        "viewer_status": viewer_status,
+        "viewer_status_label": viewer_status_label,
+        "reports": report_rows,
     }
 
 
@@ -1192,23 +1261,27 @@ async def submit_report(
 ) -> AcademyReport:
     assignment = await AcademyAssignment.get_or_none(id=assignment_id)
     if not assignment:
-        raise LookupError("Задание не найдено")
+        raise LookupError("Нет такого задания")
     target = int(vk_id or actor["vk_id"])
     if target != int(actor["vk_id"]) and not is_academy_lead(actor):
         raise PermissionError("Сдать задание можно только за себя")
     if not _assignment_targets(assignment, target):
+        if is_academy_lead(actor) and target == int(actor["vk_id"]):
+            raise PermissionError("Это задание выдано академикам. Сдавать нужно из аккаунта академика.")
         raise PermissionError("Это задание вам не выдано")
     cadet = await get_cadet(assignment.server_id, target)
-    if not cadet or cadet.status != "active":
+    if not cadet:
+        raise ValueError("Вы не академик. Сдавать задания может только зачисленный.")
+    if cadet.status != "active":
         raise ValueError("Сдавать задания может только активный академик")
     text = (body or "").strip()
     urls = [u.strip() for u in (proof_urls or []) if str(u).strip()]
     if not text and not urls:
-        raise ValueError("Приложите текст или доказательство")
+        raise ValueError("Приложите текст отчёта, ссылку или фото")
 
     report = await AcademyReport.get_or_none(assignment_id=assignment.id, vk_id=target)
     if report and report.status == "accepted":
-        raise ValueError("Задание уже принято")
+        raise ValueError("Это задание уже принято")
     now = _now()
     if report:
         report.body = text
@@ -1408,12 +1481,34 @@ async def update_session(session: AcademySession, actor: dict, *, title: str | N
 
 async def pending_reviews(server_id: int, user: dict) -> list[dict[str, Any]]:
     rows = await list_assignments(server_id, user)
-    out = []
+    out: list[dict[str, Any]] = []
     for assignment in rows:
+        assignment_row = await AcademyAssignment.get_or_none(id=assignment["id"])
         for report in assignment.get("reports") or []:
-            if report and report.get("status") == "pending":
-                out.append({**assignment, "report": report, "reports": None})
-    return out
+            if not report or report.get("status") != "pending":
+                continue
+            vk_id = int(report["vk_id"])
+            cadet = await get_cadet(server_id, vk_id)
+            if assignment_row and cadet and not can_review_report(user, assignment_row, cadet):
+                continue
+            out.append(
+                {
+                    "assignment_id": assignment["id"],
+                    "title": assignment["title"],
+                    "max_points": assignment["max_points"],
+                    "due_at": assignment.get("due_at"),
+                    "vk_id": vk_id,
+                    "nickname": report.get("nickname") or await _nick(vk_id, server_id, {}),
+                    "status": report["status"],
+                    "status_label": report.get("status_label") or REPORT_STATUS_LABELS["pending"],
+                    "body": report.get("body") or "",
+                    "proof_urls": list(report.get("proof_urls") or []),
+                    "submitted_at": report.get("submitted_at"),
+                    "stage_label": assignment.get("stage_label"),
+                    "cadet_stage_label": STAGE_LABELS.get(cadet.stage, cadet.stage) if cadet else None,
+                }
+            )
+    return await _attach_avatars(out)
 
 
 EVENT_LABELS: dict[str, str] = {
@@ -1449,4 +1544,5 @@ def labels_payload() -> dict[str, Any]:
             {"value": "proof", "label": "Доказательство"},
         ],
         "events": EVENT_LABELS,
+        "report_statuses": [{"value": k, "label": REPORT_STATUS_LABELS[k]} for k in REPORT_STATUSES],
     }

@@ -28,6 +28,7 @@ from app.services.role_assign import (
 from app.services.staff import parse_appointment_date
 from app.services.vk_resolve import resolve_vk_id_input
 from app.services.staff_permissions import (
+    ASSIGN_STAFF_MIN_LEVEL,
     assert_can_set_level,
     assert_can_set_nickname,
     assert_can_set_spheres,
@@ -37,7 +38,6 @@ from app.services.staff_permissions import (
 
 router = APIRouter(prefix="/api/assign", tags=["assign"])
 
-ASSIGN_STAFF_MIN_LEVEL = 3
 ASSIGN_ROLE_MIN_LEVEL = LEADER_REGISTRY_EDIT_MIN_LEVEL
 
 

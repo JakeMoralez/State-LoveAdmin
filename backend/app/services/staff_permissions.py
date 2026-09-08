@@ -9,6 +9,8 @@ from app.services.staff_spheres import effective_grantable_sphere_keys
 
 # Судьи / конгресс: назначение и правка реестра «Руководство» — Следящий (2)+
 LEADER_REGISTRY_EDIT_MIN_LEVEL = AccessLevel.SUPERVISOR
+# Новые следящие (/assign staff, /reg) — Следящий структуры (5)+
+ASSIGN_STAFF_MIN_LEVEL = AccessLevel.STRUCTURE_SUPERVISOR
 
 
 def can_manage_leadership_registry(
@@ -214,7 +216,12 @@ def staff_edit_permissions(
             dev_persona=dev_persona,
         )
     )
-    assign_staff = edit_level and not is_self
+    assign_staff = (
+        actor_level >= ASSIGN_STAFF_MIN_LEVEL
+        and can_edit_target
+        and not target_above_actor
+        and not is_self
+    )
 
     return {
         "edit_nickname": edit_nickname,

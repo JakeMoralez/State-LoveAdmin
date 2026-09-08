@@ -7,13 +7,12 @@ from app.services.activity_log import staff_assign_detail
 from app.services.audit import log_audit
 from app.services.role_assign import assign_staff_with_profile
 from app.services.staff_permissions import (
+    ASSIGN_STAFF_MIN_LEVEL,
     assert_can_set_level,
     assert_can_set_nickname,
     assert_can_set_spheres,
     staff_edit_permissions,
 )
-
-ASSIGN_STAFF_MIN_LEVEL = 3
 
 
 async def assign_staff_from_bot(
@@ -31,7 +30,7 @@ async def assign_staff_from_bot(
     nickname_tag: str | None = None,
 ) -> dict:
     if actor_level < ASSIGN_STAFF_MIN_LEVEL:
-        raise PermissionError("Назначение следящего — только ЗГС (3) и выше")
+        raise PermissionError("Назначение следящего — только Следящий структуры (5) и выше")
 
     if actor_vk_id == vk_id:
         raise PermissionError("Нельзя назначить себя")

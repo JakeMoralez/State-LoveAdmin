@@ -1,81 +1,114 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GraduationCap, Plus } from 'lucide-react'
+import { GraduationCap, Plus, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   api,
   ApiError,
   type AcademyAssignment,
   type AcademyCadet,
-  type AcademySession,
+  type AcademyReviewItem,
   type AcademySummary,
   type AcademyTemplate,
   type StaffMember,
 } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { Alert } from '../components/ui/Alert'
+import { Checkbox } from '../components/ui/Checkbox'
 import { Select } from '../components/ui/Select'
-import { DatePicker } from '../components/ui/DatePicker'
+import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
-import { ACADEMY_DIRECTIONS, academyCanEnrollLevel, formatAcademyDate } from '../lib/academy'
+import { ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
+import {
+  ACADEMY_DIRECTIONS,
+  ACADEMY_STAGES,
+  academyCanEnrollLevel,
+  academyDueOverdue,
+  academyReportLabel,
+  academyStageChipClass,
+  academyStatusChipClass,
+  formatAcademyDate,
+  formatAcademyDateTime,
+} from '../lib/academy'
 import { staffLabel } from '../lib/staff'
 
-type Tab = 'roster' | 'mine' | 'assignments' | 'sessions' | 'reserve'
-type RosterFilter = 'all' | 'theory' | 'practice' | 'attestation' | 'overdue' | 'no_mentor' | 'graduates'
+const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
+
+type Tab = 'roster' | 'reviews' | 'tasks' | 'reserve'
+type RosterFilter = 'all' | 'theory' | 'mentored' | 'practice' | 'attestation' | 'overdue' | 'no_mentor'
 
 function errText(e: unknown): string {
   if (e instanceof ApiError || e instanceof Error) return e.message
   return 'Не удалось загрузить академию'
 }
 
+function parseLinks(raw: string): string[] {
+  return raw
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^https?:\/\//i.test(s))
+}
+
 export function AcademyPage() {
   const { user } = useAuth()
-  const [tab, setTab] = useState<Tab>('roster')
+  const [tab, setTab] = useState<Tab | null>(null)
   const [filter, setFilter] = useState<RosterFilter>('all')
   const [summary, setSummary] = useState<AcademySummary | null>(null)
   const [roster, setRoster] = useState<AcademyCadet[]>([])
+  const [reserve, setReserve] = useState<AcademyCadet[]>([])
   const [mine, setMine] = useState<AcademyCadet[]>([])
   const [assignments, setAssignments] = useState<AcademyAssignment[]>([])
+  const [reviews, setReviews] = useState<AcademyReviewItem[]>([])
   const [templates, setTemplates] = useState<AcademyTemplate[]>([])
-  const [sessions, setSessions] = useState<AcademySession[]>([])
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [mentors, setMentors] = useState<{ vk_id: number; nickname: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showEnroll, setShowEnroll] = useState(false)
-  const [enrollVk, setEnrollVk] = useState('')
-  const [enrollDir, setEnrollDir] = useState('general')
-  const [enrollMentor, setEnrollMentor] = useState('')
+  const [enrollOpen, setEnrollOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
+  const [submitFor, setSubmitFor] = useState<AcademyAssignment | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const [assignTemplate, setAssignTemplate] = useState('')
-  const [assignAll, setAssignAll] = useState(true)
-  const [assignTarget, setAssignTarget] = useState('')
-  const [sessionTitle, setSessionTitle] = useState('')
-  const [sessionDate, setSessionDate] = useState('')
-
   const canLead = Boolean(summary?.is_lead) || (user?.access_level ?? 0) >= 3
+  const canEnroll = Boolean(summary?.can_enroll) || (user?.access_level ?? 0) >= ASSIGN_STAFF_MIN_LEVEL
+  const canAssign = canLead || mine.length > 0
+  const activeTab = tab ?? 'tasks'
 
   const load = async () => {
     setError(null)
     try {
-      const [sum, ros, my, asg, sess, st, ment, tpls] = await Promise.all([
+      const [sum, ros, my, asg, rev, ment] = await Promise.all([
         api.academySummary(),
-        api.academyRoster(true),
+        api.academyRoster(false),
         api.academyMine(),
         api.academyAssignments(),
-        api.academySessions(),
-        api.staff(),
+        api.academyReviews(),
         api.academyMentors(),
-        api.academyTemplates(),
       ])
       setSummary(sum)
       setRoster(ros.members)
       setMine(my.members)
       setAssignments(asg.assignments)
-      setSessions(sess.sessions)
-      setStaff(st.members)
+      setReviews(rev.items)
       setMentors(ment.mentors)
-      setTemplates(tpls.templates)
+      if (sum.is_lead || sum.can_enroll) {
+        const [res, st, tpls] = await Promise.all([
+          api.academyReserve(),
+          api.staff(),
+          api.academyTemplates(),
+        ])
+        setReserve(res.members)
+        setStaff(st.members)
+        setTemplates(tpls.templates)
+      } else if (my.members.length > 0) {
+        const tpls = await api.academyTemplates()
+        setTemplates(tpls.templates)
+      }
+      setTab((current) => {
+        if (current) return current
+        if (sum.is_lead) return 'roster'
+        if (sum.is_mentor || my.members.length > 0) return 'reviews'
+        return 'tasks'
+      })
     } catch (e: unknown) {
       setError(errText(e))
     } finally {
@@ -85,118 +118,37 @@ export function AcademyPage() {
 
   useEffect(() => {
     void load()
-  }, [filter])
+  }, [])
 
   const candidates = useMemo(
-    () =>
-      staff.filter(
-        (m) => academyCanEnrollLevel(m.access_level) && !m.is_academy,
-      ),
+    () => staff.filter((m) => academyCanEnrollLevel(m.access_level) && !m.is_academy),
     [staff],
   )
 
   const filteredRoster = useMemo(() => {
     return roster.filter((c) => {
-      if (filter === 'all') return c.status === 'active' || c.status === 'frozen'
-      if (filter === 'theory') return c.stage === 'theory' || c.stage === 'mentored'
+      if (c.status === 'graduated' || c.status === 'expelled') return false
+      if (filter === 'all') return true
+      if (filter === 'theory') return c.stage === 'theory'
+      if (filter === 'mentored') return c.stage === 'mentored'
       if (filter === 'practice') return c.stage === 'practice'
       if (filter === 'attestation') return c.stage === 'attestation'
       if (filter === 'overdue') return (c.metrics?.overdue ?? 0) > 0
-      if (filter === 'no_mentor') return !c.mentor_vk_id && c.status !== 'graduated'
-      if (filter === 'graduates') return c.status === 'graduated'
+      if (filter === 'no_mentor') return !c.mentor_vk_id
       return true
     })
   }, [roster, filter])
 
-  const enroll = async () => {
-    if (!enrollVk) return
-    setSaving(true)
-    try {
-      await api.academyEnroll({
-        vk_id: Number(enrollVk),
-        direction: enrollDir,
-        mentor_vk_id: enrollMentor ? Number(enrollMentor) : null,
-      })
-      setShowEnroll(false)
-      setEnrollVk('')
-      await load()
-    } catch (e: unknown) {
-      setError(errText(e))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const issueAssignment = async () => {
-    if (!assignTemplate && assignAll) return
-    setSaving(true)
-    try {
-      await api.academyCreateAssignment({
-        template_id: assignTemplate ? Number(assignTemplate) : null,
-        all_active: assignAll,
-        assignee_vk_ids: !assignAll && assignTarget ? [Number(assignTarget)] : undefined,
-      })
-      await load()
-    } catch (e: unknown) {
-      setError(errText(e))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const createSession = async () => {
-    if (!sessionTitle.trim()) return
-    setSaving(true)
-    try {
-      await api.academyCreateSession({
-        title: sessionTitle.trim(),
-        held_at: sessionDate || undefined,
-        status: 'held',
-      })
-      setSessionTitle('')
-      await load()
-    } catch (e: unknown) {
-      setError(errText(e))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const review = async (assignmentId: number, vkId: number, action: string, score?: number) => {
-    try {
-      await api.academyReviewReport(assignmentId, vkId, { action, score })
-      await load()
-    } catch (e: unknown) {
-      setError(errText(e))
-    }
-  }
-
-  const submit = async (assignmentId: number) => {
-    const text = window.prompt('Текст отчёта')
-    if (text == null) return
-    try {
-      await api.academySubmitReport(assignmentId, { body: text })
-      await load()
-    } catch (e: unknown) {
-      setError(errText(e))
-    }
-  }
-
-  const mark = async (sessionId: number, vkId: number, status: string) => {
-    try {
-      await api.academySetAttendance(sessionId, { [vkId]: status })
-      await load()
-    } catch (e: unknown) {
-      setError(errText(e))
-    }
-  }
+  const myAssignments = useMemo(() => {
+    const vk = user?.vk_id ?? 0
+    return assignments.filter((a) => a.assignee_vk_ids.includes(vk))
+  }, [assignments, user?.vk_id])
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: 'roster', label: 'Сводка' },
-    { id: 'mine', label: 'Мои академики' },
-    { id: 'assignments', label: 'Задания' },
-    { id: 'sessions', label: 'Занятия' },
-    { id: 'reserve', label: 'Резерв' },
+    { id: 'roster', label: 'Состав' },
+    { id: 'reviews', label: 'На проверке' },
+    { id: 'tasks', label: 'Мои задания' },
+    ...(canLead ? [{ id: 'reserve' as const, label: 'Резерв' }] : []),
   ]
 
   return (
@@ -208,16 +160,23 @@ export function AcademyPage() {
         shrink
         subtitle={
           summary
-            ? `${summary.cadets} академиков · ${summary.mentors} наставников`
+            ? `${summary.cadets} академиков · ${summary.pending_reviews} на проверке`
             : 'Подготовка управленца сферы'
         }
         actions={
-          canLead ? (
-            <button type="button" className="btn btn-gold btn-sm" onClick={() => setShowEnroll((v) => !v)}>
-              <Plus size={16} />
-              Зачислить
-            </button>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            {canAssign ? (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignOpen(true)}>
+                Выдать задание
+              </button>
+            ) : null}
+            {canEnroll ? (
+              <button type="button" className="btn btn-gold btn-sm" onClick={() => setEnrollOpen(true)}>
+                <Plus size={16} />
+                Зачислить
+              </button>
+            ) : null}
+          </div>
         }
       />
 
@@ -227,8 +186,8 @@ export function AcademyPage() {
             key={item.id}
             type="button"
             role="tab"
-            aria-selected={tab === item.id}
-            className={tab === item.id ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+            aria-selected={activeTab === item.id}
+            className={activeTab === item.id ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
             onClick={() => setTab(item.id)}
           >
             {item.label}
@@ -238,38 +197,9 @@ export function AcademyPage() {
 
       {error && <Alert className="shrink-0">{error}</Alert>}
 
-      {showEnroll && canLead && (
-        <div className="academy-form-grid">
-          <Select
-            value={enrollVk}
-            onChange={setEnrollVk}
-            options={[
-              { value: '', label: 'Академик' },
-              ...candidates.map((m) => ({ value: String(m.vk_id), label: staffLabel(m) })),
-            ]}
-          />
-          <Select
-            value={enrollDir}
-            onChange={setEnrollDir}
-            options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
-          />
-          <Select
-            value={enrollMentor}
-            onChange={setEnrollMentor}
-            options={[
-              { value: '', label: 'Без наставника' },
-              ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
-            ]}
-          />
-          <button type="button" className="btn btn-gold" disabled={saving || !enrollVk} onClick={() => void enroll()}>
-            Зачислить без смены ника
-          </button>
-        </div>
-      )}
-
       {loading ? (
         <div className="page-loading">Загрузка…</div>
-      ) : tab === 'roster' ? (
+      ) : activeTab === 'roster' ? (
         <>
           <div className="academy-stats">
             <div className="academy-stat">
@@ -277,8 +207,8 @@ export function AcademyPage() {
               <div className="academy-stat-label">Академиков</div>
             </div>
             <div className="academy-stat">
-              <div className="academy-stat-value">{summary?.mentors ?? 0}</div>
-              <div className="academy-stat-label">Наставников</div>
+              <div className="academy-stat-value">{summary?.pending_reviews ?? 0}</div>
+              <div className="academy-stat-label">На проверке</div>
             </div>
             <div className="academy-stat">
               <div className="academy-stat-value">{summary?.ready_for_attestation ?? 0}</div>
@@ -294,11 +224,11 @@ export function AcademyPage() {
               [
                 ['all', 'Все'],
                 ['theory', 'Теория'],
+                ['mentored', 'С наставником'],
                 ['practice', 'Практика'],
                 ['attestation', 'Аттестация'],
                 ['overdue', 'Просрочки'],
                 ['no_mentor', 'Без наставника'],
-                ['graduates', 'Выпускники'],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -311,194 +241,694 @@ export function AcademyPage() {
               </button>
             ))}
           </div>
-          <RosterTable rows={filteredRoster} />
+          <RosterList rows={filteredRoster} />
+          {canLead ? (
+            <TemplateEditor
+              templates={templates}
+              onSaved={load}
+              onError={setError}
+            />
+          ) : null}
         </>
-      ) : tab === 'mine' ? (
-        <RosterTable rows={mine} showPending />
-      ) : tab === 'assignments' ? (
-        <div className="page-stack">
-          {(canLead || mine.length > 0) && (
-            <div className="academy-form-grid">
-              <Select
-                value={assignTemplate}
-                onChange={setAssignTemplate}
-                options={[
-                  { value: '', label: 'Шаблон задания' },
-                  ...templates.filter((t) => t.is_active).map((t) => ({ value: String(t.id), label: `${t.title} · ${t.stage_label}` })),
-                ]}
-              />
-              <Select
-                value={assignAll ? 'all' : assignTarget}
-                onChange={(v) => {
-                  if (v === 'all') {
-                    setAssignAll(true)
-                    setAssignTarget('')
-                  } else {
-                    setAssignAll(false)
-                    setAssignTarget(v)
-                  }
-                }}
-                options={[
-                  { value: 'all', label: canLead ? 'Все активные' : 'Мои академики' },
-                  ...roster
-                    .filter((c) => c.status === 'active')
-                    .map((c) => ({ value: String(c.vk_id), label: c.nickname })),
-                ]}
-              />
-              <button type="button" className="btn btn-gold" disabled={saving || !assignTemplate} onClick={() => void issueAssignment()}>
-                Выдать задание
-              </button>
-            </div>
-          )}
-          {assignments.length === 0 ? (
-            <div className="staff-registry-empty">Заданий пока нет</div>
-          ) : (
-            assignments.map((a) => (
-              <div key={a.id} className="academy-assign-card">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <strong>
-                    #{a.id} {a.title}
-                  </strong>
-                  <span className="text-white/45 text-sm">
-                    {a.stage_label} · до {formatAcademyDate(a.due_at)} · {a.pending_count} на проверке
-                  </span>
-                </div>
-                {a.description ? <p className="text-white/55 text-sm mt-1 mb-0">{a.description}</p> : null}
-                <div className="mt-2 flex flex-col gap-2">
-                  {(a.reports || []).filter(Boolean).map((r) =>
-                    r ? (
-                      <div key={r.id} className="text-sm text-white/70">
-                        id{r.vk_id}: {r.status}
-                        {r.score != null ? ` · ${r.score}/${a.max_points}` : ''}
-                        {r.body ? ` — ${r.body}` : ''}
-                        {r.status === 'pending' && (canLead || mine.some((c) => c.vk_id === r.vk_id)) ? (
-                          <span className="ml-2 inline-flex gap-1">
-                            <button type="button" className="btn btn-sm btn-gold" onClick={() => void review(a.id, r.vk_id, 'accept', a.max_points)}>
-                              Принять
-                            </button>
-                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void review(a.id, r.vk_id, 'revision')}>
-                              Доработка
-                            </button>
-                            <button type="button" className="btn btn-sm btn-secondary" onClick={() => void review(a.id, r.vk_id, 'reject')}>
-                              Отклонить
-                            </button>
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null,
-                  )}
-                  {a.assignee_vk_ids.includes(user?.vk_id ?? 0) &&
-                  !a.reports.some((r) => r && r.vk_id === user?.vk_id && r.status === 'accepted') ? (
-                    <button type="button" className="btn btn-sm btn-secondary w-fit" onClick={() => void submit(a.id)}>
-                      Сдать задание
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      ) : tab === 'sessions' ? (
-        <div className="page-stack">
-          {canLead && (
-            <div className="academy-form-grid">
-              <input
-                className="control"
-                placeholder="Тема занятия"
-                value={sessionTitle}
-                onChange={(e) => setSessionTitle(e.target.value)}
-              />
-              <DatePicker value={sessionDate || null} onChange={(v) => setSessionDate(v ?? '')} showTime={false} />
-              <button type="button" className="btn btn-gold" disabled={saving || !sessionTitle.trim()} onClick={() => void createSession()}>
-                Отметить занятие
-              </button>
-            </div>
-          )}
-          {sessions.length === 0 ? (
-            <div className="staff-registry-empty">Занятий пока нет</div>
-          ) : (
-            sessions.map((s) => (
-              <div key={s.id} className="academy-assign-card">
-                <strong>{s.title}</strong>
-                <div className="text-sm text-white/45">
-                  {formatAcademyDate(s.held_at)} · присутствовало {s.present}, пропущено {s.absent}
-                </div>
-                {canLead && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {roster
-                      .filter((c) => c.status === 'active')
-                      .map((c) => (
-                        <button
-                          key={c.vk_id}
-                          type="button"
-                          className="btn btn-sm btn-secondary"
-                          onClick={() =>
-                            void mark(s.id, c.vk_id, s.attendance[String(c.vk_id)] === 'present' ? 'absent' : 'present')
-                          }
-                        >
-                          {c.nickname}: {s.attendance[String(c.vk_id)] || '—'}
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+      ) : activeTab === 'reviews' ? (
+        <ReviewQueue items={reviews} onChanged={load} onError={setError} />
+      ) : activeTab === 'tasks' ? (
+        <MyTasks items={myAssignments} onSubmit={setSubmitFor} />
       ) : (
-        <RosterTable rows={roster.filter((c) => c.status === 'graduated')} reserve />
+        <RosterList rows={reserve} reserve />
       )}
+
+      <EnrollModal
+        open={enrollOpen}
+        onClose={() => setEnrollOpen(false)}
+        candidates={candidates}
+        mentors={mentors}
+        saving={saving}
+        onSubmit={async (payload) => {
+          setSaving(true)
+          try {
+            await api.academyEnroll(payload)
+            setEnrollOpen(false)
+            await load()
+          } catch (e: unknown) {
+            setError(errText(e))
+          } finally {
+            setSaving(false)
+          }
+        }}
+      />
+
+      <AssignModal
+        open={assignOpen}
+        onClose={() => setAssignOpen(false)}
+        templates={templates.filter((t) => t.is_active)}
+        people={canLead ? roster.filter((c) => c.status === 'active') : mine}
+        canLead={canLead}
+        saving={saving}
+        onSubmit={async (payload) => {
+          setSaving(true)
+          try {
+            await api.academyCreateAssignment(payload)
+            setAssignOpen(false)
+            await load()
+          } catch (e: unknown) {
+            setError(errText(e))
+          } finally {
+            setSaving(false)
+          }
+        }}
+      />
+
+      <SubmitModal
+        assignment={submitFor}
+        onClose={() => setSubmitFor(null)}
+        onSubmit={async (body, links) => {
+          if (!submitFor) return
+          await api.academySubmitReport(submitFor.id, { body, proof_urls: links })
+          setSubmitFor(null)
+          await load()
+        }}
+      />
     </div>
   )
 }
 
-function RosterTable({
-  rows,
-  showPending,
-  reserve,
-}: {
-  rows: AcademyCadet[]
-  showPending?: boolean
-  reserve?: boolean
-}) {
+function RosterList({ rows, reserve }: { rows: AcademyCadet[]; reserve?: boolean }) {
   if (rows.length === 0) {
-    return <div className="staff-registry-empty">Пока никого нет</div>
+    return (
+      <div className="staff-registry-empty">
+        {reserve ? 'В кадровом резерве пока никого нет.' : 'В составе пока никого нет.'}
+      </div>
+    )
   }
   return (
-    <div className="ll-scroll">
-      <table className="academy-table">
-        <thead>
-          <tr>
-            <th>Академик</th>
-            <th>Направление</th>
-            <th>Наставник</th>
-            <th>Этап</th>
-            <th>{reserve ? 'Итог' : 'Баллы'}</th>
-            <th>{reserve ? 'Рекомендация' : 'Прогресс'}</th>
-            {showPending ? <th>Проверка</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((c) => (
-            <tr key={c.id}>
-              <td>
-                <Link to={`/academy/${c.vk_id}`} className="no-underline">
+    <div className={`staff-registry academy-registry${reserve ? ' academy-registry--reserve' : ''}`}>
+      <div className="staff-registry-head">
+        <span className="staff-registry-th staff-col-num">№</span>
+        <span className="staff-registry-th staff-col-nick">Академик</span>
+        <span className="staff-registry-th academy-col-dir">Направление</span>
+        <span className="staff-registry-th academy-col-mentor">Наставник</span>
+        {reserve ? (
+          <span className="staff-registry-th academy-col-rec">Рекомендация</span>
+        ) : (
+          <>
+            <span className="staff-registry-th academy-col-stage">Этап</span>
+            <span className="staff-registry-th academy-col-tasks">Задания</span>
+            <span className="staff-registry-th academy-col-overdue">Просрочки</span>
+          </>
+        )}
+      </div>
+      <div className="staff-registry-body ll-scroll">
+        {rows.map((c, i) => {
+          const overdue = (c.metrics?.overdue ?? 0) > 0
+          return (
+            <div key={c.id} className="staff-registry-row">
+              <div className="staff-col-num">{i + 1}</div>
+              <div className="staff-col-nick">
+                <span className="staff-avatar-wrap">
+                  <img src={c.avatar_url || DEFAULT_AVATAR} alt="" className="staff-avatar" loading="lazy" />
+                </span>
+                <Link to={`/academy/${c.vk_id}`} className="staff-nick staff-nick-link no-underline">
                   {c.nickname}
                 </Link>
-                {!c.mentor_vk_id && c.status !== 'graduated' ? (
-                  <span className="academy-chip academy-chip--warn ml-2">без наставника</span>
-                ) : null}
-              </td>
-              <td>{c.direction_label}</td>
-              <td>{c.mentor_name || '—'}</td>
-              <td>{c.display_status}</td>
-              <td>{reserve ? (c.attestation_total ?? c.metrics?.rating ?? '—') : (c.metrics?.rating ?? '—')}</td>
-              <td>{reserve ? c.recommendation_label : `${c.metrics?.progress ?? 0}%`}</td>
-              {showPending ? <td>{c.pending_reviews ?? 0}</td> : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+              <div className="academy-col-dir">{c.direction_label}</div>
+              <div className="academy-col-mentor">{c.mentor_name || '—'}</div>
+              {reserve ? (
+                <div className="academy-col-rec">{c.recommendation_label}</div>
+              ) : (
+                <>
+                  <div className="academy-col-stage">
+                    <span className={academyStageChipClass(c.stage, c.status, overdue)}>{c.stage_label}</span>
+                  </div>
+                  <div className="academy-col-tasks">
+                    {c.metrics?.assignments_done ?? 0}/{c.metrics?.assignments_total ?? 0}
+                  </div>
+                  <div className={`academy-col-overdue${overdue ? ' academy-col-overdue--warn' : ''}`}>
+                    {c.metrics?.overdue ?? 0}
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ReviewQueue({
+  items,
+  onChanged,
+  onError,
+}: {
+  items: AcademyReviewItem[]
+  onChanged: () => Promise<void>
+  onError: (msg: string) => void
+}) {
+  const [drafts, setDrafts] = useState<Record<string, { score: string; comment: string }>>({})
+  const [busy, setBusy] = useState<string | null>(null)
+
+  if (items.length === 0) {
+    return <div className="staff-registry-empty">Очередь проверки пуста.</div>
+  }
+
+  const act = async (item: AcademyReviewItem, action: string) => {
+    const key = `${item.assignment_id}-${item.vk_id}`
+    const draft = drafts[key] || { score: '', comment: '' }
+    if (action === 'accept' && draft.score === '') {
+      onError('Укажите оценку, чтобы принять задание')
+      return
+    }
+    setBusy(key)
+    try {
+      await api.academyReviewReport(item.assignment_id, item.vk_id, {
+        action,
+        score: draft.score === '' ? undefined : Number(draft.score),
+        comment: draft.comment.trim(),
+      })
+      await onChanged()
+    } catch (e: unknown) {
+      onError(errText(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="academy-queue">
+      {items.map((item) => {
+        const key = `${item.assignment_id}-${item.vk_id}`
+        const draft = drafts[key] || { score: '', comment: '' }
+        return (
+          <article key={key} className="academy-review-card">
+            <div className="academy-review-head">
+              <Link to={`/academy/${item.vk_id}`} className="academy-review-nick no-underline">
+                {item.nickname}
+              </Link>
+              <h2 className="academy-review-title">{item.title}</h2>
+              <span className={academyStatusChipClass(item.status)}>{item.status_label}</span>
+              <span className="academy-task-meta">{formatAcademyDateTime(item.submitted_at)}</span>
+            </div>
+            {item.body ? <p className="academy-review-body">{item.body}</p> : null}
+            {item.proof_urls.length > 0 ? (
+              <ul className="academy-review-links">
+                {item.proof_urls.map((url) => (
+                  <li key={url}>
+                    <a href={url} target="_blank" rel="noreferrer">
+                      {url}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <div className="academy-review-actions">
+              <div>
+                <label className="staff-profile-label" htmlFor={`score-${key}`}>
+                  Оценка 0…{item.max_points}
+                </label>
+                <input
+                  id={`score-${key}`}
+                  className="control"
+                  inputMode="numeric"
+                  value={draft.score}
+                  onChange={(e) =>
+                    setDrafts((cur) => ({ ...cur, [key]: { ...draft, score: e.target.value } }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="staff-profile-label" htmlFor={`comment-${key}`}>
+                  Комментарий
+                </label>
+                <input
+                  id={`comment-${key}`}
+                  className="control"
+                  value={draft.comment}
+                  onChange={(e) =>
+                    setDrafts((cur) => ({ ...cur, [key]: { ...draft, comment: e.target.value } }))
+                  }
+                />
+              </div>
+              <div className="academy-review-buttons">
+                <button
+                  type="button"
+                  className="btn btn-gold"
+                  disabled={busy === key}
+                  onClick={() => void act(item, 'accept')}
+                >
+                  Принять
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy === key}
+                  onClick={() => void act(item, 'revision')}
+                >
+                  Доработка
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy === key}
+                  onClick={() => void act(item, 'reject')}
+                >
+                  Отклонить
+                </button>
+              </div>
+            </div>
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function MyTasks({
+  items,
+  onSubmit,
+}: {
+  items: AcademyAssignment[]
+  onSubmit: (item: AcademyAssignment) => void
+}) {
+  if (items.length === 0) {
+    return <div className="staff-registry-empty">Вам пока не выдавали задания.</div>
+  }
+  return (
+    <div className="academy-queue">
+      {items.map((item) => {
+        const status = item.viewer_status || 'open'
+        const overdue = academyDueOverdue(item.due_at, status)
+        const canSubmit = status !== 'accepted'
+        return (
+          <article key={item.id} className="academy-task-card">
+            <div className="academy-task-head">
+              <h2 className="academy-task-title">{item.title}</h2>
+              <span className={academyStatusChipClass(status)}>
+                {item.viewer_status_label || academyReportLabel(status)}
+              </span>
+              <span className={`academy-task-meta${overdue ? ' academy-task-meta--warn' : ''}`}>
+                до {formatAcademyDate(item.due_at)}
+              </span>
+            </div>
+            {item.description ? <p className="academy-task-desc">{item.description}</p> : null}
+            {canSubmit ? (
+              <button type="button" className="btn btn-gold btn-sm mt-3" onClick={() => onSubmit(item)}>
+                Сдать
+              </button>
+            ) : null}
+          </article>
+        )
+      })}
+    </div>
+  )
+}
+
+function EnrollModal({
+  open,
+  onClose,
+  candidates,
+  mentors,
+  saving,
+  onSubmit,
+}: {
+  open: boolean
+  onClose: () => void
+  candidates: StaffMember[]
+  mentors: { vk_id: number; nickname: string }[]
+  saving: boolean
+  onSubmit: (body: { vk_id: number; direction: string; mentor_vk_id: number | null }) => Promise<void>
+}) {
+  const [vkId, setVkId] = useState('')
+  const [direction, setDirection] = useState('general')
+  const [mentor, setMentor] = useState('')
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setVkId('')
+    setDirection('general')
+    setMentor('')
+    setFormError('')
+  }, [open])
+
+  return (
+    <ModalViewport open={open} onBackdropClick={onClose}>
+      <div className="glass-card academy-modal modal-pop relative z-10 flex w-full flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="m-0 text-lg font-semibold">Зачислить в Академию</h2>
+          <button type="button" className="btn-icon" onClick={onClose} aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-4 space-y-3 ll-scroll">
+          <div>
+            <label className="staff-profile-label">Кто</label>
+            <Select
+              value={vkId}
+              onChange={setVkId}
+              options={[
+                { value: '', label: 'Выберите следящего' },
+                ...candidates.map((m) => ({ value: String(m.vk_id), label: staffLabel(m) })),
+              ]}
+            />
+          </div>
+          <div>
+            <label className="staff-profile-label">Направление</label>
+            <Select
+              value={direction}
+              onChange={setDirection}
+              options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
+            />
+          </div>
+          <div>
+            <label className="staff-profile-label">Наставник</label>
+            <Select
+              value={mentor}
+              onChange={setMentor}
+              options={[
+                { value: '', label: 'Не назначен' },
+                ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
+              ]}
+            />
+          </div>
+          <p className="staff-profile-hint m-0">Ник и должность не меняются.</p>
+          {formError ? <Alert>{formError}</Alert> : null}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/[0.06]">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Отмена
+          </button>
+          <button
+            type="button"
+            className="btn btn-gold"
+            disabled={saving}
+            onClick={() => {
+              if (!vkId) {
+                setFormError('Выберите, кого зачислить')
+                return
+              }
+              void onSubmit({
+                vk_id: Number(vkId),
+                direction,
+                mentor_vk_id: mentor ? Number(mentor) : null,
+              })
+            }}
+          >
+            Зачислить
+          </button>
+        </div>
+      </div>
+    </ModalViewport>
+  )
+}
+
+function AssignModal({
+  open,
+  onClose,
+  templates,
+  people,
+  canLead,
+  saving,
+  onSubmit,
+}: {
+  open: boolean
+  onClose: () => void
+  templates: AcademyTemplate[]
+  people: AcademyCadet[]
+  canLead: boolean
+  saving: boolean
+  onSubmit: (body: {
+    template_id: number
+    assignee_vk_ids?: number[]
+    all_active?: boolean
+    all_mentees?: boolean
+  }) => Promise<void>
+}) {
+  const [templateId, setTemplateId] = useState('')
+  const [target, setTarget] = useState('')
+  const [confirmAll, setConfirmAll] = useState(false)
+  const [formError, setFormError] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    setTemplateId('')
+    setTarget('')
+    setConfirmAll(false)
+    setFormError('')
+  }, [open])
+
+  return (
+    <ModalViewport open={open} onBackdropClick={onClose}>
+      <div className="glass-card academy-modal modal-pop relative z-10 flex w-full flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="m-0 text-lg font-semibold">Выдать задание</h2>
+          <button type="button" className="btn-icon" onClick={onClose} aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-4 space-y-3">
+          <div>
+            <label className="staff-profile-label">Шаблон</label>
+            <Select
+              value={templateId}
+              onChange={setTemplateId}
+              options={[
+                { value: '', label: 'Выберите шаблон' },
+                ...templates.map((t) => ({ value: String(t.id), label: `${t.title} · ${t.stage_label}` })),
+              ]}
+            />
+          </div>
+          <div>
+            <label className="staff-profile-label">Кому</label>
+            <Select
+              value={target}
+              onChange={setTarget}
+              options={[
+                { value: '', label: 'Выберите академика' },
+                { value: 'mine', label: 'Всем моим подопечным' },
+                ...(canLead ? [{ value: 'all', label: 'Всем активным' }] : []),
+                ...people.map((c) => ({ value: String(c.vk_id), label: c.nickname })),
+              ]}
+            />
+          </div>
+          {target === 'all' ? (
+            <label className="ui-checkbox-label staff-profile-check">
+              <Checkbox checked={confirmAll} onChange={setConfirmAll} />
+              Да, выдать всем активным академикам
+            </label>
+          ) : null}
+          {formError ? <Alert>{formError}</Alert> : null}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/[0.06]">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Отмена
+          </button>
+          <button
+            type="button"
+            className="btn btn-gold"
+            disabled={saving}
+            onClick={() => {
+              if (!templateId) {
+                setFormError('Выберите шаблон')
+                return
+              }
+              if (!target) {
+                setFormError('Выберите, кому выдать задание')
+                return
+              }
+              if (target === 'all' && !confirmAll) {
+                setFormError('Подтвердите выдачу всем активным')
+                return
+              }
+              void onSubmit({
+                template_id: Number(templateId),
+                all_active: target === 'all',
+                all_mentees: target === 'mine',
+                assignee_vk_ids: target === 'all' || target === 'mine' ? undefined : [Number(target)],
+              })
+            }}
+          >
+            Выдать
+          </button>
+        </div>
+      </div>
+    </ModalViewport>
+  )
+}
+
+function SubmitModal({
+  assignment,
+  onClose,
+  onSubmit,
+}: {
+  assignment: AcademyAssignment | null
+  onClose: () => void
+  onSubmit: (body: string, links: string[]) => Promise<void>
+}) {
+  const [body, setBody] = useState('')
+  const [links, setLinks] = useState('')
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!assignment) return
+    setBody('')
+    setLinks('')
+    setFormError('')
+  }, [assignment])
+
+  return (
+    <ModalViewport open={Boolean(assignment)} onBackdropClick={onClose}>
+      <div className="glass-card academy-modal modal-pop relative z-10 flex w-full flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+          <h2 className="m-0 text-lg font-semibold">Сдать: {assignment?.title}</h2>
+          <button type="button" className="btn-icon" onClick={onClose} aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-6 py-4 space-y-3">
+          <div>
+            <label className="staff-profile-label" htmlFor="academy-submit-body">
+              Текст отчёта
+            </label>
+            <textarea
+              id="academy-submit-body"
+              className="control w-full"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="staff-profile-label" htmlFor="academy-submit-links">
+              Ссылки
+            </label>
+            <textarea
+              id="academy-submit-links"
+              className="control w-full"
+              placeholder="https://…"
+              value={links}
+              onChange={(e) => setLinks(e.target.value)}
+            />
+          </div>
+          {formError ? <Alert>{formError}</Alert> : null}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-white/[0.06]">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Отмена
+          </button>
+          <button
+            type="button"
+            className="btn btn-gold"
+            disabled={saving}
+            onClick={() => {
+              const proof = parseLinks(links)
+              if (!body.trim() && proof.length === 0) {
+                setFormError('Напишите текст или добавьте ссылку')
+                return
+              }
+              setSaving(true)
+              setFormError('')
+              void onSubmit(body.trim(), proof)
+                .catch((e: unknown) => setFormError(errText(e)))
+                .finally(() => setSaving(false))
+            }}
+          >
+            Отправить
+          </button>
+        </div>
+      </div>
+    </ModalViewport>
+  )
+}
+
+function TemplateEditor({
+  templates,
+  onSaved,
+  onError,
+}: {
+  templates: AcademyTemplate[]
+  onSaved: () => Promise<void>
+  onError: (msg: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [stage, setStage] = useState('theory')
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  if (!open) {
+    return (
+      <button type="button" className="btn btn-ghost btn-sm w-fit" onClick={() => setOpen(true)}>
+        Шаблоны заданий
+      </button>
+    )
+  }
+
+  return (
+    <div className="academy-manage">
+      <h2 className="academy-manage-title">Шаблоны заданий</h2>
+      <ul className="m-0 mb-3 pl-4 text-sm text-white/70">
+        {templates.map((t) => (
+          <li key={t.id}>
+            {t.title} · {t.stage_label}
+          </li>
+        ))}
+      </ul>
+      <div className="academy-form-grid">
+        <div>
+          <label className="staff-profile-label">Название</label>
+          <input className="control w-full" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <label className="staff-profile-label">Этап</label>
+          <Select
+            value={stage}
+            onChange={setStage}
+            options={ACADEMY_STAGES.map((s) => ({ value: s.value, label: s.label }))}
+          />
+        </div>
+        <div className="col-span-full">
+          <label className="staff-profile-label">Описание</label>
+          <textarea className="control w-full" value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          className="btn btn-gold btn-sm"
+          disabled={saving || !title.trim()}
+          onClick={() => {
+            setSaving(true)
+            void api
+              .academyCreateTemplate({
+                title: title.trim(),
+                category: stage === 'practice' ? 'practice' : 'theory',
+                stage,
+                max_points: 10,
+                due_days: 3,
+                required: true,
+                description,
+                proof_kinds: ['text', 'link'],
+                reviewer_kind: 'mentor',
+                is_active: true,
+                sort_order: templates.length,
+              })
+              .then(() => {
+                setTitle('')
+                setDescription('')
+                return onSaved()
+              })
+              .catch((e: unknown) => onError(errText(e)))
+              .finally(() => setSaving(false))
+          }}
+        >
+          Добавить шаблон
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>
+          Скрыть
+        </button>
+      </div>
     </div>
   )
 }

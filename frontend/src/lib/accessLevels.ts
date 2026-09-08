@@ -77,7 +77,8 @@ export function grantableAccessLevelOptions(
   }))
 }
 
-/** Назначение и правка реестра «Руководство» — Следящий (2+), не свой профиль; разработчик — любые. */
+/** Назначение нового следящего (/assign staff, /reg) — Следящий структуры (5)+. */
+export const ASSIGN_STAFF_MIN_LEVEL = 5
 export const LEADER_REGISTRY_MANAGE_MIN_LEVEL = 2
 
 export function canEditLeadershipRegistry(

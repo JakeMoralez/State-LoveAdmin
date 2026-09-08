@@ -14,9 +14,9 @@ from app.services.auth import require_ca_user
 router = APIRouter(prefix="/api/academy", tags=["academy"])
 
 
-def _require_supervisor(user: dict) -> dict:
-    if int(user.get("access_level") or 0) < AccessLevel.SUPERVISOR:
-        raise HTTPException(status_code=403, detail="Академия доступна со уровня Следящий")
+def _require_academy(user: dict) -> dict:
+    if int(user.get("access_level") or 0) < AccessLevel.PGS:
+        raise HTTPException(status_code=403, detail="Академия доступна со уровня ПГС")
     return user
 
 
@@ -53,6 +53,7 @@ class CommentBody(BaseModel):
 
 class GraduateBody(BaseModel):
     mentor_score: int | None = Field(default=None, ge=0, le=10)
+    comment: str = ""
 
 
 class TemplateBody(BaseModel):
@@ -81,6 +82,7 @@ class AssignmentBody(BaseModel):
     reviewer_kind: str | None = None
     assignee_vk_ids: list[int] | None = None
     all_active: bool = False
+    all_mentees: bool = False
     due_at: str | None = None
     due_days: int | None = None
 
@@ -125,7 +127,7 @@ def _http(exc: Exception) -> HTTPException:
 
 @router.get("/meta")
 async def academy_meta(user: dict = Depends(require_ca_user)):
-    _require_supervisor(user)
+    _require_academy(user)
     return svc.labels_payload()
 
 
@@ -134,7 +136,7 @@ async def academy_summary(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     await svc.ensure_academy_templates()
     return await svc.summary(server_id, user)
 
@@ -145,7 +147,7 @@ async def academy_roster(
     include_left: bool = Query(False),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     return {"members": await svc.list_roster(server_id, user, include_left=include_left)}
 
 
@@ -154,7 +156,7 @@ async def academy_mine(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     return {"members": await svc.mine(server_id, user)}
 
 
@@ -163,7 +165,7 @@ async def academy_mentors(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     return {"mentors": await svc.list_mentors(server_id)}
 
 
@@ -172,7 +174,7 @@ async def academy_reserve(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     rows = await svc.list_roster(server_id, user, include_left=True)
     return {"members": [r for r in rows if r["status"] == "graduated"]}
 
@@ -183,7 +185,7 @@ async def academy_enroll(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         cadet = await svc.enroll(
             server_id,
@@ -207,7 +209,7 @@ async def academy_cadet(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     cadet = await svc.get_cadet(server_id, vk_id)
     if not cadet:
         raise HTTPException(status_code=404, detail="Академик не найден")
@@ -230,6 +232,15 @@ async def academy_cadet(
     data["attestation_suggest"] = svc.suggest_attestation(data["metrics"] or {})
     data["can_manage"] = svc.can_manage_cadet(user, cadet)
     data["is_self"] = int(user["vk_id"]) == int(cadet.vk_id)
+    assignments = await svc.list_assignments(server_id, user)
+    own = []
+    for row in assignments:
+        ids = [int(v) for v in (row.get("assignee_vk_ids") or [])]
+        if int(vk_id) not in ids:
+            continue
+        reports = [r for r in (row.get("reports") or []) if r and int(r.get("vk_id") or 0) == int(vk_id)]
+        own.append({**row, "reports": reports})
+    data["assignments"] = own
     return data
 
 
@@ -240,7 +251,7 @@ async def academy_patch_cadet(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         cadet = await svc.require_cadet(server_id, vk_id)
         mentor: int | None | object = ...
@@ -281,10 +292,10 @@ async def academy_graduate(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         cadet = await svc.require_cadet(server_id, vk_id)
-        cadet = await svc.graduate(cadet, user, mentor_score=body.mentor_score)
+        cadet = await svc.graduate(cadet, user, mentor_score=body.mentor_score, comment=body.comment)
         return await svc.serialize_cadet(cadet)
     except (ValueError, PermissionError, LookupError) as exc:
         raise _http(exc) from exc
@@ -297,7 +308,7 @@ async def academy_comment(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         cadet = await svc.require_cadet(server_id, vk_id)
         await svc.add_comment(cadet, user, body.body)
@@ -313,7 +324,7 @@ async def academy_warning(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         cadet = await svc.require_cadet(server_id, vk_id)
         await svc.add_warning(cadet, user, body.body)
@@ -324,14 +335,14 @@ async def academy_warning(
 
 @router.get("/templates")
 async def academy_templates(user: dict = Depends(require_ca_user)):
-    _require_supervisor(user)
+    _require_academy(user)
     await svc.ensure_academy_templates()
     return {"templates": await svc.list_templates(include_inactive=svc.is_academy_lead(user))}
 
 
 @router.post("/templates")
 async def academy_create_template(body: TemplateBody, user: dict = Depends(require_ca_user)):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         row = await svc.upsert_template(user, body.model_dump())
         return svc.serialize_template(row)
@@ -345,7 +356,7 @@ async def academy_update_template(
     body: TemplateBody,
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         row = await svc.upsert_template(user, body.model_dump(), template_id=template_id)
         return svc.serialize_template(row)
@@ -358,7 +369,7 @@ async def academy_assignments(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     return {"assignments": await svc.list_assignments(server_id, user)}
 
 
@@ -367,7 +378,7 @@ async def academy_reviews(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     return {"items": await svc.pending_reviews(server_id, user)}
 
 
@@ -377,7 +388,7 @@ async def academy_create_assignment(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         row = await svc.create_assignment(server_id, user, **body.model_dump())
         return await svc.serialize_assignment(row, viewer=user)
@@ -391,7 +402,7 @@ async def academy_submit(
     body: SubmitBody,
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         report = await svc.submit_report(
             assignment_id,
@@ -411,7 +422,7 @@ async def academy_review(
     body: ReviewBody,
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         report = await svc.review_report(
             assignment_id,
@@ -431,7 +442,7 @@ async def academy_sessions(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     return {"sessions": await svc.list_sessions(server_id)}
 
 
@@ -441,7 +452,7 @@ async def academy_create_session(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     try:
         session = await svc.create_session(
             server_id,
@@ -464,7 +475,7 @@ async def academy_patch_session(
     body: SessionPatchBody,
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     session = await AcademySession.get_or_none(id=session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Занятие не найдено")
@@ -488,7 +499,7 @@ async def academy_attendance(
     body: AttendanceBody,
     user: dict = Depends(require_ca_user),
 ):
-    _require_supervisor(user)
+    _require_academy(user)
     session = await AcademySession.get_or_none(id=session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Занятие не найдено")

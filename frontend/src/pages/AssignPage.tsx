@@ -4,7 +4,7 @@ import { Navigate, useSearchParams } from 'react-router-dom'
 import { ApiError, api, type AssignRoleType } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
-import { grantableAccessLevelOptions } from '../lib/accessLevels'
+import { grantableAccessLevelOptions, ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
 import { JUDGE_POSITIONS, looksLikeVkInput } from '../lib/judgePositions'
 import { looksLikeDiscordId } from '../lib/discordId'
 import { forumAccountForApi, forumMemberUrl, parseForumMemberUrl } from '../lib/forumAccount'
@@ -113,7 +113,7 @@ export function AssignPage() {
     userLevel >= 10 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
 
   const roleTypeOptions = useMemo(() => {
-    if (userLevel >= 3) return [...ROLE_TYPE_OPTIONS]
+    if (userLevel >= ASSIGN_STAFF_MIN_LEVEL) return [...ROLE_TYPE_OPTIONS]
     return ROLE_TYPE_OPTIONS.filter((o) => o.value !== 'staff')
   }, [userLevel])
   const isLeadership = LEADERSHIP_TYPES.has(roleType)
@@ -189,7 +189,7 @@ export function AssignPage() {
   }, [searchParams])
 
   useEffect(() => {
-    if (userLevel >= 3) return
+    if (userLevel >= ASSIGN_STAFF_MIN_LEVEL) return
     if (roleType === 'staff') setRoleType('judge')
   }, [userLevel, roleType])
 

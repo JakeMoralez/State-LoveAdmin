@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
-import { grantableAccessLevelOptions } from '../../lib/accessLevels'
+import { grantableAccessLevelOptions, ASSIGN_STAFF_MIN_LEVEL } from '../../lib/accessLevels'
 import { formatSpheresDisplay } from '../../lib/spheres'
 import {
   DEFAULT_DEVELOPER_TAG,
@@ -205,8 +205,10 @@ export function StaffProfileModal({
     member.access_level < (user?.access_level ?? 0)
 
   const academyAlready = Boolean(member.is_academy)
+  const canEnrollAcademy =
+    (user?.access_level ?? 0) >= ASSIGN_STAFF_MIN_LEVEL && academyCanEnrollLevel(member.access_level)
   const canEditAcademy =
-    (user?.access_level ?? 0) >= 3 && (academyAlready || academyCanEnrollLevel(member.access_level))
+    ((user?.access_level ?? 0) >= 3 && academyAlready) || canEnrollAcademy
 
   const canEditAnything =
     permissions.edit_nickname ||
@@ -327,7 +329,7 @@ export function StaffProfileModal({
         body.granted_at = appointedAt
       }
 
-      if (canEditAcademy && inAcademy !== academyAlready) {
+      if (canEnrollAcademy && inAcademy !== academyAlready) {
         if (inAcademy) {
           await api.academyEnroll({
             vk_id: member.vk_id,
@@ -614,7 +616,7 @@ export function StaffProfileModal({
               <label className="ui-checkbox-label staff-profile-check">
                 <Checkbox
                   checked={inAcademy || academyAlready}
-                  disabled={saving || academyAlready || !canEditAcademy}
+                  disabled={saving || academyAlready || !canEnrollAcademy}
                   onChange={setInAcademy}
                 />
                 Состоит в Академии
@@ -628,25 +630,37 @@ export function StaffProfileModal({
               )}
               {(inAcademy || academyAlready) && canEditAcademy && (
                 <div className="mt-3 flex flex-col gap-2">
-                  <Select
-                    value={academyDirection}
-                    onChange={setAcademyDirection}
-                    options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
-                  />
-                  <Select
-                    value={academyStage}
-                    onChange={setAcademyStage}
-                    options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
-                  />
-                  <Select
-                    value={academyMentor}
-                    onChange={setAcademyMentor}
-                    options={[
-                      { value: '', label: 'Наставник не назначен' },
-                      ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
-                    ]}
-                  />
-                  <DatePicker value={academyEnd} onChange={setAcademyEnd} showTime={false} />
+                  <div>
+                    <label className="staff-profile-label">Направление</label>
+                    <Select
+                      value={academyDirection}
+                      onChange={setAcademyDirection}
+                      options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="staff-profile-label">Этап</label>
+                    <Select
+                      value={academyStage}
+                      onChange={setAcademyStage}
+                      options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="staff-profile-label">Наставник</label>
+                    <Select
+                      value={academyMentor}
+                      onChange={setAcademyMentor}
+                      options={[
+                        { value: '', label: 'Наставник не назначен' },
+                        ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="staff-profile-label">Окончание</label>
+                    <DatePicker value={academyEnd} onChange={setAcademyEnd} showTime={false} />
+                  </div>
                 </div>
               )}
             </div>
