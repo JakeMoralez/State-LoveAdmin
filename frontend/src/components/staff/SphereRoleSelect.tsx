@@ -48,7 +48,10 @@ function RoleChip({
       aria-label={title}
       title={title}
       disabled={disabled}
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
     >
       {label}
     </button>
@@ -94,11 +97,19 @@ export function SphereRoleSelect({
   }
 
   const togglePrimary = (key: SphereKey) => {
-    onChange(emit(withLocked(toggleSphere(spheres, key), locked), seniorSpheres))
+    const nextSpheres = withLocked(toggleSphere(spheres, key), locked)
+    const nextSenior = nextSpheres.includes(key)
+      ? seniorSpheres
+      : seniorSpheres.filter((item) => item !== key)
+    onChange(emit(nextSpheres, nextSenior))
   }
 
   const toggleExtra = (key: SphereKey) => {
-    onChange(emit(spheres, toggleSphere(seniorSpheres, key)))
+    const nextSenior = toggleSphere(seniorSpheres, key)
+    const nextSpheres = nextSenior.includes(key) && !spheres.includes(key)
+      ? withLocked([...spheres, key], locked)
+      : withLocked(spheres, locked)
+    onChange(emit(nextSpheres, nextSenior))
   }
 
   const renderRow = (
@@ -110,6 +121,11 @@ export function SphereRoleSelect({
     const extraOn = chips.extra ? seniorSpheres.includes(key) : false
     const rowOn = primaryOn || extraOn
     const toggleDisabled = !canToggle(key)
+    const activateRow = () => {
+      if (toggleDisabled) return
+      if (chips.primary) togglePrimary(key)
+      else if (chips.extra) toggleExtra(key)
+    }
     return (
       <div
         key={opt.value}
@@ -118,6 +134,7 @@ export function SphereRoleSelect({
           rowOn && 'sphere-role-row--on',
           toggleDisabled && 'sphere-role-row--disabled',
         )}
+        onClick={activateRow}
       >
         <span className="sphere-role-name">{opt.label}</span>
         <span className="sphere-role-chips">

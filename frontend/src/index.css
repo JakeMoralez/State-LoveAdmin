@@ -4314,6 +4314,7 @@ body {
     border-radius: 0.75rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
     transition:
       border-color 0.15s ease,
       background 0.15s ease;
@@ -4331,6 +4332,7 @@ body {
 
   .sphere-role-row--disabled {
     opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .sphere-role-name {
@@ -4342,6 +4344,8 @@ body {
   }
 
   .sphere-role-chips {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex: 0 0 auto;
     gap: 0.125rem;
@@ -4360,7 +4364,7 @@ body {
     border: 0;
     border-radius: 0.4375rem;
     background: transparent;
-    color: rgba(255, 255, 255, 0.48);
+    color: rgba(255, 255, 255, 0.72);
     font-family: inherit;
     font-size: 0.75rem;
     font-weight: 600;

@@ -73,9 +73,9 @@ def effective_grantable_sphere_keys(actor_level: int, actor_spheres: list[str]) 
     """Сферы, которые актор может выдавать и снимать у других."""
     grantable = set(actor_spheres or [])
     if actor_level >= AccessLevel.CURATOR:
-        grantable |= set(allowed_sphere_keys_for_level(AccessLevel.CURATOR))
+        grantable |= set(ALL_SPHERE_KEYS)
     elif actor_level >= AccessLevel.STRUCTURE_SUPERVISOR:
-        grantable |= set(STRUCTURE_SPHERE_KEYS)
+        grantable |= set(MINISTRY_SPHERE_KEYS) | set(STRUCTURE_SPHERE_KEYS)
     return grantable
 
 

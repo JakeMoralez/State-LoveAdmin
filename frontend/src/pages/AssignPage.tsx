@@ -208,10 +208,16 @@ export function AssignPage() {
     () =>
       grantableAccessLevelOptions(maxAccessLevel, {
         isDeveloper: unrestrictedSphereAssign,
-        allowEqual: true,
       }),
     [maxAccessLevel, unrestrictedSphereAssign],
   )
+
+  useEffect(() => {
+    const selected = levelOptions.find((o) => o.value === accessLevel)
+    if (!selected?.disabled) return
+    const fallback = [...levelOptions].reverse().find((o) => !o.disabled)
+    if (fallback) setAccessLevel(fallback.value)
+  }, [accessLevel, levelOptions])
 
   const judgePositionOptions = useMemo(
     () => judgePositions.map((p) => ({ value: p, label: p })),

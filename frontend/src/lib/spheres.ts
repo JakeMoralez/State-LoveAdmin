@@ -36,9 +36,13 @@ export function allowedSphereKeysForLevel(level: number): SphereKey[] {
 export function effectiveGrantableSphereKeys(actorLevel: number, actorSpheres: string[]): string[] {
   const grantable = new Set(actorSpheres)
   if (actorLevel >= 8) {
-    for (const key of CURATOR_SPHERE_KEYS) grantable.add(key)
+    for (const key of [...MINISTRY_SPHERE_KEYS, ...STRUCTURE_SPHERE_KEYS, ...CURATOR_SPHERE_KEYS]) {
+      grantable.add(key)
+    }
   } else if (actorLevel >= 5) {
-    for (const key of STRUCTURE_SPHERE_KEYS) grantable.add(key)
+    for (const key of [...MINISTRY_SPHERE_KEYS, ...STRUCTURE_SPHERE_KEYS]) {
+      grantable.add(key)
+    }
   }
   return [...grantable]
 }
