@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ExternalLink, Gift, MoreHorizontal, Plus } from 'lucide-react'
+import { Check, Copy, ExternalLink, Gift, MoreHorizontal, Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiError, api, type IssuanceBody, type IssuanceItem, type IssuanceKind } from '../api'
 import { PageHeader } from '../components/PageHeader'
@@ -8,7 +8,11 @@ import { Alert } from '../components/ui/Alert'
 import { PageSkeleton } from '../components/ui/LoadingState'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
-import { ISSUANCE_CREATE_MIN_LEVEL } from '../lib/issuance'
+import {
+  ISSUANCE_CREATE_MIN_LEVEL,
+  issuanceCheckerList,
+  issuanceRawAmount,
+} from '../lib/issuance'
 import { cn } from '../lib/utils'
 
 const KINDS: { id: IssuanceKind; label: string }[] = [
@@ -43,9 +47,29 @@ export function IssuancePage() {
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [menuId, setMenuId] = useState<number | null>(null)
+  const [copied, setCopied] = useState<'all' | number | null>(null)
+  const copyTimer = useRef<number | null>(null)
+
+  const pendingVirts = kind === 'virts' ? items.filter((row) => row.status === 'pending') : []
+
+  const markCopied = (key: 'all' | number) => {
+    if (copyTimer.current != null) window.clearTimeout(copyTimer.current)
+    setCopied(key)
+    copyTimer.current = window.setTimeout(() => setCopied(null), 1600)
+  }
+
+  const copyText = async (text: string, key: 'all' | number) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      markCopied(key)
+    } catch {
+      setError('Не удалось скопировать')
+    }
+  }
 
   const setKind = (next: IssuanceKind) => {
     setMenuId(null)
+    setCopied(null)
     setSearchParams(next === 'az' ? {} : { kind: next }, { replace: true })
   }
 
@@ -72,6 +96,12 @@ export function IssuancePage() {
   useEffect(() => {
     void load()
   }, [kind, canOpen])
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current != null) window.clearTimeout(copyTimer.current)
+    }
+  }, [])
 
   const openCreate = () => {
     setEditing(null)
@@ -168,11 +198,27 @@ export function IssuancePage() {
           </p>
         }
         actions={
-          canCreate ? (
-            <button type="button" className="btn btn-gold btn-sm shrink-0" onClick={openCreate}>
-              <Plus size={16} />
-              Заявка
-            </button>
+          kind === 'virts' || canCreate ? (
+            <div className="issuance-header-actions">
+              {kind === 'virts' ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm shrink-0"
+                  disabled={pendingVirts.length === 0}
+                  title="Никнейм // Вирты — для чекера"
+                  onClick={() => void copyText(issuanceCheckerList(pendingVirts), 'all')}
+                >
+                  {copied === 'all' ? <Check size={14} /> : <Copy size={14} />}
+                  {copied === 'all' ? 'Скопировано' : 'Скопировать все ники'}
+                </button>
+              ) : null}
+              {canCreate ? (
+                <button type="button" className="btn btn-gold btn-sm shrink-0" onClick={openCreate}>
+                  <Plus size={16} />
+                  Заявка
+                </button>
+              ) : null}
+            </div>
           ) : undefined
         }
       />
@@ -324,7 +370,20 @@ export function IssuancePage() {
                     {row.role_title}
                   </span>
                 </span>
-                <span className="issuance-col-amount">{row.amount_label}</span>
+                <span className="issuance-col-amount">
+                  <span>{row.amount_label}</span>
+                  {kind === 'virts' ? (
+                    <button
+                      type="button"
+                      className={cn('issuance-copy-btn', copied === row.id && 'is-copied')}
+                      title="Скопировать сумму"
+                      aria-label={`Скопировать ${issuanceRawAmount(row.amount)}`}
+                      onClick={() => void copyText(issuanceRawAmount(row.amount), row.id)}
+                    >
+                      {copied === row.id ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
+                  ) : null}
+                </span>
                 <span className="issuance-col-reason">
                   <span className="issuance-reason" title={row.reason}>
                     {row.reason}

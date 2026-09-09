@@ -42,6 +42,14 @@
   font-weight: 600;
 }
 
+.issuance-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .issuance-registry.staff-registry {
   overflow: visible;
 }
@@ -52,7 +60,7 @@
   grid-template-columns:
     6.25rem
     minmax(0, 1.15fr)
-    minmax(5.5rem, 0.7fr)
+    minmax(6.75rem, 0.75fr)
     minmax(0, 1.2fr)
     4.5rem
     minmax(7.5rem, 1.1fr)
@@ -100,11 +108,39 @@
 }
 
 .issuance-col-amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--accent-gold);
   font-weight: 600;
   font-size: 0.8125rem;
+}
+
+.issuance-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(255 255 255 / 0.32);
+  cursor: pointer;
+}
+
+.issuance-copy-btn:hover {
+  color: var(--accent-gold);
+  background: rgb(201 162 39 / 0.1);
+}
+
+.issuance-copy-btn.is-copied {
+  color: var(--accent-gold);
 }
 
 .issuance-col-reason,
