@@ -16,8 +16,8 @@ import {
 import { cn } from '../lib/utils'
 
 const KINDS: { id: IssuanceKind; label: string }[] = [
-  { id: 'az', label: 'АЗ' },
   { id: 'virts', label: 'Вирты' },
+  { id: 'az', label: 'АЗ' },
 ]
 
 const EMPTY_FORM = {
@@ -32,7 +32,7 @@ export function IssuancePage() {
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const kindParam = searchParams.get('kind')
-  const kind: IssuanceKind = kindParam === 'virts' ? 'virts' : 'az'
+  const kind: IssuanceKind = kindParam === 'az' ? 'az' : 'virts'
   const canOpen = (user?.access_level ?? 0) >= ISSUANCE_CREATE_MIN_LEVEL
 
   const [items, setItems] = useState<IssuanceItem[]>([])
@@ -70,7 +70,7 @@ export function IssuancePage() {
   const setKind = (next: IssuanceKind) => {
     setMenuId(null)
     setCopied(null)
-    setSearchParams(next === 'az' ? {} : { kind: next }, { replace: true })
+    setSearchParams(next === 'virts' ? {} : { kind: next }, { replace: true })
   }
 
   const load = ({ silent = false } = {}) => {
