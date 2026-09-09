@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.models.bot import UserServerAccess
+from app.services import messages
 from app.services.activity_log import staff_assign_detail
 from app.services.audit import log_audit
 from app.services.role_assign import assign_staff_with_profile
@@ -30,7 +31,7 @@ async def assign_staff_from_bot(
     nickname_tag: str | None = None,
 ) -> dict:
     if actor_level < ASSIGN_STAFF_MIN_LEVEL:
-        raise PermissionError("Назначение следящего — только Следящий структуры (5) и выше")
+        raise PermissionError(messages.ASSIGN_STAFF_NEED_ZGS)
 
     if actor_vk_id == vk_id:
         raise PermissionError("Нельзя назначить себя")

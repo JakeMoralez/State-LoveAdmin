@@ -7,10 +7,12 @@ from app.models.bot import AccessLevel
 from app.services import messages
 from app.services.staff_spheres import effective_grantable_sphere_keys
 
-# Судьи / конгресс: назначение и правка реестра «Руководство» — Следящий (2)+
+# Лидеры, замы, министры, советники, судьи, конгресс — Следящий (2)+
 LEADER_REGISTRY_EDIT_MIN_LEVEL = AccessLevel.SUPERVISOR
-# Новые следящие (/assign staff, /reg) — Следящий структуры (5)+
-ASSIGN_STAFF_MIN_LEVEL = AccessLevel.STRUCTURE_SUPERVISOR
+# Новые следящие (/assign staff, /reg) — ЗГС (3)+
+ASSIGN_STAFF_MIN_LEVEL = AccessLevel.ZGS
+# Зачисление в академию — Следящий структуры (5)+
+ACADEMY_ENROLL_MIN_LEVEL = AccessLevel.STRUCTURE_SUPERVISOR
 
 
 def can_manage_leadership_registry(

@@ -26,7 +26,7 @@ from app.models.panel import (
 from app.services.access import get_access_level
 from app.services.audit import log_audit
 from app.services.display_names import resolve_bot_nickname, resolve_display_names, resolve_vk_photos
-from app.services.staff_permissions import ASSIGN_STAFF_MIN_LEVEL
+from app.services.staff_permissions import ACADEMY_ENROLL_MIN_LEVEL
 from app.services.vk_notify import notify_vk, notify_vk_many
 
 logger = logging.getLogger(__name__)
@@ -322,7 +322,7 @@ async def can_upload_materials(actor: dict) -> bool:
 
 
 def can_enroll(user: dict) -> bool:
-    return int(user.get("access_level") or 0) >= ASSIGN_STAFF_MIN_LEVEL
+    return int(user.get("access_level") or 0) >= ACADEMY_ENROLL_MIN_LEVEL
 
 
 def is_mentor_of(user: dict, cadet: AcademyCadet) -> bool:

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
-import { grantableAccessLevelOptions, ASSIGN_STAFF_MIN_LEVEL } from '../../lib/accessLevels'
+import { grantableAccessLevelOptions, ACADEMY_ENROLL_MIN_LEVEL } from '../../lib/accessLevels'
 import { formatSpheresDisplay } from '../../lib/spheres'
 import {
   DEFAULT_DEVELOPER_TAG,
@@ -231,7 +231,7 @@ export function StaffProfileModal({
 
   const academyAlready = Boolean(member.is_academy)
   const canEnrollAcademy =
-    (user?.access_level ?? 0) >= ASSIGN_STAFF_MIN_LEVEL && academyCanEnrollLevel(member.access_level)
+    (user?.access_level ?? 0) >= ACADEMY_ENROLL_MIN_LEVEL && academyCanEnrollLevel(member.access_level)
   const canEditAcademy =
     ((user?.access_level ?? 0) >= 3 && academyAlready) || canEnrollAcademy
 

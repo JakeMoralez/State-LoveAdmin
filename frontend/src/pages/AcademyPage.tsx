@@ -18,7 +18,7 @@ import { Alert } from '../components/ui/Alert'
 import { Select } from '../components/ui/Select'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
-import { ASSIGN_STAFF_MIN_LEVEL, accessLevelShort } from '../lib/accessLevels'
+import { ACADEMY_ENROLL_MIN_LEVEL, accessLevelShort } from '../lib/accessLevels'
 import { PageSkeleton } from '../components/ui/LoadingState'
 import {
   ACADEMY_DIRECTIONS,
@@ -71,7 +71,7 @@ export function AcademyPage() {
   const [saving, setSaving] = useState(false)
 
   const canLead = Boolean(summary?.is_lead) || (user?.access_level ?? 0) >= 3
-  const canEnroll = Boolean(summary?.can_enroll) || (user?.access_level ?? 0) >= ASSIGN_STAFF_MIN_LEVEL
+  const canEnroll = Boolean(summary?.can_enroll) || (user?.access_level ?? 0) >= ACADEMY_ENROLL_MIN_LEVEL
   const canAssign = canLead || mine.length > 0
   const activeTab = tab ?? 'tasks'
 
