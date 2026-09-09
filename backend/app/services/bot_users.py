@@ -20,6 +20,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _naive_datetime(value: Any) -> Any:
+    """asyncpg TIMESTAMP (без TZ) не принимает aware datetime."""
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        return value.replace(tzinfo=None)
+    return value
+
+
 def has_usa_senior_columns() -> bool:
     """True, если в bot.db уже есть is_senior / senior_spheres."""
     return _USA_SENIOR_READY
@@ -53,6 +60,23 @@ async def _usa_column_names() -> set[str]:
         "WHERE table_name = 'user_server_access'"
     )
     return {str(r.get("name") or "") for r in rows}
+
+
+async def _ensure_promoted_at_timestamptz(conn) -> None:
+    """Колонка добавлена как TIMESTAMP без TZ — asyncpg не принимает aware datetime."""
+    rows = await conn.execute_query_dict(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_name = 'user_server_access' AND column_name = 'promoted_at'"
+    )
+    dtype = str((rows[0] or {}).get("data_type") or "") if rows else ""
+    if dtype != "timestamp without time zone":
+        return
+    await conn.execute_query(
+        "ALTER TABLE user_server_access "
+        "ALTER COLUMN promoted_at TYPE TIMESTAMPTZ "
+        "USING promoted_at AT TIME ZONE 'UTC'"
+    )
+    logger.info("bot schema: promoted_at → TIMESTAMPTZ")
 
 
 async def ensure_user_server_access_senior_columns() -> None:
@@ -89,12 +113,21 @@ async def ensure_user_server_access_senior_columns() -> None:
             logger.warning("bot schema: could not add senior_spheres: %s", exc)
 
     if "promoted_at" not in names:
-        ddl = "ALTER TABLE user_server_access ADD COLUMN promoted_at TIMESTAMP NULL"
+        ddl = (
+            "ALTER TABLE user_server_access ADD COLUMN promoted_at TIMESTAMP NULL"
+            if sqlite
+            else "ALTER TABLE user_server_access ADD COLUMN promoted_at TIMESTAMPTZ NULL"
+        )
         try:
             await conn.execute_query(ddl)
             logger.info("bot schema: added user_server_access.promoted_at")
         except Exception as exc:
             logger.warning("bot schema: could not add promoted_at: %s", exc)
+    elif not sqlite:
+        try:
+            await _ensure_promoted_at_timestamptz(conn)
+        except Exception as exc:
+            logger.warning("bot schema: could not convert promoted_at to TIMESTAMPTZ: %s", exc)
 
     names = await _usa_column_names()
     _USA_SENIOR_READY = "is_senior" in names and "senior_spheres" in names
@@ -110,6 +143,8 @@ async def update_server_access(vk_id: int, server_id: int, **fields: Any) -> int
         fields.pop("senior_spheres", None)
     if not has_usa_promoted_at():
         fields.pop("promoted_at", None)
+    if "promoted_at" in fields:
+        fields["promoted_at"] = _naive_datetime(fields["promoted_at"])
     if not fields:
         return 0
     return await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(**fields)
