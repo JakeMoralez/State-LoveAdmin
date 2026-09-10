@@ -15,7 +15,10 @@ async def init_db() -> None:
         if db_path and not db_path.startswith(":"):
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     await Tortoise.init(config=TORTOISE_ORM)
-    await Tortoise.generate_schemas(safe=True)
+    # Только panel (default) — bot.db владеет LoveBot
+    from tortoise.utils import generate_schema_for_client
+
+    await generate_schema_for_client(Tortoise.get_connection("default"), safe=True)
 
 
 async def close_db() -> None:

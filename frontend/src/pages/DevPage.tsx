@@ -61,7 +61,8 @@ export function DevPage() {
         item.message.toLowerCase().includes(needle) ||
         item.source.toLowerCase().includes(needle) ||
         item.level.toLowerCase().includes(needle) ||
-        (item.url ?? '').toLowerCase().includes(needle),
+        (item.url ?? '').toLowerCase().includes(needle) ||
+        JSON.stringify(item.context ?? {}).toLowerCase().includes(needle),
     )
   }, [items, q])
 
@@ -126,7 +127,8 @@ export function DevPage() {
               <CheckCircle2 size={32} strokeWidth={1.5} className="page-empty-state-icon" aria-hidden />
               <p className="page-empty-state-title">Ошибок пока нет</p>
               <p className="page-empty-state-hint">
-                Записи появятся здесь автоматически при сбоях клиента или сервера
+                Записи появятся автоматически при сбоях клиента, API панели и VK-бота
+                (source: client / server / bot). В context смотрите request_id.
               </p>
             </div>
           ) : filteredItems.length === 0 ? (

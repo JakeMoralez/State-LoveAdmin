@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_SERVER_ID, SLED_BOT_SECRET
@@ -11,6 +11,7 @@ from app.models.panel import StaffNote
 from app.services.discord_links import links_for_vk_ids, set_discord_link
 from app.services.discord_oauth import normalize_discord_id
 from app.services.internal_assign import assign_staff_from_bot
+from app.services.secrets import secrets_equal
 from app.services.staff import sync_spheres_from_bot
 from app.services.staff_spheres import validate_spheres
 
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 def _check_secret(header: str | None) -> None:
-    if not SLED_BOT_SECRET or header != SLED_BOT_SECRET:
+    if not secrets_equal(header, SLED_BOT_SECRET):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -72,6 +73,46 @@ class StaffSphereRemoveBody(BaseModel):
     sphere: str
 
 
+class BotErrorBody(BaseModel):
+    level: str = "error"
+    message: str = Field(min_length=1, max_length=4000)
+    stack: str = ""
+    url: str = ""
+    method: str = ""
+    user_vk_id: int | None = None
+    context: dict | None = None
+
+
+@router.post("/errors")
+async def ingest_bot_error(
+    body: BotErrorBody,
+    request: Request,
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+    x_request_id: str | None = Header(default=None, alias="X-Request-Id"),
+):
+    """LoveBot → DevErrorLog (source=bot)."""
+    _check_secret(x_sled_secret)
+    from app.services.error_log import record_error
+    from app.services.request_id import get_or_create_request_id, set_request_id
+
+    if x_request_id:
+        set_request_id(x_request_id)
+    rid = get_or_create_request_id()
+    ctx = dict(body.context or {})
+    ctx.setdefault("request_id", rid)
+    await record_error(
+        level=body.level or "error",
+        source="bot",
+        message=body.message,
+        stack=body.stack or "",
+        url=body.url or "",
+        method=body.method or "",
+        user_vk_id=body.user_vk_id,
+        context=ctx,
+    )
+    return {"ok": True, "request_id": rid}
+
+
 @router.get("/discord-link")
 async def get_discord_link(
     vk_id: int,
@@ -109,6 +150,19 @@ async def update_discord_link(
         "ok": True,
         "discord_id": link.discord_id if link else None,
     }
+
+
+@router.get("/staff-spheres/{vk_id}")
+async def get_staff_spheres_for_user(
+    vk_id: int,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    x_sled_secret: str | None = Header(default=None, alias="X-Sled-Secret"),
+):
+    """Чтение сфер сотрудника — SoT для бота (вместо raw SQL в panel.db)."""
+    _check_secret(x_sled_secret)
+    note = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    spheres = list(note.spheres or []) if note else []
+    return {"vk_id": vk_id, "server_id": server_id, "spheres": spheres}
 
 
 @router.put("/staff-spheres/{vk_id}")

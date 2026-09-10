@@ -11,8 +11,8 @@
 вопросов, кейсами-рулетками, проектами, форумными списками судей и т.п.
 
 Работает в связке с **State-LoveBot** (соседний репозиторий `../State-LoveBot`,
-Discord/VK-бот). Панель **читает** пользователей и доступы из БД бота и общается с
-ним по внутреннему HTTP-API.
+VK-бот + Discord-привязка). Панель читает/пишет staff-доступы в БД бота и
+общается с ним по внутреннему HTTP-API (см. §4 матрица владения).
 
 ## 2. Технологический стек
 
@@ -65,21 +65,32 @@ State-LoveAdmin/
 
 В `config.py` → `TORTOISE_ORM` определены **два подключения**:
 
-| Connection | Env / URL | Модели | Владелец | Доступ панели |
+| Connection | Env / URL | Модели | Владелец схемы | Кто пишет данные |
 |---|---|---|---|---|
-| `bot` | `BOT_DATABASE_URL` (по умолч. `../State-LoveBot/bot.db`) | `app/models/bot.py` | **State-LoveBot** | **только чтение** |
-| `default` | `PANEL_DATABASE_URL` (по умолч. `backend/data/panel.db`) | `app/models/panel.py` | **эта панель** | чтение/запись |
+| `bot` | `BOT_DATABASE_URL` | `app/models/bot.py` | **State-LoveBot** (миграции/схема бота) | **Бот** + **панель** (staff assign / level / роли / nick / `has_ca_access`) |
+| `default` | `PANEL_DATABASE_URL` | `app/models/panel.py` | **эта панель** (`generate_schemas` только сюда) | только панель |
 
-- **Никогда не пиши в таблицы `bot`-подключения** из панели — это чужая БД. Панель
-  их только читает (пользователи, доступы, серверы).
-- `panel.py` — здесь заводятся новые таблицы фичей панели.
+### Матрица владения (кто SoT)
 
-### Таблицы `bot.py` (зеркало, read-only)
-`User`, `Server`, `UserServerAccess` (уровень доступа, роли, сферы старшего),
-`RoleChat`, `JudgeForumListSettings`. Плюс класс-константа **`AccessLevel`** (см. §6).
+| Данные | Где лежит | Пишет | Читает бот |
+|---|---|---|---|
+| `users`, `user_server_access` (уровень, флаги ролей, nick) | `bot.db` | Панель (UI/API) и бот (локальные cmds); схема — только бот | напрямую из своей БД |
+| Сферы следящих (`StaffNote.spheres`) | `panel.db` | Панель | **только HTTP** `GET/PUT /internal/staff-spheres/...` |
+| Задачи, чеклист, академия, audit, DiscordLink | `panel.db` | Панель | HTTP `/internal/*` |
+| Чаты, command overrides, forum cookies | `bot.db` / файлы бота | Бот (+ DevSettings proxy) | локально |
+| Каталог уровней 1–11 | `backend/app/domain/access_levels.py` | — | зеркало `database/access_levels.py` |
+| Правила выдачи сфер | `backend/app/domain/sphere_grant_rules.py` | — | зеркало `database/sphere_grant_rules.py` |
+
+- **Схему `bot`-подключения панель не генерирует** (`generate_schemas=False` + schema только для `default`).
+- Панель **осознанно пишет** в `user_server_access` / `users` при назначении и правках staff — это не баг, а рабочий SoT для реестра.
+- Сырой SQL бота в `panel.db` для сфер **запрещён** — только internal API.
+
+### Таблицы `bot.py` (зеркало ORM)
+`User`, `Server`, `UserServerAccess` (уровень доступа, роли, senior_spheres),
+`RoleChat`, `JudgeForumListSettings`. Плюс класс **`AccessLevel`** из domain-каталога.
 
 ### Таблицы `panel.py` (владеет панель)
-Сессии/токены входа, `PanelAuditLog`, `DiscordLink`, `StaffNote`, `DevErrorLog`,
+Сессии JWT (`sled_session` cookie) + `PanelLoginToken`, `PanelAuditLog`, `DiscordLink`, `StaffNote`, `DevErrorLog`,
 `Project`/`ProjectMember`, `Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`,
 чек-лист (`Checklist*`), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`),
 академия (`AcademyCadet`, `AcademyEvent`, `AcademyWarning`, `AcademyAssignment*`,
@@ -94,7 +105,7 @@ State-LoveAdmin/
 |---|---|---|
 | `auth` | `/api/auth` | `auth`, `discord_oauth`, `discord_links`, `bot_login` |
 | `internal` | `/internal` | `sled_client` (обмен с ботом, `SLED_*`) |
-| `staff` | `/api/staff` | `staff`, `staff_permissions`, `staff_spheres`, `staff_assign`, `staff_nickname`, `access`, `leadership_access`, `arz_lead` |
+| `staff` | `/api/staff` | `staff`, `staff_permissions`, `staff_spheres`, `staff_assign`, `staff_nickname`, `access`, `leadership_access` |
 | `spheres` | `/api/spheres` | `staff_spheres`, `sphere_work` |
 | `assign` | `/api/assign` | `staff_assign`, `role_assign`, `internal_assign` |
 | `tasks` | `/api/tasks` | `task_helpers`, `task_notifications`, `vk_notify` |
@@ -108,7 +119,7 @@ State-LoveAdmin/
 | `dashboard` | `/api/dashboard` | `access`, `display_names` |
 | `profile` | `/api/profile` | `access`, `display_names`, `bot_users` |
 | `uploads` | `/api/uploads` | `gallery_viewer` (генерация галерей) |
-| `dev` | `/api/dev` | `dev_access`, `error_log`, `arz_lead` |
+| `dev` | `/api/dev` | `dev_access`, `error_log` |
 
 Сквозные сервисы: `bootstrap` (`ensure_defaults` на старте), `display_names` /
 `vk_resolve` (имена VK), `error_log`, `audit`, `activity_log`.
@@ -118,8 +129,9 @@ State-LoveAdmin/
 
 ## 6. Модель доступа (ядро домена)
 
-**Уровни доступа 1–11** (`AccessLevel` в `backend/app/models/bot.py`, зеркало во
-фронте `frontend/src/lib/accessLevels.ts` — держать синхронными!):
+**Уровни доступа 1–11** (`AccessLevel` ← канон `backend/app/domain/access_levels.py`;
+зеркало бота `database/access_levels.py`; FE `frontend/src/lib/accessLevels.ts` —
+держать синхронными, проверка `backend/scripts/check_access_levels_parity.py`):
 
 `1 ПГС · 2 Следящий · 3 ЗГС · 4 ГС · 5 Следящий структуры · 6 ЗГС ГОС ·
 7 ГС ГОС · 8 Куратор · 9 ЗГА · 10 ГА · 11 Разработчик`
@@ -142,8 +154,8 @@ State-LoveAdmin/
 ## 7. Auth-поток
 
 1. Frontend: `@vkid/sdk` → редирект на VK → `/api/auth/vk/callback`.
-2. Backend выдаёт сессию (cookie **`sled_session`**, TTL `SESSION_TTL_HOURS`),
-   таблицы `PanelSession` / `PanelLoginToken`.
+2. Backend выдаёт JWT в cookie **`sled_session`** (TTL `SESSION_TTL_HOURS`);
+   одноразовые токены входа с бота — `PanelLoginToken`.
 3. Frontend хранит состояние в `context/AuthContext.tsx`; защита маршрутов —
    `RequireAuth` в `App.tsx`.
 4. **Dev-режим:** `DEV_MODE=true` + `DEV_VK_ID` — вход без VK OAuth (см. `config.py`,
@@ -159,7 +171,9 @@ State-LoveAdmin/
 `/tasks` (+ `:taskId`) · `/academy` (+ `/:vkId`) · `/checklist` · `/question-banks` (+ `/review`, `/:id`) ·
 `/assign` · `/activity` · `/forum/judge-list` · `/forum/formatting` ·
 `/projects` (+ `/:id`, `/:id/tasks/:taskId`) · `/profile` ·
-`/dev` · `/dev/leadership` · `/dev/cases` (+ `/:id`, `/:id/spin`).
+`/dev` · `/dev/leadership` (bulk `is_leader` only) · `/dev/cases` (+ `/:id`, `/:id/spin`).
+
+Руководство: реестр `/leaders`, создание `/assign`, флаги только `/dev/leadership`.
 
 Соответствие «страница ↔ роутер» обычно 1:1 по имени (`TasksPage` ↔ `tasks`).
 
@@ -185,15 +199,22 @@ npm run dev                                          # http://localhost:5173 (pr
 ## 10. Конвенции и подводные камни (важно для ИИ)
 
 - **Две БД:** не писать в `bot`-подключение; новые таблицы — только в `panel.py`.
-- **Синхронизация уровней:** правишь `AccessLevel` (bot.py) — обнови
-  `accessLevels.ts`, и наоборот. Названия ролей должны совпадать.
+- **Синхронизация уровней:** канон `backend/app/domain/access_levels.py` → копия в
+  LoveBot `database/access_levels.py` + FE `accessLevels.ts`. Проверка:
+  `python backend/scripts/check_access_levels_parity.py`.
+- **Сферы grant:** канон `backend/app/domain/sphere_grant_rules.py` → копия в бот;
+  `python backend/scripts/check_sphere_grant_rules_parity.py`.
+- **Схема bot.db:** не генерировать из панели; колонки senior — через бот/скрипты
+  (`ensure_user_server_access_senior_columns` — осознанный ALTER, не Tortoise schemas).
 - **Скоуп по сферам:** при работе с задачами/чек-листом/банками/проектами почти
   всегда учитывай `(server_id, sphere)`; не забывай прокидывать `?sphere=`.
-- **`DEFAULT_SERVER_ID`** (по умолч. 30) — большинство операций привязано к серверу.
-- **Схемы БД** создаются автоматически (`register_tortoise(generate_schemas=True)`),
-  но ручные изменения — через `backend/scripts/` и `*.sql` (см. `MIGRATIONS_README.md`).
-- **Ошибки клиента** логируются на бэкенд (`error_log` / `DevErrorLog`,
-  `frontend/src/lib/errorReporter.ts`).
+- **`DEFAULT_SERVER_ID`** (по умолч. 30) — продукт **single-server**: почти все API
+  завязаны на этот id; UI-свитчера серверов нет (кроме отдельных форумных страниц).
+  Колонка `server_id` есть «на вырост», но multi-tenant сейчас не цель.
+- **Схемы БД** panel создаются на старте только для connection `default`;
+  ручные изменения — через `backend/scripts/` и `*.sql` (см. `MIGRATIONS_README.md`).
+- **Ошибки** панели и бота пишутся в `DevErrorLog` (`error_log`, source=`server`/`client`/`bot`;
+  бот → `POST /internal/errors`). Correlation: заголовок `X-Request-Id`.
 - **Аудит:** значимые действия писать в `PanelAuditLog` (`services/audit.py`).
 - Интеграция с ботом — только через `services/sled_client.py` + роутер `internal`
   (секрет `SLED_BOT_SECRET`, адрес `SLED_INTERNAL_URL`).
@@ -201,15 +222,15 @@ npm run dev                                          # http://localhost:5173 (pr
   Интеграции · Портал · Уведомления · Права команд · Ссылки. Runtime-ключи —
   `PanelSettings` (`panel.db`); сессия форума и overrides команд — через LoveBot
   `/internal/forum/*` и `/internal/command-access` (секреты только маска/флаг).
-- **Arizona Leaders:** cookies живут в LoveBot (`arz_lead_cookies.json` / `ARZ_LEAD_COOKIE`),
-  не в `panel.db`. Панель ходит на `/internal/arz-lead/*` и пишет снимок в `StaffNote`
-  (`leader_appointed_at`, `leader_term_days`, `leader_vk`, `leader_discord`, `arz_lead_id`).
+- **Arizona Leaders / arz_lead:** **не реализовано** (activity-лейблы могут остаться
+  от заготовок). Не опираться на `services/arz_lead*` — модулей нет.
 
 ## 11. Где что искать (быстрый индекс)
 
 | Хочу... | Смотри |
 |---|---|
-| Понять права/уровни | `models/bot.py::AccessLevel`, `services/access.py`, `lib/accessLevels.ts` |
+| Понять права/уровни | `domain/access_levels.py`, `services/access.py`, `lib/accessLevels.ts` |
+| Правила сфер | `domain/sphere_grant_rules.py` (+ зеркало в LoveBot) |
 | Добавить эндпоинт | новый/существующий файл в `routers/` + сервис в `services/` + `include_router` в `main.py` |
 | Добавить таблицу | `models/panel.py` (+ при необходимости скрипт в `scripts/`) |
 | Добавить страницу | `pages/*.tsx` + маршрут в `App.tsx` + вызовы в `api.ts` |
@@ -219,4 +240,3 @@ npm run dev                                          # http://localhost:5173 (pr
 | Деплой/прод | `deploy/` (`README.md`, nginx, systemd, Docker) |
 | Решения по ТЗ | `docs/decisions.md` |
 | Dev Settings / форум / права команд | `pages/DevSettingsPage.tsx`, `routers/dev.py`, LoveBot `command_catalog.py` + `sled_internal_api.py` |
-| Сессия / синк Arizona Leaders | LoveBot `services/arz_lead_client.py`, панель `services/arz_lead.py` |

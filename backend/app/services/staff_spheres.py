@@ -1,40 +1,29 @@
-"""Structured staff spheres — panel source of truth."""
+"""Structured staff spheres — persistence & validation around domain grant rules.
+
+Правила выдачи/tier: app.domain.sphere_grant_rules (единственный канон).
+"""
 
 from __future__ import annotations
 
-from app.models.bot import AccessLevel, User, UserServerAccess
-
-CENTRAL_APPARATUS = "central_apparatus"
-JUSTICE = "justice"
-DEFENSE = "defense"
-HEALTH = "health"
-GOV_STRUCTURES = "gov_structures"
-ILLEGAL_STRUCTURES = "illegal_structures"
-SERVER = "server"
-
-SPHERE_LABELS: dict[str, str] = {
-    CENTRAL_APPARATUS: "Центральный аппарат",
-    JUSTICE: "Министерство Юстиции",
-    DEFENSE: "Министерство Обороны",
-    HEALTH: "Министерство Здравоохранения",
-    GOV_STRUCTURES: "Государственные структуры",
-    ILLEGAL_STRUCTURES: "Нелегальные структуры",
-    SERVER: "Сервер",
-}
-
-MINISTRY_SPHERE_KEYS: tuple[str, ...] = (
+from app.domain.sphere_grant_rules import (
+    ALL_SPHERE_KEYS,
     CENTRAL_APPARATUS,
-    JUSTICE,
+    CURATOR_LEVEL,
     DEFENSE,
-    HEALTH,
-)
-
-STRUCTURE_SPHERE_KEYS: tuple[str, ...] = (
     GOV_STRUCTURES,
+    HEALTH,
     ILLEGAL_STRUCTURES,
+    JUSTICE,
+    MINISTRY_SPHERE_KEYS,
+    SERVER,
+    SPHERE_LABELS,
+    STRUCTURE_SPHERE_KEYS,
+    STRUCTURE_SUPERVISOR_LEVEL,
+    allowed_sphere_keys_for_level,
+    effective_grantable_sphere_keys,
+    format_spheres_display,
 )
-
-ALL_SPHERE_KEYS: tuple[str, ...] = MINISTRY_SPHERE_KEYS + STRUCTURE_SPHERE_KEYS + (SERVER,)
+from app.models.bot import AccessLevel, User, UserServerAccess
 
 # Короткие алиасы для подсказок (без англ. ключей).
 _SPHERE_HINT = "ца, мю, мо, мз, гос, нелег, сервер"
@@ -60,25 +49,6 @@ _LEGACY_TEXT_MAP: list[tuple[str, str]] = [
 ]
 
 
-def allowed_sphere_keys_for_level(level: int) -> tuple[str, ...]:
-    """1–4: сферы министерств; 5–7: структуры; 8+: сервер."""
-    if level >= AccessLevel.CURATOR:
-        return (SERVER,)
-    if level >= AccessLevel.STRUCTURE_SUPERVISOR:
-        return STRUCTURE_SPHERE_KEYS
-    return MINISTRY_SPHERE_KEYS
-
-
-def effective_grantable_sphere_keys(actor_level: int, actor_spheres: list[str]) -> set[str]:
-    """Сферы, которые актор может выдавать и снимать у других."""
-    grantable = set(actor_spheres or [])
-    if actor_level >= AccessLevel.CURATOR:
-        grantable |= set(ALL_SPHERE_KEYS)
-    elif actor_level >= AccessLevel.STRUCTURE_SUPERVISOR:
-        grantable |= set(MINISTRY_SPHERE_KEYS) | set(STRUCTURE_SPHERE_KEYS)
-    return grantable
-
-
 def validate_spheres(spheres: list[str], access_level: int | None = None) -> list[str]:
     """Normalize and dedupe sphere keys; optional level guard."""
     if not spheres:
@@ -100,9 +70,9 @@ def validate_spheres(spheres: list[str], access_level: int | None = None) -> lis
         allowed = set(allowed_sphere_keys_for_level(access_level))
         bad = [k for k in result if k not in allowed]
         if bad:
-            if access_level >= AccessLevel.CURATOR:
+            if access_level >= CURATOR_LEVEL:
                 tier = "сервер"
-            elif access_level >= AccessLevel.STRUCTURE_SUPERVISOR:
+            elif access_level >= STRUCTURE_SUPERVISOR_LEVEL:
                 tier = "государственные или нелегальные структуры"
             else:
                 tier = "сферы министерств (ЦА, МЮ, МО, МЗ)"
@@ -146,12 +116,6 @@ def constrain_spheres_for_actor(
         )
 
     return validate_spheres(list(requested_set), access_level)
-
-
-def format_spheres_display(spheres: list[str]) -> str:
-    if not spheres:
-        return "—"
-    return ", ".join(SPHERE_LABELS.get(k, k) for k in spheres)
 
 
 def has_central_apparatus(spheres: list[str]) -> bool:

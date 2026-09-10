@@ -89,6 +89,22 @@ async def get_user_profile(
     if not sphere and spheres:
         sphere = format_spheres_display(spheres)
 
+    from app.config import MAIN_ADMIN_ID
+    from app.domain.sphere_grant_rules import effective_grantable_sphere_keys
+
+    role = panel_role(level)
+    dev_persona = dev_level is not None
+    is_dev = level >= AccessLevel.DEVELOPER or (
+        not dev_persona and bool(MAIN_ADMIN_ID) and vk_id == MAIN_ADMIN_ID
+    )
+    # lead/owner в UI — без ограничений по выдаче сфер (как staff_permissions)
+    unrestricted_sphere_edit = is_dev or role in ("owner", "lead")
+    grantable = (
+        []
+        if unrestricted_sphere_edit
+        else sorted(effective_grantable_sphere_keys(level, spheres))
+    )
+
     return {
         "vk_id": vk_id,
         "username": user.username if user else None,
@@ -110,7 +126,9 @@ async def get_user_profile(
             if access and getattr(access, "promoted_at", None)
             else None
         ),
-        "panel_role": panel_role(level),
+        "panel_role": role,
         "server_id": server_id,
-        "dev_persona": dev_level is not None,
+        "dev_persona": dev_persona,
+        "grantable_spheres": grantable,
+        "unrestricted_sphere_edit": unrestricted_sphere_edit,
     }

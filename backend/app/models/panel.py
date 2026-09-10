@@ -6,16 +6,6 @@ from tortoise import fields
 from tortoise.models import Model
 
 
-class PanelSession(Model):
-    id = fields.UUIDField(pk=True)
-    vk_id = fields.BigIntField(index=True)
-    expires_at = fields.DatetimeField()
-    created_at = fields.DatetimeField(auto_now_add=True)
-
-    class Meta:
-        table = "panel_sessions"
-
-
 class PanelLoginToken(Model):
     jti = fields.CharField(max_length=64, pk=True)
     vk_id = fields.BigIntField()

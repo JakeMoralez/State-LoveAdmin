@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 
-import httpx
-
 from app.config import PANEL_BASE_URL, SLED_BOT_SECRET, SLED_INTERNAL_URL
 from app.models.panel import UserNotifyPrefs
+from app.services.http_client import get_http_client
+from app.services.request_id import REQUEST_ID_HEADER, get_or_create_request_id
 from app.services.task_helpers import (
     PRIORITY_LABELS,
     STATUS_EMOJI,
@@ -44,13 +44,17 @@ async def notify_vk(vk_id: int, message: str, *, category: NotifyCategory = "tas
         logger.warning("SLED_BOT_SECRET not set — skip VK notify")
         return False
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{SLED_INTERNAL_URL.rstrip('/')}/internal/notify",
-                json={"vk_id": vk_id, "message": message},
-                headers={"X-Sled-Secret": SLED_BOT_SECRET},
-            )
-            return resp.status_code == 200
+        client = get_http_client()
+        resp = await client.post(
+            f"{SLED_INTERNAL_URL.rstrip('/')}/internal/notify",
+            json={"vk_id": vk_id, "message": message, "category": category},
+            headers={
+                "X-Sled-Secret": SLED_BOT_SECRET,
+                REQUEST_ID_HEADER: get_or_create_request_id(),
+            },
+            timeout=10.0,
+        )
+        return resp.status_code == 200
     except Exception as exc:
         logger.warning("VK notify failed vk_id=%s: %s", vk_id, exc)
         return False

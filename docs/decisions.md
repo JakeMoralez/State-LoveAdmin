@@ -4,7 +4,7 @@
 
 | # | Вопрос | Решение |
 |---|--------|---------|
-| 1 | Сервер | Один `DEFAULT_SERVER_ID` из env |
+| 1 | Сервер | Один `DEFAULT_SERVER_ID` из env (single-server продукт; multi-tenant не делаем) |
 | 2 | Импорт Google Sheets | CSV импорт заметок — фаза 2; MVP — экспорт CSV |
 | 4 | Спринты | Статусы + `due_date`, без спринтов |
 | 5 | Создание проектов | Lead+ (ур. 7+) и Owner |
@@ -16,7 +16,9 @@
 | 13 | Дизайн | **Вариант A — «Судебный реестр»** |
 | 14 | Тема | Тёмная по умолчанию |
 | 15 | Название | «State Love · След. ЦА» |
-| 17 | БД | SQLite: `bot.db` read + `panel.db` для портала |
+| 17 | БД | Две БД: `bot.db` (схема LoveBot; staff access пишет и панель) + `panel.db` (портал). Сферы — только `panel.db` через HTTP |
 | 18 | VPS | Тот же VPS, nginx поддомен |
 | 19 | VK app | Создать standalone, env `VK_APP_ID` / `VK_APP_SECRET` |
 | 20 | Telegram | Только VK |
+| 21 | Руководство UX | `/leaders` — реестр; `/assign?type=leader|…` — создание; `/dev/leadership` — только bulk `is_leader` |
+| 22 | Auth sessions | JWT cookie `sled_session`; `PanelSession` ORM удалён как мёртвый код |

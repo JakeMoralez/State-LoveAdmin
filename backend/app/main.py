@@ -12,7 +12,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from tortoise.contrib.fastapi import register_tortoise
 
@@ -27,7 +26,7 @@ from app.config import (
     is_sqlite_url,
     sqlite_file_path,
 )
-from app.routers.uploads import regenerate_all_gallery_pages
+from app.routers.uploads import regenerate_all_gallery_pages, uploads_http_exception_handler
 from app.routers import (
     academy,
     activity,
@@ -53,10 +52,24 @@ from app.services.task_helpers import migrate_legacy_task_statuses
 from app.services.error_log import record_server_exception
 from app.services import messages
 from app.services.panel_settings import get_task_reminder_interval_sec, get_task_reminders_enabled
-from app.services.staff import list_staff
+from app.services.request_id import (
+    REQUEST_ID_HEADER,
+    get_or_create_request_id,
+    set_request_id,
+)
+from app.services.staff import count_staff
 from app.services.task_notifications import run_task_reminders
 
 logger = logging.getLogger(__name__)
+
+
+async def _ensure_panel_schemas() -> None:
+    """Схему создаём только для panel DB (connection default), bot.db не трогаем."""
+    from tortoise import Tortoise
+    from tortoise.utils import generate_schema_for_client
+
+    conn = Tortoise.get_connection("default")
+    await generate_schema_for_client(conn, safe=True)
 
 
 async def _task_reminder_loop() -> None:
@@ -81,20 +94,25 @@ async def lifespan(app: FastAPI):
         if db_path and not db_path.startswith(":"):
             Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    await _ensure_panel_schemas()
     await ensure_defaults()
     from app.services.academy import ensure_academy_templates
 
     await ensure_academy_templates()
     await migrate_legacy_task_statuses()
     galleries = regenerate_all_gallery_pages()
-    staff_rows = await list_staff(DEFAULT_SERVER_ID)
+    try:
+        staff_n = await count_staff(DEFAULT_SERVER_ID)
+    except Exception as exc:
+        staff_n = -1
+        logger.warning("Startup staff count failed: %s", exc)
     if is_sqlite_url(BOT_DATABASE_URL):
         bot_db = sqlite_file_path(BOT_DATABASE_URL)
         logger.info(
             "Startup: bot_db=%s server_id=%s staff=%d galleries=%d",
             bot_db,
             DEFAULT_SERVER_ID,
-            len(staff_rows),
+            staff_n,
             galleries,
         )
         if bot_db and not bot_db.startswith(":") and not Path(bot_db).exists():
@@ -107,7 +125,7 @@ async def lifespan(app: FastAPI):
         logger.info(
             "Startup: bot_db=postgresql server_id=%s staff=%d galleries=%d",
             DEFAULT_SERVER_ID,
-            len(staff_rows),
+            staff_n,
             galleries,
         )
     reminder_task = asyncio.create_task(_task_reminder_loop())
@@ -117,15 +135,27 @@ async def lifespan(app: FastAPI):
         reminder_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await reminder_task
+        from app.services.http_client import close_http_client
+
+        await close_http_client()
 
 
 app = FastAPI(title="State Love Admin", version="0.1.0", lifespan=lifespan)
 
 
+@app.exception_handler(StarletteHTTPException)
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException | StarletteHTTPException):
+    if request.url.path.startswith("/uploads/"):
+        return await uploads_http_exception_handler(
+            request,
+            HTTPException(status_code=exc.status_code, detail=exc.detail),
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    if isinstance(exc, (HTTPException, StarletteHTTPException)):
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     if isinstance(exc, RequestValidationError):
         # Форма ответа прежняя ({"detail": ...}), но текст — человечный русский
         # вместо сырого списка технических ошибок pydantic.
@@ -134,13 +164,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             content={"detail": messages.humanize_validation(exc.errors())},
         )
     await record_server_exception(request, exc)
-    return JSONResponse(status_code=500, content={"detail": messages.INTERNAL_ERROR})
+    from app.services.request_id import get_request_id
+
+    rid = get_request_id()
+    body: dict = {"detail": messages.INTERNAL_ERROR}
+    if rid:
+        body["request_id"] = rid
+    return JSONResponse(status_code=500, content=body)
 
 
 register_tortoise(
     app,
     config=TORTOISE_ORM,
-    generate_schemas=True,
+    generate_schemas=False,
     add_exception_handlers=True,
 )
 
@@ -161,6 +197,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    incoming = request.headers.get(REQUEST_ID_HEADER)
+    set_request_id(incoming)
+    rid = get_or_create_request_id()
+    response = await call_next(request)
+    response.headers[REQUEST_ID_HEADER] = rid
+    return response
+
+
 app.include_router(auth.router)
 app.include_router(internal.router)
 app.include_router(staff.router)
@@ -170,7 +217,7 @@ app.include_router(dashboard.router)
 app.include_router(profile.router)
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+app.include_router(uploads.serve_router)
 app.include_router(uploads.router)
 app.include_router(spheres.router)
 app.include_router(checklist.router)
@@ -196,7 +243,7 @@ async def health():
         bot_db_label = "postgresql"
         bot_db_exists = True
     try:
-        staff_count = len(await list_staff(DEFAULT_SERVER_ID))
+        staff_count = await count_staff(DEFAULT_SERVER_ID)
     except Exception:
         staff_count = -1
     return {

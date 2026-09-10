@@ -26,25 +26,15 @@ const LABEL_BY_KEY = Object.fromEntries(SPHERE_OPTIONS.map((o) => [o.value, o.la
   string
 >
 
+/**
+ * Tier «какие сферы может ИМЕТЬ уровень» — UI-фильтр.
+ * Канон правил: backend/app/domain/sphere_grant_rules.py
+ * (выдача другим — только через grantable_spheres из API, не дублировать здесь).
+ */
 export function allowedSphereKeysForLevel(level: number): SphereKey[] {
   if (level >= 8) return [...CURATOR_SPHERE_KEYS]
   if (level >= 5) return [...STRUCTURE_SPHERE_KEYS]
   return [...MINISTRY_SPHERE_KEYS]
-}
-
-/** Сферы, которые актор может выдавать и снимать у других. */
-export function effectiveGrantableSphereKeys(actorLevel: number, actorSpheres: string[]): string[] {
-  const grantable = new Set(actorSpheres)
-  if (actorLevel >= 8) {
-    for (const key of [...MINISTRY_SPHERE_KEYS, ...STRUCTURE_SPHERE_KEYS, ...CURATOR_SPHERE_KEYS]) {
-      grantable.add(key)
-    }
-  } else if (actorLevel >= 5) {
-    for (const key of [...MINISTRY_SPHERE_KEYS, ...STRUCTURE_SPHERE_KEYS]) {
-      grantable.add(key)
-    }
-  }
-  return [...grantable]
 }
 
 export function sphereOptionsForLevel(level: number) {

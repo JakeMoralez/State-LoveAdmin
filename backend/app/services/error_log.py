@@ -1,4 +1,4 @@
-"""Persist client/server errors for the dev panel."""
+"""Persist client/server/bot errors for the dev panel."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from fastapi import Request
 
 from app.config import DEV_ERROR_RETENTION
 from app.models.panel import DevErrorLog
+from app.services.request_id import REQUEST_ID_HEADER, get_request_id
 
 
 def _clip(text: str | None, limit: int) -> str:
@@ -45,6 +46,10 @@ async def record_error(
     context: dict[str, Any] | None = None,
 ) -> None:
     msg = _clip(message, 4000) or "(empty)"
+    ctx = dict(context or {})
+    rid = get_request_id()
+    if rid and "request_id" not in ctx:
+        ctx["request_id"] = rid
     await DevErrorLog.create(
         level=_clip(level, 16) or "error",
         source=_clip(source, 32) or "client",
@@ -54,7 +59,7 @@ async def record_error(
         method=_clip(method, 16),
         user_agent=_clip(user_agent, 512),
         user_vk_id=user_vk_id,
-        context=context,
+        context=ctx or None,
     )
     await prune_error_log()
 
@@ -69,6 +74,7 @@ async def record_server_exception(request: Request, exc: BaseException) -> None:
     except Exception:
         pass
 
+    rid = get_request_id() or request.headers.get(REQUEST_ID_HEADER)
     await record_error(
         level="error",
         source="server",
@@ -78,5 +84,8 @@ async def record_server_exception(request: Request, exc: BaseException) -> None:
         method=request.method,
         user_agent=_clip(request.headers.get("user-agent"), 512),
         user_vk_id=vk_id,
-        context={"path": request.url.path},
+        context={
+            "path": request.url.path,
+            **({"request_id": rid} if rid else {}),
+        },
     )

@@ -60,6 +60,8 @@ export function OfficeRegistryPage({
   list,
   loadOne,
   sphereFilter = false,
+  subtitleActive,
+  subtitleInactive,
 }: {
   title: string
   icon: LucideIcon
@@ -69,6 +71,8 @@ export function OfficeRegistryPage({
   list: (params?: { q?: string; inactive?: boolean }) => Promise<{ members: LeaderMember[]; total: number }>
   loadOne: (vkId: number) => Promise<LeaderMemberDetail>
   sphereFilter?: boolean
+  subtitleActive?: string
+  subtitleInactive?: string
 }) {
   const { user } = useAuth()
   const actorLevel = user?.access_level ?? 0
@@ -164,7 +168,11 @@ export function OfficeRegistryPage({
         section="Команда"
         title={title}
         icon={Icon}
-        subtitle={tab === 'inactive' ? `${total} без доступа` : `${total} в реестре`}
+        subtitle={
+          tab === 'inactive'
+            ? subtitleInactive ?? `${total} без доступа`
+            : subtitleActive ?? `${total} в реестре`
+        }
         shrink
         actions={
           canAssign ? (

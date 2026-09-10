@@ -78,6 +78,12 @@ DEV_MODE: bool = os.getenv("DEV_MODE", "").lower() in ("1", "true", "yes")
 DEV_VK_ID: int = int(os.getenv("DEV_VK_ID", "0"))
 DEV_SKIP_CA: bool = os.getenv("DEV_SKIP_CA", "").lower() in ("1", "true", "yes")
 
+if (not SESSION_SECRET or SESSION_SECRET == "change-me-in-production") and not DEV_MODE:
+    raise RuntimeError(
+        "SESSION_SECRET must be set to a strong value when DEV_MODE is off "
+        "(refusing default 'change-me-in-production')."
+    )
+
 _dev_panel_ids = os.getenv("DEV_PANEL_VK_IDS", "")
 DEV_PANEL_VK_IDS: list[int] = [int(x.strip()) for x in _dev_panel_ids.split(",") if x.strip().isdigit()]
 DEV_PANEL_MIN_LEVEL: int = int(os.getenv("DEV_PANEL_MIN_LEVEL", "10"))

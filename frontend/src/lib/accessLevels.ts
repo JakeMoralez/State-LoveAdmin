@@ -1,6 +1,6 @@
 import type { SelectOption } from '../components/ui/Select'
 
-/** Краткие названия (как в боте / AccessLevel.NAMES). */
+/** Краткие названия — канон: backend/app/domain/access_levels.py (SHORT_NAMES). */
 export const ACCESS_LEVEL_SHORT: Record<number, string> = {
   1: 'ПГС',
   2: 'Следящий',
@@ -15,7 +15,7 @@ export const ACCESS_LEVEL_SHORT: Record<number, string> = {
   11: 'Разработчик',
 }
 
-/** Полные названия ролей (колонка «Доступ» в реестре). */
+/** Полные названия ролей — канон: backend/app/domain/access_levels.py (ROLE_TITLES). */
 export const ACCESS_ROLE_TITLES: Record<number, string> = {
   1: 'Помощник следящих',
   2: 'Следящий',
@@ -55,14 +55,14 @@ export function mergeAccessLevelOptions(
 /**
  * Все уровни 1–11 всегда в списке.
  * Выше лимита выдачи — disabled (видно, но не выбрать).
- * Разработчик / owner / ур.≥10 (миграция со старой шкалы) — всё доступно.
+ * Полный грант только у разработчика (ур.≥11) или opts.isDeveloper —
+ * как backend max_grantable_level (ГА → макс. 9).
  */
 export function grantableAccessLevelOptions(
   actorLevel: number,
   opts?: { isDeveloper?: boolean; allowEqual?: boolean },
 ): SelectOption[] {
-  const isDev =
-    Boolean(opts?.isDeveloper) || actorLevel >= 11 || actorLevel >= 10
+  const isDev = Boolean(opts?.isDeveloper) || actorLevel >= 11
   let max: number
   if (isDev) {
     max = 11

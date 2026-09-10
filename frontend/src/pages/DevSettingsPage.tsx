@@ -709,7 +709,7 @@ export function DevSettingsPage() {
                 <ListChecks size={16} /> Чеклист
               </Link>
               <Link to="/dev/leadership" className="dev-settings-link no-underline">
-                <Shield size={16} /> Флаги руководства
+                <Shield size={16} /> Флаги is_leader (не реестр)
               </Link>
               <Link to="/access" className="dev-settings-link no-underline">
                 <KeyRound size={16} /> Доступы

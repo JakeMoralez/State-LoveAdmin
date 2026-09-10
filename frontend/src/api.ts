@@ -609,6 +609,9 @@ export interface UserProfile {
   work_spheres?: WorkSphere[]
   granted_at?: string | null
   promoted_at?: string | null
+  /** Сферы, которые можно выдавать другим (пусто + unrestricted_sphere_edit = все). */
+  grantable_spheres?: string[]
+  unrestricted_sphere_edit?: boolean
 }
 
 export interface ProfileUpdateBody {

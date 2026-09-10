@@ -42,6 +42,7 @@ from app.services.sled_client import (
     save_command_access as sled_save_command_access,
 )
 from app.services.staff import (
+    count_staff,
     list_leadership_candidates,
     list_staff,
     remove_ca_leader,
@@ -246,7 +247,7 @@ async def get_dev_system(_user: dict = Depends(require_dev_user)):
     elif is_postgres_url(PANEL_DATABASE_URL):
         panel_db_label = "postgresql"
     try:
-        staff_count = len(await list_staff(DEFAULT_SERVER_ID))
+        staff_count = await count_staff(DEFAULT_SERVER_ID)
     except Exception:
         staff_count = -1
     bot_ok, bot_error = await ping_bot()

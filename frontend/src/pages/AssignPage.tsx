@@ -28,7 +28,6 @@ import { DatePicker } from '../components/ui/DatePicker'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from '../components/staff/SphereMultiSelect'
 import { SphereRoleSelect, usesSphereRoles } from '../components/staff/SphereRoleSelect'
 import { todayDateInputValue } from '../lib/grantedAt'
-import { effectiveGrantableSphereKeys } from '../lib/spheres'
 import { cn } from '../lib/utils'
 
 const ROLE_TYPE_OPTIONS = [
@@ -109,9 +108,7 @@ export function AssignPage() {
   const [restoreLocked, setRestoreLocked] = useState(false)
 
   const maxAccessLevel = userLevel
-  const actorSphereIds = user?.spheres ?? []
-  const unrestrictedSphereAssign =
-    userLevel >= 10 || user?.panel_role === 'owner' || user?.panel_role === 'lead'
+  const unrestrictedSphereAssign = Boolean(user?.unrestricted_sphere_edit)
 
   const roleTypeOptions = useMemo(() => {
     if (userLevel >= ASSIGN_STAFF_MIN_LEVEL) return [...ROLE_TYPE_OPTIONS]
@@ -225,11 +222,8 @@ export function AssignPage() {
   )
 
   const grantableSphereIds = useMemo(
-    () =>
-      unrestrictedSphereAssign
-        ? undefined
-        : effectiveGrantableSphereKeys(userLevel, actorSphereIds),
-    [unrestrictedSphereAssign, userLevel, actorSphereIds],
+    () => (unrestrictedSphereAssign ? undefined : user?.grantable_spheres),
+    [unrestrictedSphereAssign, user?.grantable_spheres],
   )
 
   const orgOptions = useMemo(() => orgOptionsForRole(roleType, orgCatalog), [roleType, orgCatalog])
@@ -406,7 +400,9 @@ export function AssignPage() {
         subtitle={
           restoreLocked
             ? 'Повторное назначение: подставленные данные можно изменить'
-            : 'Новый человек в реестре следящих, судей или конгресса'
+            : isLeadership
+              ? 'Создание записи в реестре руководителей (/leaders). Массовые флаги — /dev/leadership'
+              : 'Новый человек в реестре следящих, судей или конгресса'
         }
       />
 

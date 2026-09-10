@@ -77,7 +77,7 @@ export function DevLeadershipPage() {
         section="Разработка"
         title="Флаги руководства"
         icon={Shield}
-        subtitle={`${total} пользователей в БД (без следящих) · ${leadersCount} в реестре «Руководство»`}
+        subtitle={`Только bulk-флаг is_leader · реестр — /leaders · создать — /assign · ${total} в БД · ${leadersCount} с флагом`}
       />
 
       <PageToolbarRow>

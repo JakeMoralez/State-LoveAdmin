@@ -1,26 +1,30 @@
-"""File uploads (screenshots + galleries)."""
+"""File uploads (screenshots + galleries) + authenticated file serve."""
 
 from __future__ import annotations
 
 import json
+import mimetypes
 import re
 import uuid
 from pathlib import Path
 
-from app.services.gallery_viewer import render_gallery_html
-
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from app.config import UPLOAD_DIR
-from app.services.auth import require_ca_user
 from app.services import messages
+from app.services.auth import require_ca_user
+from app.services.gallery_viewer import render_gallery_html
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
+# Отдача /uploads/* — только с сессией портала (не публичный StaticFiles).
+serve_router = APIRouter(tags=["uploads-serve"])
 
 ALLOWED = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 MAX_BYTES = 8 * 1024 * 1024
 MAX_GALLERY_IMAGES = 20
 GALLERY_ID_RE = re.compile(r"^[a-f0-9]{32}$")
+SAFE_UPLOAD_NAME = re.compile(r"^[a-zA-Z0-9._\-/]+$")
 
 
 def _galleries_root() -> Path:
@@ -73,6 +77,22 @@ def gallery_image_urls(proof_url: str | None) -> list[str]:
     return _image_public_urls(gallery_id, filenames)
 
 
+def _resolve_upload_path(file_path: str) -> Path:
+    """Resolve path under UPLOAD_DIR; reject traversal / odd names."""
+    raw = (file_path or "").strip().lstrip("/")
+    if not raw or ".." in raw.split("/") or not SAFE_UPLOAD_NAME.match(raw):
+        raise HTTPException(status_code=404, detail="Not found")
+    base = UPLOAD_DIR.resolve()
+    target = (UPLOAD_DIR / raw).resolve()
+    try:
+        target.relative_to(base)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Not found") from exc
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Not found")
+    return target
+
+
 def _write_gallery_files(gdir: Path, filenames: list[str]) -> None:
     gdir.mkdir(parents=True, exist_ok=True)
     gallery_id = gdir.name
@@ -115,6 +135,46 @@ async def _save_upload(file: UploadFile) -> tuple[bytes, str]:
     return data, ext
 
 
+@serve_router.get("/uploads/{file_path:path}")
+async def serve_uploaded_file(
+    file_path: str,
+    user: dict = Depends(require_ca_user),
+):
+    """Скрины/галереи — только с сессией портала (уровень ПГС+)."""
+    del user
+    path = _resolve_upload_path(file_path)
+    media_type, _ = mimetypes.guess_type(str(path))
+    headers: dict[str, str] = {"Cache-Control": "private, max-age=3600"}
+    if path.suffix.lower() in {".html", ".htm"}:
+        headers["Cache-Control"] = "private, no-store"
+    return FileResponse(
+        path,
+        media_type=media_type or "application/octet-stream",
+        headers=headers,
+    )
+
+
+async def uploads_http_exception_handler(request: Request, exc: HTTPException):
+    """Для вкладки /uploads без cookie — простая HTML-страница вместо JSON."""
+    if request.url.path.startswith("/uploads/") and "text/html" in (
+        request.headers.get("accept") or ""
+    ):
+        return HTMLResponse(
+            status_code=exc.status_code,
+            content=(
+                "<!doctype html><meta charset=utf-8>"
+                "<title>Нужен вход</title>"
+                "<body style=\"font-family:system-ui;padding:2rem\">"
+                "<h1>Нужен вход</h1>"
+                "<p>Чтобы открыть файл, войдите на портал State Love.</p>"
+                "<p><a href=\"/\">На главную</a></p>"
+                f"<p style=\"color:#666\">{exc.detail}</p>"
+                "</body>"
+            ),
+        )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 @router.post("")
 async def upload_file(
     file: UploadFile = File(...),
@@ -148,7 +208,10 @@ async def upload_gallery(
 
     for file in files:
         if len(stored) >= MAX_GALLERY_IMAGES:
-            raise HTTPException(status_code=400, detail=f"Максимум {MAX_GALLERY_IMAGES} фото в альбоме")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Максимум {MAX_GALLERY_IMAGES} фото в альбоме",
+            )
         data, ext = await _save_upload(file)
         fname = f"{uuid.uuid4().hex}{ext}"
         gdir.mkdir(parents=True, exist_ok=True)

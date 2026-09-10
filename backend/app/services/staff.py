@@ -9,6 +9,9 @@ from tortoise.expressions import Q
 
 from app.models.bot import AccessLevel, ChatPeerSettings, RoleChat, User, UserServerAccess
 from app.models.panel import StaffNote
+from app.config import MAIN_ADMIN_ID
+from app.domain.access_levels import ROLE_TITLES as FULL_ROLE_TITLES
+from app.domain.access_levels import role_title as _domain_role_title
 from app.services.access import get_access_level
 from app.services.bot_users import (
     access_senior_state,
@@ -101,23 +104,8 @@ def _access_dt_iso(access: UserServerAccess | None, field: str) -> str | None:
         return None
 
 
-FULL_ROLE_TITLES: dict[int, str] = {
-    1: "Помощник следящих",
-    2: "Следящий",
-    3: "Зам. Главного следящего сферы",
-    4: "Главный следящий сферы",
-    5: "Следящий структуры",
-    6: "Зам. Главного следящего структуры",
-    7: "Главный следящий структуры",
-    8: "Куратор",
-    9: "Зам. Главного Администратора",
-    10: "Главный Администратор",
-    11: "Разработчик",
-}
-
-
 def role_title(level: int) -> str:
-    return FULL_ROLE_TITLES.get(level, AccessLevel.title(level))
+    return _domain_role_title(level)
 
 
 def derive_sphere_from_spheres(spheres: list[str]) -> str:
@@ -214,6 +202,67 @@ async def reconcile_supervisor_leader_flags(server_id: int) -> int:
     return cleared
 
 
+async def _developer_vk_ids() -> set[int]:
+    """Users with DEVELOPER on any server (matches get_access_level global bump)."""
+    ids = set(
+        await UserServerAccess.filter(
+            access_level__gte=AccessLevel.DEVELOPER
+        ).values_list("user_id", flat=True)
+    )
+    if MAIN_ADMIN_ID:
+        ids.add(MAIN_ADMIN_ID)
+    return ids
+
+
+def _effective_access_level(
+    vk_id: int,
+    server_level: int,
+    developer_ids: set[int],
+) -> int:
+    if vk_id in developer_ids:
+        return AccessLevel.DEVELOPER
+    return server_level
+
+
+def _staff_row_dict(
+    *,
+    user: User,
+    access: UserServerAccess | None,
+    eff_level: int,
+    bot_nickname: str | None,
+    spheres: list[str],
+    panel_note: str,
+    academy_fields: dict,
+) -> dict:
+    nick_fields = _leader_nick_fields(bot_nickname, user.vk_id)
+    return {
+        "vk_id": user.vk_id,
+        "bot_nickname": nick_fields["bot_nickname"],
+        "nickname": nick_fields["nickname"],
+        "display_name": nick_fields["display_name"],
+        "username": user.username,
+        "access_level": eff_level,
+        "access_level_name": AccessLevel.title(eff_level),
+        "access_role_title": (
+            "Старший следящий"
+            if access and getattr(access, "is_senior", False) and eff_level == AccessLevel.SUPERVISOR
+            else role_title(eff_level)
+        ),
+        "sphere": derive_sphere_from_spheres(spheres),
+        "spheres": spheres,
+        "badges": format_badges(access, user, spheres),
+        "has_ca_access": bool(access and access.has_ca_access),
+        "ca_source": ca_source(access),
+        "granted_by": access.granted_by if access else None,
+        "granted_at": _access_dt_iso(access, "granted_at"),
+        "promoted_at": _access_dt_iso(access, "promoted_at"),
+        "note": panel_note,
+        "is_senior": bool(access and getattr(access, "is_senior", False)),
+        "senior_spheres": list(getattr(access, "senior_spheres", []) or []),
+        **academy_fields,
+    }
+
+
 async def list_staff(server_id: int) -> list[dict]:
     await reconcile_supervisor_leader_flags(server_id)
     by_id: dict[int, tuple[User, int, UserServerAccess | None]] = {}
@@ -222,12 +271,7 @@ async def list_staff(server_id: int) -> list[dict]:
     for row in rows:
         if row.access_level >= AccessLevel.PGS:
             by_id[row.user_id] = (row.user, row.access_level, row)
-
-    role_q = Q(is_congress_vice=True) | Q(is_attorney=True)
-    for row in await UserServerAccess.filter(server_id=server_id).filter(role_q).prefetch_related(
-        "user"
-    ):
-        if row.user_id not in by_id:
+        elif row.is_congress_vice or row.is_attorney:
             by_id[row.user_id] = (row.user, row.access_level, row)
 
     for user in await User.filter(is_admin=True):
@@ -244,6 +288,7 @@ async def list_staff(server_id: int) -> list[dict]:
     from app.services.academy import cadets_by_vk, staff_academy_fields
 
     academy_map = await cadets_by_vk(server_id)
+    developer_ids = await _developer_vk_ids()
 
     result: list[dict] = []
     for user, level, access in by_id.values():
@@ -257,46 +302,32 @@ async def list_staff(server_id: int) -> list[dict]:
             )
             continue
         if access is None:
-            logger.warning("list_staff: vk_id=%s has no user_server_access row for server_id=%s", user.vk_id, server_id)
-        eff_level = max(level, await get_access_level(user.vk_id, server_id))
+            logger.warning(
+                "list_staff: vk_id=%s has no user_server_access row for server_id=%s",
+                user.vk_id,
+                server_id,
+            )
+        eff_level = _effective_access_level(user.vk_id, level, developer_ids)
         if eff_level < AccessLevel.PGS:
             continue
         bot_nickname = await resolve_bot_nickname(
             user.vk_id, server_id, access=access, user=user
         )
-        nick_fields = _leader_nick_fields(bot_nickname, user.vk_id)
         panel = notes.get((user.vk_id, server_id))
         panel_note = (panel.note if panel else "") or ""
         spheres = await _resolve_staff_spheres(
             user.vk_id, server_id, eff_level, access, user, panel
         )
         result.append(
-            {
-                "vk_id": user.vk_id,
-                "bot_nickname": nick_fields["bot_nickname"],
-                "nickname": nick_fields["nickname"],
-                "display_name": nick_fields["display_name"],
-                "username": user.username,
-                "access_level": eff_level,
-                "access_level_name": AccessLevel.title(eff_level),
-                "access_role_title": (
-                    "Старший следящий"
-                    if access and getattr(access, "is_senior", False) and eff_level == AccessLevel.SUPERVISOR
-                    else role_title(eff_level)
-                ),
-                "sphere": derive_sphere_from_spheres(spheres),
-                "spheres": spheres,
-                "badges": format_badges(access, user, spheres),
-                "has_ca_access": bool(access and access.has_ca_access),
-                "ca_source": ca_source(access),
-                "granted_by": access.granted_by if access else None,
-                "granted_at": _access_dt_iso(access, "granted_at"),
-                "promoted_at": _access_dt_iso(access, "promoted_at"),
-                "note": panel_note,
-                "is_senior": bool(access and getattr(access, "is_senior", False)),
-                "senior_spheres": list(getattr(access, "senior_spheres", []) or []),
-                **staff_academy_fields(academy_map.get(user.vk_id)),
-            }
+            _staff_row_dict(
+                user=user,
+                access=access,
+                eff_level=eff_level,
+                bot_nickname=bot_nickname,
+                spheres=spheres,
+                panel_note=panel_note,
+                academy_fields=staff_academy_fields(academy_map.get(user.vk_id)),
+            )
         )
 
     result.sort(
@@ -311,6 +342,34 @@ async def list_staff(server_id: int) -> list[dict]:
         )
     )
     return result
+
+
+async def count_staff(server_id: int) -> int:
+    """Дешёвый COUNT для health/startup (без сборки DTO)."""
+    developer_ids = await _developer_vk_ids()
+    rows = await UserServerAccess.filter(server_id=server_id).prefetch_related("user")
+    n = 0
+    for row in rows:
+        if row.is_judge or row.is_congress_speaker or row.is_leader:
+            continue
+        if row.access_level < AccessLevel.PGS and not (
+            row.is_congress_vice or row.is_attorney
+        ):
+            continue
+        eff = _effective_access_level(row.user_id, row.access_level, developer_ids)
+        if eff >= AccessLevel.PGS:
+            n += 1
+    for user in await User.filter(is_admin=True):
+        if any(r.user_id == user.vk_id for r in rows):
+            continue
+        acc = await UserServerAccess.get_or_none(user_id=user.vk_id, server_id=server_id)
+        level = acc.access_level if acc else 0
+        if acc and (acc.is_judge or acc.is_congress_speaker or acc.is_leader):
+            continue
+        eff = _effective_access_level(user.vk_id, level, developer_ids)
+        if eff >= AccessLevel.PGS:
+            n += 1
+    return n
 
 
 async def list_former_staff(server_id: int) -> list[dict]:
@@ -1026,10 +1085,44 @@ async def list_leadership_candidates(server_id: int) -> list[dict]:
 
 
 async def get_staff_member(server_id: int, vk_id: int) -> dict | None:
-    for row in await list_staff(server_id):
-        if row["vk_id"] == vk_id:
-            return row
-    return None
+    """Один сотрудник без полного list_staff (тот же формат строки)."""
+    from app.services.academy import cadets_by_vk, staff_academy_fields
+
+    user = await User.get_or_none(vk_id=vk_id)
+    if not user:
+        return None
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    in_roster = bool(
+        (access and access.access_level >= AccessLevel.PGS)
+        or (access and (access.is_congress_vice or access.is_attorney))
+        or user.is_admin
+    )
+    if not in_roster:
+        return None
+    if access and (access.is_judge or access.is_congress_speaker or access.is_leader):
+        return None
+
+    level = access.access_level if access else 0
+    developer_ids = await _developer_vk_ids()
+    eff_level = _effective_access_level(vk_id, level, developer_ids)
+    if eff_level < AccessLevel.PGS:
+        return None
+
+    panel = await StaffNote.get_or_none(vk_id=vk_id, server_id=server_id)
+    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    spheres = await _resolve_staff_spheres(
+        vk_id, server_id, eff_level, access, user, panel
+    )
+    academy_map = await cadets_by_vk(server_id)
+    return _staff_row_dict(
+        user=user,
+        access=access,
+        eff_level=eff_level,
+        bot_nickname=bot_nickname,
+        spheres=spheres,
+        panel_note=(panel.note if panel else "") or "",
+        academy_fields=staff_academy_fields(academy_map.get(vk_id)),
+    )
 
 
 async def revoke_staff_access(
