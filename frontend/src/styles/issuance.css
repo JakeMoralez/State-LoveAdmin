@@ -313,10 +313,6 @@
 }
 
 .issuance-menu-list {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  right: 0;
-  z-index: 30;
   display: flex;
   flex-direction: column;
   min-width: 11.5rem;
@@ -325,6 +321,13 @@
   border-radius: 10px;
   background: #121218;
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+}
+
+.issuance-menu-list--portal {
+  position: fixed;
+  z-index: 80;
+  top: 0;
+  left: 0;
 }
 
 .issuance-menu-item {

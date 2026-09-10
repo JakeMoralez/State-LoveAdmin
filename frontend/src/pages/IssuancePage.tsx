@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, Copy, ExternalLink, Gift, MoreHorizontal, Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { ApiError, api, type IssuanceBody, type IssuanceItem, type IssuanceKind } from '../api'
@@ -501,6 +502,7 @@ function IssuanceRowMenu({
   onDelete: () => void
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const items = [
     row.permissions.can_issue
       ? { key: 'issue', label: row.kind === 'az' ? 'Передать ГА/ЗГА' : 'Выдать', onClick: onIssue }
@@ -518,10 +520,48 @@ function IssuanceRowMenu({
     row.permissions.can_delete ? { key: 'delete', label: 'Удалить', onClick: onDelete, danger: true } : null,
   ].filter((item): item is { key: string; label: string; onClick: () => void; danger?: boolean } => item != null)
 
+  const syncMenuPosition = useCallback(() => {
+    const root = rootRef.current
+    const menu = menuRef.current
+    if (!root || !menu) return
+    const rect = root.getBoundingClientRect()
+    const menuH = menu.offsetHeight || items.length * 36 + 12
+    const menuW = Math.max(menu.offsetWidth, 184)
+    const margin = 8
+    const spaceBelow = window.innerHeight - rect.bottom - margin
+    const flipUp = spaceBelow < menuH && rect.top > spaceBelow
+    const top = flipUp ? rect.top - menuH - 4 : rect.bottom + 4
+    const left = Math.min(Math.max(margin, rect.right - menuW), window.innerWidth - menuW - margin)
+    menu.style.top = `${Math.max(margin, top)}px`
+    menu.style.left = `${left}px`
+  }, [items.length])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    syncMenuPosition()
+  }, [open, syncMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    let raf = 0
+    const onReposition = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(syncMenuPosition)
+    }
+    window.addEventListener('scroll', onReposition, true)
+    window.addEventListener('resize', onReposition)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onReposition, true)
+      window.removeEventListener('resize', onReposition)
+    }
+  }, [open, syncMenuPosition])
+
   useEffect(() => {
     if (!open) return
     const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onClose()
+      const t = e.target as Node
+      if (!rootRef.current?.contains(t) && !menuRef.current?.contains(t)) onClose()
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -539,6 +579,24 @@ function IssuanceRowMenu({
 
   if (items.length === 0) return <span className="issuance-who-empty">—</span>
 
+  const menu =
+    open && typeof document !== 'undefined' ? (
+      <div className="issuance-menu-list issuance-menu-list--portal" role="menu" ref={menuRef}>
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="menuitem"
+            className={cn('issuance-menu-item', item.danger && 'issuance-menu-item--danger')}
+            disabled={busy}
+            onClick={item.onClick}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    ) : null
+
   return (
     <div className="issuance-menu" ref={rootRef}>
       <button
@@ -553,22 +611,7 @@ function IssuanceRowMenu({
       >
         <MoreHorizontal size={16} />
       </button>
-      {open ? (
-        <div className="issuance-menu-list" role="menu">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              role="menuitem"
-              className={cn('issuance-menu-item', item.danger && 'issuance-menu-item--danger')}
-              disabled={busy}
-              onClick={item.onClick}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {menu ? createPortal(menu, document.body) : null}
     </div>
   )
 }
