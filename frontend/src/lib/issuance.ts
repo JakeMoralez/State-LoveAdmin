@@ -25,17 +25,15 @@ export function issuanceCheckerList(items: Pick<IssuanceItem, 'nickname' | 'amou
     .join('\n')
 }
 
-export function formatIssuanceDateTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
+export function formatIssuanceStamp(iso: string | null | undefined): { date: string; time: string } {
+  if (!iso) return { date: '—', time: '' }
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  if (Number.isNaN(d.getTime())) return { date: '—', time: '' }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return {
+    date: `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  }
 }
 
 export function issuanceStatusLabel(status: IssuanceStatus, kind: IssuanceKind): string {

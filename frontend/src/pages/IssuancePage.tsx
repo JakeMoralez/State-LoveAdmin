@@ -10,7 +10,7 @@ import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
 import {
   ISSUANCE_CREATE_MIN_LEVEL,
-  formatIssuanceDateTime,
+  formatIssuanceStamp,
   issuanceCheckerList,
   issuanceIssuedByLabel,
   issuanceRawAmount,
@@ -354,9 +354,7 @@ export function IssuancePage() {
                   row.status === 'issued' && 'issuance-row--issued',
                 )}
               >
-                <span className="issuance-col-date">
-                  <time dateTime={row.created_at ?? undefined}>{formatIssuanceDateTime(row.created_at)}</time>
-                </span>
+                <IssuanceStamp iso={row.created_at} />
                 <span className="issuance-col-status">
                   <span
                     className={cn(
@@ -441,6 +439,18 @@ export function IssuancePage() {
         </div>
       )}
     </div>
+  )
+}
+
+function IssuanceStamp({ iso }: { iso: string | null }) {
+  const stamp = formatIssuanceStamp(iso)
+  return (
+    <span className="issuance-col-date">
+      <time dateTime={iso ?? undefined} className="issuance-stamp">
+        <span className="issuance-stamp-date">{stamp.date}</span>
+        {stamp.time ? <span className="issuance-stamp-time">{stamp.time}</span> : null}
+      </time>
+    </span>
   )
 }
 

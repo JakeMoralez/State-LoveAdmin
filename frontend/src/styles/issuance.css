@@ -51,23 +51,35 @@
 }
 
 .issuance-registry.staff-registry {
-  overflow: visible;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .issuance-registry.staff-registry .staff-registry-head,
 .issuance-registry.staff-registry .staff-registry-row {
   display: grid;
   grid-template-columns:
-    minmax(7.25rem, 0.7fr)
-    minmax(7.75rem, 0.7fr)
-    minmax(0, 1.15fr)
-    minmax(0, 0.75fr)
-    minmax(0, 1.2fr)
-    4.5rem
-    minmax(0, 1.1fr)
+    4.85rem
+    minmax(5.5rem, 0.7fr)
+    minmax(7.5rem, 1.15fr)
+    minmax(6.5rem, 0.85fr)
+    minmax(6rem, 1.1fr)
+    2.5rem
+    minmax(7.5rem, 1fr)
     2.25rem;
-  gap: 0.5rem 0.65rem;
+  gap: 0.4rem 0.55rem;
   align-items: center;
+  min-width: 52rem;
+}
+
+.issuance-registry.staff-registry .staff-registry-head > *,
+.issuance-registry.staff-registry .staff-registry-row > * {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.issuance-registry.staff-registry .staff-registry-row > .issuance-col-actions {
+  overflow: visible;
 }
 
 .issuance-registry .staff-registry-head {
@@ -82,7 +94,7 @@
 
 .issuance-registry .staff-registry-head,
 .issuance-registry .staff-registry-body {
-  min-width: 0;
+  min-width: 52rem;
   overflow: visible;
 }
 
@@ -114,10 +126,16 @@
   gap: 0.2rem;
   min-width: 0;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
   color: var(--accent-gold);
   font-weight: 600;
   font-size: 0.8125rem;
+}
+
+.issuance-col-amount > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .issuance-copy-btn {
@@ -146,16 +164,33 @@
 
 .issuance-col-reason,
 .issuance-col-proof,
-.issuance-col-date {
+.issuance-col-date,
+.issuance-col-status,
+.issuance-col-amount,
+.issuance-col-who {
   min-width: 0;
 }
 
 .issuance-col-date {
-  font-variant-numeric: tabular-nums;
-  font-size: 0.75rem;
-  line-height: 1.3;
   color: rgb(255 255 255 / 0.55);
-  white-space: nowrap;
+}
+
+.issuance-stamp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.06rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.issuance-stamp-date {
+  font-size: 0.75rem;
+  color: rgb(255 255 255 / 0.72);
+}
+
+.issuance-stamp-time {
+  font-size: 0.6875rem;
+  color: rgb(255 255 255 / 0.4);
 }
 
 .issuance-registry .staff-registry-head > span:nth-child(1),
@@ -245,6 +280,7 @@
 .issuance-status {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   padding: 0.16rem 0.5rem;
   border: 1px solid rgb(255 255 255 / 0.1);
   border-radius: 999px;
@@ -252,6 +288,7 @@
   color: rgb(255 255 255 / 0.55);
   font-size: 0.6875rem;
   font-weight: 550;
+  line-height: 1.25;
   white-space: nowrap;
 }
 
@@ -340,36 +377,21 @@
     grid-template-columns: 1fr;
   }
 
-  .issuance-registry.staff-registry .staff-registry-head {
-    display: none;
-  }
-
+  .issuance-registry.staff-registry .staff-registry-head,
   .issuance-registry.staff-registry .staff-registry-row {
-    grid-template-columns: 1fr auto;
-    gap: 0.35rem 0.5rem;
+    grid-template-columns:
+      4.85rem
+      minmax(5.5rem, 0.7fr)
+      minmax(7.5rem, 1.15fr)
+      minmax(6.5rem, 0.85fr)
+      minmax(6rem, 1.1fr)
+      2.5rem
+      minmax(7.5rem, 1fr)
+      2.25rem;
+    grid-template-rows: auto;
   }
 
-  .issuance-col-date {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .issuance-col-actions {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: center;
-  }
-
-  .issuance-col-status {
-    grid-column: 1;
-  }
-
-  .issuance-col-person,
-  .issuance-col-amount,
-  .issuance-col-reason,
-  .issuance-col-date,
-  .issuance-col-proof,
-  .issuance-col-who {
-    grid-column: 1;
+  .issuance-registry .staff-registry-head {
+    display: grid;
   }
 }
