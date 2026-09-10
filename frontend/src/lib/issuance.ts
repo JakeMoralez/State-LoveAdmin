@@ -1,4 +1,4 @@
-import type { IssuanceItem, IssuanceKind } from '../api'
+import type { IssuanceItem, IssuanceKind, IssuanceStatus } from '../api'
 
 export const ISSUANCE_CREATE_MIN_LEVEL = 3
 export const ISSUANCE_REVIEW_MIN_LEVEL = 5
@@ -23,4 +23,31 @@ export function issuanceCheckerList(items: Pick<IssuanceItem, 'nickname' | 'amou
     .map((row) => issuanceCheckerLine(row.nickname, row.amount))
     .filter((line) => !line.startsWith(' //'))
     .join('\n')
+}
+
+export function formatIssuanceDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+export function issuanceStatusLabel(status: IssuanceStatus, kind: IssuanceKind): string {
+  if (status === 'issued') return kind === 'az' ? 'Передано ГА/ЗГА' : 'Выдана'
+  if (status === 'rejected') return 'Отклонена'
+  return 'Ожидает'
+}
+
+export function issuanceIssuedByLabel(kind: IssuanceKind): string {
+  return kind === 'az' ? 'Передал' : 'Выдал'
+}
+
+export function issuanceTotalPrefix(kind: IssuanceKind): string {
+  return kind === 'az' ? 'Передано ГА/ЗГА всего' : 'Выдано всего'
 }

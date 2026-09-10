@@ -207,6 +207,8 @@
 .page-skeleton-line {
   height: 0.625rem;
   width: 88%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .page-skeleton-line--wide {
@@ -220,17 +222,18 @@
 
 .page-skeleton-line--title {
   height: 0.875rem;
-  width: min(18rem, 72%);
+  width: 72%;
 }
 
 .page-skeleton-line--meta {
   height: 0.625rem;
-  width: min(10rem, 42%);
+  width: 70%;
 }
 
 .page-skeleton-line--th {
   height: 0.5rem;
-  width: 4rem;
+  width: 70%;
+  max-width: 4rem;
 }
 
 .page-skeleton-line--num {
@@ -401,6 +404,11 @@
   background: var(--card-solid);
 }
 
+.page-skeleton-table-row > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .page-skeleton--registry {
   display: flex;
   flex-direction: column;
@@ -409,7 +417,7 @@
 
 .page-skeleton-registry-head {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(6rem, 0.8fr) minmax(6rem, 0.8fr);
+  grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
   gap: var(--space-3);
   padding: 0.35rem 0.75rem 0.6rem;
   opacity: 0.65;
@@ -417,7 +425,7 @@
 
 .page-skeleton-registry-row {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(6rem, 0.8fr) minmax(6rem, 0.8fr);
+  grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.8fr);
   gap: var(--space-3);
   align-items: center;
   padding: 0.7rem 0.75rem;
@@ -426,11 +434,23 @@
   background: var(--card-solid);
 }
 
+.page-skeleton-registry-head > *,
+.page-skeleton-registry-row > * {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .page-skeleton-nick {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
+  overflow: hidden;
+}
+
+.page-skeleton-nick .page-skeleton-line--title {
+  flex: 1 1 auto;
+  width: auto;
 }
 
 .page-skeleton--form {

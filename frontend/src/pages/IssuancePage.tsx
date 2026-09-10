@@ -10,8 +10,12 @@ import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
 import {
   ISSUANCE_CREATE_MIN_LEVEL,
+  formatIssuanceDateTime,
   issuanceCheckerList,
+  issuanceIssuedByLabel,
   issuanceRawAmount,
+  issuanceStatusLabel,
+  issuanceTotalPrefix,
 } from '../lib/issuance'
 import { cn } from '../lib/utils'
 
@@ -194,7 +198,7 @@ export function IssuancePage() {
         shrink
         subtitle={
           <p className="issuance-total">
-            Выдано всего: <strong>{totalLabel}</strong>
+            {issuanceTotalPrefix(kind)}: <strong>{totalLabel}</strong>
           </p>
         }
         actions={
@@ -291,7 +295,7 @@ export function IssuancePage() {
               </label>
               <label className="staff-profile-field">
                 <span className="staff-profile-label">
-                  За что выдано
+                  {kind === 'az' ? 'За что передано' : 'За что выдано'}
                   <FieldReq />
                 </span>
                 <input
@@ -331,6 +335,7 @@ export function IssuancePage() {
       ) : (
         <div className="staff-registry issuance-registry">
           <div className="staff-registry-head">
+            <span>Дата</span>
             <span>Статус</span>
             <span>Никнейм</span>
             <span>{kind === 'az' ? 'АЗ' : 'Вирты'}</span>
@@ -349,6 +354,9 @@ export function IssuancePage() {
                   row.status === 'issued' && 'issuance-row--issued',
                 )}
               >
+                <span className="issuance-col-date">
+                  <time dateTime={row.created_at ?? undefined}>{formatIssuanceDateTime(row.created_at)}</time>
+                </span>
                 <span className="issuance-col-status">
                   <span
                     className={cn(
@@ -357,11 +365,7 @@ export function IssuancePage() {
                       row.status === 'rejected' && 'issuance-status--rejected',
                     )}
                   >
-                    {row.status === 'issued'
-                      ? 'Выдана'
-                      : row.status === 'rejected'
-                        ? 'Отклонена'
-                        : 'Ожидает'}
+                    {issuanceStatusLabel(row.status, kind)}
                   </span>
                 </span>
                 <span className="issuance-col-person">
@@ -407,7 +411,11 @@ export function IssuancePage() {
                 </span>
                 <span className="issuance-col-who">
                   <WhoLine label="Подал" name={row.created_by_name} vkId={row.created_by_vk_id} />
-                  <WhoLine label="Выдал" name={row.issued_by_name} vkId={row.issued_by_vk_id} />
+                  <WhoLine
+                    label={issuanceIssuedByLabel(kind)}
+                    name={row.issued_by_name}
+                    vkId={row.issued_by_vk_id}
+                  />
                 </span>
                 <span className="issuance-col-actions">
                   <IssuanceRowMenu
@@ -484,8 +492,16 @@ function IssuanceRowMenu({
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const items = [
-    row.permissions.can_issue ? { key: 'issue', label: 'Выдать', onClick: onIssue } : null,
-    row.permissions.can_unissue ? { key: 'unissue', label: 'Снять выдачу', onClick: onUnissue } : null,
+    row.permissions.can_issue
+      ? { key: 'issue', label: row.kind === 'az' ? 'Передать ГА/ЗГА' : 'Выдать', onClick: onIssue }
+      : null,
+    row.permissions.can_unissue
+      ? {
+          key: 'unissue',
+          label: row.kind === 'az' ? 'Снять передачу' : 'Снять выдачу',
+          onClick: onUnissue,
+        }
+      : null,
     row.permissions.can_unreject ? { key: 'unreject', label: 'Снять отклонение', onClick: onUnreject } : null,
     row.permissions.can_edit ? { key: 'edit', label: 'Изменить', onClick: onEdit } : null,
     row.permissions.can_reject ? { key: 'reject', label: 'Отклонить', onClick: onReject, danger: true } : null,

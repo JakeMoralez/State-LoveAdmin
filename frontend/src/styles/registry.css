@@ -96,19 +96,25 @@
 
 .staff-registry-head,
 .staff-registry-row {
-  grid-template-columns: 3rem minmax(18rem, 1.8fr) minmax(11rem, 0.95fr) minmax(12rem, 1fr);
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1.8fr) minmax(0, 0.95fr) minmax(0, 1fr);
   gap: 1rem;
   align-items: center;
 }
 
+.staff-registry-head > *,
+.staff-registry-row > * {
+  min-width: 0;
+}
+
 .leaders-registry-head,
 .leaders-registry-row {
-  grid-template-columns: 3rem minmax(16rem, 1.6fr) minmax(12rem, 1fr);
+  grid-template-columns: 3rem minmax(0, 1.6fr) minmax(0, 1fr);
 }
 
 .leaders-registry--spheres .leaders-registry-head,
 .leaders-registry--spheres .leaders-registry-row {
-  grid-template-columns: 3rem minmax(16rem, 1.4fr) minmax(10rem, 0.85fr) minmax(12rem, 1fr);
+  grid-template-columns: 3rem minmax(0, 1.4fr) minmax(0, 0.85fr) minmax(0, 1fr);
 }
 
 .dev-leadership-head,
@@ -313,7 +319,7 @@
   .staff-registry-head,
   .staff-registry-row {
     display: grid;
-    grid-template-columns: 2.25rem minmax(12rem, 1.7fr) minmax(7rem, 0.9fr) minmax(6.5rem, 0.8fr);
+    grid-template-columns: 2.25rem minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 0.8fr);
     grid-template-rows: auto;
     gap: 0.5rem 0.75rem;
   }
@@ -321,13 +327,13 @@
   .leaders-registry-head,
   .leaders-registry-row {
     display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1.5fr) minmax(8rem, 1fr);
+    grid-template-columns: 2.25rem minmax(0, 1.5fr) minmax(0, 1fr);
     grid-template-rows: auto;
   }
 
   .leaders-registry--spheres .leaders-registry-head,
   .leaders-registry--spheres .leaders-registry-row {
-    grid-template-columns: 2.25rem minmax(0, 1.4fr) minmax(7rem, 0.85fr) minmax(7.5rem, 1fr);
+    grid-template-columns: 2.25rem minmax(0, 1.4fr) minmax(0, 0.85fr) minmax(0, 1fr);
   }
 
   .leaders-registry .staff-registry-head .staff-col-position,
