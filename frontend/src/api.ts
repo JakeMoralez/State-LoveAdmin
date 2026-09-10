@@ -228,6 +228,32 @@ export const api = {
       body: JSON.stringify(data),
     }),
   devSystem: () => request<DevSystemInfo>('/dev/system'),
+  devPortal: () => request<DevPortalInfo>('/dev/portal'),
+  updateDevPortal: (body: DevPortalUpdate) =>
+    request<{ settings: PanelRuntimeSettings }>('/dev/portal', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  devIntegrations: () => request<DevIntegrationsInfo>('/dev/integrations'),
+  devForum: () => request<DevForumStatus>('/dev/forum'),
+  forumReconnect: () =>
+    request<DevForumStatus>('/dev/forum/reconnect', { method: 'POST', body: '{}' }),
+  forumReplaceCookies: (body: { xf_user: string; xf_session: string; xf_tfa_trust?: string }) =>
+    request<DevForumStatus>('/dev/forum/cookies', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  forumSyncJudges: () =>
+    request<{ ok: boolean; message: string }>('/dev/forum/sync-judges', {
+      method: 'POST',
+      body: '{}',
+    }),
+  commandAccess: () => request<CommandAccessResponse>('/dev/command-access'),
+  saveCommandAccess: (updates: { key: string; min_level: number | null }[]) =>
+    request<CommandAccessResponse>('/dev/command-access', {
+      method: 'PUT',
+      body: JSON.stringify({ updates }),
+    }),
   devCatalog: () => request<DevCatalog>('/dev/catalog'),
   saveDevCatalog: (body: DevCatalog) =>
     request<DevCatalog>('/dev/catalog', {
@@ -1155,14 +1181,85 @@ export interface DevCatalog {
   tag_spheres: Record<string, string>
 }
 
+export interface PanelRuntimeSettings {
+  task_reminders_enabled: boolean
+  task_reminder_interval_sec: number
+  dev_error_retention_days: number
+}
+
+export interface DevPortalUpdate {
+  task_reminders_enabled?: boolean
+  task_reminder_interval_sec?: number
+  dev_error_retention_days?: number
+}
+
+export interface DevPortalInfo {
+  server_id: number
+  bot_db: string
+  bot_db_exists: boolean | null
+  panel_db: string
+  staff_count: number
+  dev_mode: boolean
+  session_ttl_hours: number
+  settings: PanelRuntimeSettings
+}
+
+export interface DevForumStatus {
+  configured: boolean
+  connected: boolean
+  logged_in: boolean
+  username?: string | null
+  error?: string | null
+  ok?: boolean
+  cookies?: {
+    env_xf_user?: boolean
+    env_xf_session?: boolean
+    env_xf_tfa_trust?: boolean
+    file_present?: boolean
+  }
+}
+
+export interface DevIntegrationsInfo {
+  bot_ok: boolean
+  bot_error?: string | null
+  sled_url: string
+  sled_secret_configured: boolean
+  discord_configured: boolean
+  vk_service_configured: boolean
+  forum: DevForumStatus | null
+  forum_error?: string | null
+}
+
+export interface CommandAccessItem {
+  key: string
+  label: string
+  category: string
+  default_min_level: number
+  overridable: boolean
+  min_level: number
+  is_override: boolean
+}
+
+export interface CommandAccessResponse {
+  server_id: number
+  items: CommandAccessItem[]
+}
+
 export interface DevSystemInfo {
   server_id: number
   bot_db: string
   bot_db_exists: boolean | null
+  panel_db?: string
   staff_count: number
   sled_url: string
   bot_ok: boolean
   bot_error?: string | null
+  dev_mode?: boolean
+  session_ttl_hours?: number
+  discord_configured?: boolean
+  vk_service_configured?: boolean
+  sled_secret_configured?: boolean
+  settings?: PanelRuntimeSettings
 }
 
 export interface DevChatKind {

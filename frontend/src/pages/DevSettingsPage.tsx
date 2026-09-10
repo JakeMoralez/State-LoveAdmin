@@ -11,14 +11,20 @@ import {
   Shield,
   Trash2,
 } from 'lucide-react'
-import { ApiError, api, type DevCatalog, type DevChat, type DevChatKind, type DevSystemInfo } from '../api'
+import { ApiError, api, type DevCatalog, type DevChat, type DevChatKind } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { Alert } from '../components/ui/Alert'
 import { Select } from '../components/ui/Select'
+import {
+  CommandsSettingsTab,
+  ForumSettingsTab,
+  IntegrationsSettingsTab,
+  NotificationsSettingsTab,
+  PortalSettingsTab,
+} from '../components/dev/DevSettingsExtraTabs'
 import { useAuth } from '../context/AuthContext'
 import { DEFAULT_TAG_SPHERES } from '../lib/leaderNickname'
 import { SPHERE_OPTIONS } from '../lib/spheres'
-import { cn } from '../lib/utils'
 import { PageSkeleton } from '../components/ui/LoadingState'
 
 const SPHERE_SELECT_OPTIONS = SPHERE_OPTIONS.filter((s) => s.value !== 'server').map((s) => ({
@@ -26,12 +32,25 @@ const SPHERE_SELECT_OPTIONS = SPHERE_OPTIONS.filter((s) => s.value !== 'server')
   label: s.label,
 }))
 
-type SettingsTab = 'chats' | 'catalog' | 'system'
+type SettingsTab =
+  | 'chats'
+  | 'catalog'
+  | 'forum'
+  | 'integrations'
+  | 'portal'
+  | 'notifications'
+  | 'commands'
+  | 'system'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'chats', label: 'Беседы' },
   { id: 'catalog', label: 'Справочники' },
-  { id: 'system', label: 'Система' },
+  { id: 'forum', label: 'Форум' },
+  { id: 'integrations', label: 'Интеграции' },
+  { id: 'portal', label: 'Портал' },
+  { id: 'notifications', label: 'Уведомления' },
+  { id: 'commands', label: 'Права команд' },
+  { id: 'system', label: 'Ссылки' },
 ]
 
 const LEAVE_MODES = [
@@ -472,7 +491,6 @@ export function DevSettingsPage() {
   const [kinds, setKinds] = useState<DevChatKind[]>([])
   const [openPeer, setOpenPeer] = useState<number | null>(null)
   const [catalog, setCatalog] = useState<DevCatalog | null>(null)
-  const [system, setSystem] = useState<DevSystemInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -488,7 +506,7 @@ export function DevSettingsPage() {
     setLoading(true)
     setError(null)
     try {
-      const [catalogData, systemData] = await Promise.all([api.devCatalog(), api.devSystem()])
+      const catalogData = await api.devCatalog()
       setCatalog({
         ...catalogData,
         tag_spheres: Object.fromEntries(
@@ -497,7 +515,6 @@ export function DevSettingsPage() {
           ),
         ),
       })
-      setSystem(systemData)
       try {
         await loadChats()
       } catch (e) {
@@ -531,7 +548,7 @@ export function DevSettingsPage() {
         section="Разработка"
         title="Настройки"
         icon={Settings}
-        subtitle="Беседы, справочники назначения и статус системы"
+        subtitle="Беседы, форум, интеграции, права команд и runtime-настройки"
         shrink
         actions={
           <button type="button" className="btn btn-secondary btn-sm" onClick={() => void load()} disabled={loading}>
@@ -674,39 +691,14 @@ export function DevSettingsPage() {
         </div>
       )}
 
-      {tab === 'system' && system && (
+      {tab === 'forum' ? <ForumSettingsTab /> : null}
+      {tab === 'integrations' ? <IntegrationsSettingsTab /> : null}
+      {tab === 'portal' ? <PortalSettingsTab /> : null}
+      {tab === 'notifications' ? <NotificationsSettingsTab /> : null}
+      {tab === 'commands' ? <CommandsSettingsTab /> : null}
+
+      {tab === 'system' && (
         <div className="dev-settings-system">
-          <section className="glass-card dev-settings-block">
-            <h3 className="dev-settings-block-title">Портал</h3>
-            <dl className="dev-settings-dl">
-              <div>
-                <dt>Сервер</dt>
-                <dd>{system.server_id}</dd>
-              </div>
-              <div>
-                <dt>База бота</dt>
-                <dd>
-                  {system.bot_db}
-                  {system.bot_db_exists === false ? ' · файл не найден' : ''}
-                </dd>
-              </div>
-              <div>
-                <dt>В штате</dt>
-                <dd>{system.staff_count < 0 ? 'не удалось посчитать' : system.staff_count}</dd>
-              </div>
-              <div>
-                <dt>Бот</dt>
-                <dd>
-                  <span className={cn('dev-settings-dot', system.bot_ok && 'dev-settings-dot--ok')} />
-                  {system.bot_ok ? 'на связи' : system.bot_error || 'недоступен'}
-                </dd>
-              </div>
-              <div>
-                <dt>Internal URL</dt>
-                <dd>{system.sled_url}</dd>
-              </div>
-            </dl>
-          </section>
           <section className="glass-card dev-settings-block">
             <h3 className="dev-settings-block-title">Другие экраны</h3>
             <div className="dev-settings-links">

@@ -83,7 +83,7 @@ State-LoveAdmin/
 `Project`/`ProjectMember`, `Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`,
 чек-лист (`Checklist*`), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`),
 академия (`AcademyCadet`, `AcademyEvent`, `AcademyWarning`, `AcademyAssignment*`,
-`AcademyReport`, `AcademySession`, `AcademyAttendance`).
+`AcademyReport`, `AcademySession`, `AcademyAttendance`), `PanelSettings`.
 
 ## 5. Backend: роутеры → сервисы
 
@@ -197,6 +197,10 @@ npm run dev                                          # http://localhost:5173 (pr
 - **Аудит:** значимые действия писать в `PanelAuditLog` (`services/audit.py`).
 - Интеграция с ботом — только через `services/sled_client.py` + роутер `internal`
   (секрет `SLED_BOT_SECRET`, адрес `SLED_INTERNAL_URL`).
+- **Настройки (`/dev/settings`):** вкладки Беседы · Справочники · **Форум** ·
+  Интеграции · Портал · Уведомления · Права команд · Ссылки. Runtime-ключи —
+  `PanelSettings` (`panel.db`); сессия форума и overrides команд — через LoveBot
+  `/internal/forum/*` и `/internal/command-access` (секреты только маска/флаг).
 - **Arizona Leaders:** cookies живут в LoveBot (`arz_lead_cookies.json` / `ARZ_LEAD_COOKIE`),
   не в `panel.db`. Панель ходит на `/internal/arz-lead/*` и пишет снимок в `StaffNote`
   (`leader_appointed_at`, `leader_term_days`, `leader_vk`, `leader_discord`, `arz_lead_id`).
@@ -214,4 +218,5 @@ npm run dev                                          # http://localhost:5173 (pr
 | Академию следящих | `services/academy.py`, `routers/academy.py`, `/academy`, LoveBot `/academy` |
 | Деплой/прод | `deploy/` (`README.md`, nginx, systemd, Docker) |
 | Решения по ТЗ | `docs/decisions.md` |
-| Сессия / синк Arizona Leaders | LoveBot `services/arz_lead_client.py`, панель `services/arz_lead.py`, Dev Settings вкладка «Arizona» |
+| Dev Settings / форум / права команд | `pages/DevSettingsPage.tsx`, `routers/dev.py`, LoveBot `command_catalog.py` + `sled_internal_api.py` |
+| Сессия / синк Arizona Leaders | LoveBot `services/arz_lead_client.py`, панель `services/arz_lead.py` |

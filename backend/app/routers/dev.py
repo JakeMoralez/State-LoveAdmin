@@ -10,7 +10,14 @@ from pydantic import BaseModel, Field
 from app.config import (
     BOT_DATABASE_URL,
     DEFAULT_SERVER_ID,
+    DEV_MODE,
+    DISCORD_CLIENT_ID,
+    DISCORD_CLIENT_SECRET,
+    PANEL_DATABASE_URL,
+    SESSION_TTL_HOURS,
+    SLED_BOT_SECRET,
     SLED_INTERNAL_URL,
+    VK_SERVICE_TOKEN,
     is_postgres_url,
     is_sqlite_url,
     sqlite_file_path,
@@ -22,7 +29,18 @@ from app.services.dev_access import can_view_dev_panel
 from app.services.dev_catalog import get_catalog, save_catalog
 from app.services.display_names import resolve_display_names, resolve_vk_photos
 from app.services.error_log import record_error
-from app.services.sled_client import fetch_dev_chats, patch_dev_chat, ping_bot
+from app.services.panel_settings import list_settings, set_settings
+from app.services.sled_client import (
+    fetch_command_access,
+    fetch_dev_chats,
+    forum_reconnect,
+    forum_replace_cookies,
+    forum_status,
+    forum_sync_judges,
+    patch_dev_chat,
+    ping_bot,
+    save_command_access as sled_save_command_access,
+)
 from app.services.staff import (
     list_leadership_candidates,
     list_staff,
@@ -222,20 +240,170 @@ async def get_dev_system(_user: dict = Depends(require_dev_user)):
     elif is_postgres_url(BOT_DATABASE_URL):
         bot_db_label = "postgresql"
         bot_db_exists = True
+    panel_db_label = PANEL_DATABASE_URL
+    if is_sqlite_url(PANEL_DATABASE_URL):
+        panel_db_label = sqlite_file_path(PANEL_DATABASE_URL) or PANEL_DATABASE_URL
+    elif is_postgres_url(PANEL_DATABASE_URL):
+        panel_db_label = "postgresql"
     try:
         staff_count = len(await list_staff(DEFAULT_SERVER_ID))
     except Exception:
         staff_count = -1
     bot_ok, bot_error = await ping_bot()
+    settings = await list_settings()
     return {
         "server_id": DEFAULT_SERVER_ID,
         "bot_db": bot_db_label,
         "bot_db_exists": bot_db_exists,
+        "panel_db": panel_db_label,
         "staff_count": staff_count,
         "sled_url": SLED_INTERNAL_URL,
         "bot_ok": bot_ok,
         "bot_error": bot_error,
+        "dev_mode": DEV_MODE,
+        "session_ttl_hours": SESSION_TTL_HOURS,
+        "discord_configured": bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET),
+        "vk_service_configured": bool(VK_SERVICE_TOKEN),
+        "sled_secret_configured": bool(SLED_BOT_SECRET),
+        "settings": settings,
     }
+
+
+class PortalSettingsUpdate(BaseModel):
+    task_reminders_enabled: bool | None = None
+    task_reminder_interval_sec: int | None = None
+    dev_error_retention_days: int | None = None
+
+
+@router.get("/portal")
+async def get_dev_portal(_user: dict = Depends(require_dev_user)):
+    data = await get_dev_system(_user)
+    return {
+        "server_id": data["server_id"],
+        "bot_db": data["bot_db"],
+        "bot_db_exists": data["bot_db_exists"],
+        "panel_db": data["panel_db"],
+        "staff_count": data["staff_count"],
+        "dev_mode": data["dev_mode"],
+        "session_ttl_hours": data["session_ttl_hours"],
+        "settings": data["settings"],
+    }
+
+
+@router.patch("/portal")
+async def patch_dev_portal(body: PortalSettingsUpdate, user: dict = Depends(require_dev_user)):
+    payload = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not payload:
+        raise HTTPException(status_code=400, detail="Нет полей для обновления")
+    try:
+        saved = await set_settings(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await log_audit(user["vk_id"], "dev_portal_settings", "settings", "portal", payload)
+    return {"settings": saved}
+
+
+@router.get("/integrations")
+async def get_dev_integrations(_user: dict = Depends(require_dev_user)):
+    bot_ok, bot_error = await ping_bot()
+    forum, forum_error = await forum_status()
+    return {
+        "bot_ok": bot_ok,
+        "bot_error": bot_error,
+        "sled_url": SLED_INTERNAL_URL,
+        "sled_secret_configured": bool(SLED_BOT_SECRET),
+        "discord_configured": bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET),
+        "vk_service_configured": bool(VK_SERVICE_TOKEN),
+        "forum": forum,
+        "forum_error": forum_error,
+    }
+
+
+@router.get("/forum")
+async def get_dev_forum(_user: dict = Depends(require_dev_user)):
+    data, error = await forum_status()
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    return data
+
+
+@router.post("/forum/reconnect")
+async def post_dev_forum_reconnect(user: dict = Depends(require_dev_user)):
+    data, error = await forum_reconnect()
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    await log_audit(user["vk_id"], "dev_forum_reconnect", "forum", "session", {"ok": data.get("ok")})
+    return data
+
+
+class ForumCookiesIn(BaseModel):
+    xf_user: str = ""
+    xf_session: str = ""
+    xf_tfa_trust: str = ""
+
+
+@router.post("/forum/cookies")
+async def post_dev_forum_cookies(body: ForumCookiesIn, user: dict = Depends(require_dev_user)):
+    payload = {k: v.strip() for k, v in body.model_dump().items() if v and str(v).strip()}
+    if not payload.get("xf_user") or not payload.get("xf_session"):
+        raise HTTPException(status_code=400, detail="Нужны xf_user и xf_session")
+    data, error = await forum_replace_cookies(payload)
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    await log_audit(
+        user["vk_id"],
+        "dev_forum_cookies",
+        "forum",
+        "cookies",
+        {"keys": list(payload.keys()), "ok": data.get("ok")},
+    )
+    return data
+
+
+@router.post("/forum/sync-judges")
+async def post_dev_forum_sync_judges(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_dev_user),
+):
+    data, error = await forum_sync_judges(server_id)
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    await log_audit(user["vk_id"], "dev_forum_sync_judges", "forum", server_id, data)
+    return data
+
+
+@router.get("/command-access")
+async def get_dev_command_access(
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    _user: dict = Depends(require_dev_user),
+):
+    data, error = await fetch_command_access(server_id)
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    return data
+
+
+class CommandAccessUpdate(BaseModel):
+    updates: list[dict]
+
+
+@router.put("/command-access")
+async def put_dev_command_access(
+    body: CommandAccessUpdate,
+    server_id: int = Query(DEFAULT_SERVER_ID),
+    user: dict = Depends(require_dev_user),
+):
+    data, error = await sled_save_command_access(server_id, body.updates)
+    if error:
+        raise HTTPException(status_code=502, detail=error)
+    await log_audit(
+        user["vk_id"],
+        "dev_command_access",
+        "commands",
+        server_id,
+        {"count": len(body.updates)},
+    )
+    return data
 
 
 @router.get("/catalog")

@@ -185,11 +185,9 @@ export function isLegacyStaffTag(tag: string): boolean {
   return false
 }
 
-/** Тег разработчика из сохранённого ника (без legacy «ЗГС МО»). */
+/** Тег разработчика из сохранённого ника. */
 export function developerTagFromNickname(raw: string | null | undefined): string {
-  const tag = extractNicknameTag(raw)
-  if (isLegacyStaffTag(tag)) return ''
-  return tag
+  return extractNicknameTag(raw)
 }
 
 export function validateDeveloperTagInput(tag: string): string | null {
@@ -199,6 +197,5 @@ export function validateDeveloperTagInput(tag: string): string | null {
   if (!t) return null
   if (t.length > 24) return 'Тег: до 24 символов'
   if (/[\[\]［］]/.test(t)) return 'Тег без скобок'
-  if (isLegacyStaffTag(t)) return 'Это тег уровня/сферы, не кастомный тег разработчика'
   return null
 }

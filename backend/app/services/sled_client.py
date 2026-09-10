@@ -135,3 +135,72 @@ async def patch_dev_chat(peer_id: int, body: dict) -> tuple[dict | None, str | N
     except Exception as exc:
         logger.warning("patch_dev_chat peer=%s: %s", peer_id, exc)
         return None, "Не удалось связаться с ботом (SLED_INTERNAL_URL)."
+
+
+async def _bot_request(
+    method: str,
+    path: str,
+    *,
+    params: dict | None = None,
+    json_body: dict | None = None,
+    timeout: float = 30.0,
+) -> tuple[dict | None, str | None]:
+    if not SLED_BOT_SECRET:
+        return None, "SLED_BOT_SECRET не настроен."
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.request(
+                method,
+                f"{SLED_INTERNAL_URL.rstrip('/')}{path}",
+                params=params,
+                json=json_body,
+                headers={"X-Sled-Secret": SLED_BOT_SECRET},
+            )
+            if resp.status_code >= 400:
+                return None, _bot_error(resp, "Ошибка бота")
+            data = resp.json()
+            if not isinstance(data, dict):
+                return None, "Бот вернул некорректный ответ."
+            return data, None
+    except Exception as exc:
+        logger.warning("bot_request %s %s: %s", method, path, exc)
+        return None, "Не удалось связаться с ботом (SLED_INTERNAL_URL)."
+
+
+async def forum_status() -> tuple[dict | None, str | None]:
+    return await _bot_request("GET", "/internal/forum/status", timeout=20.0)
+
+
+async def forum_reconnect() -> tuple[dict | None, str | None]:
+    return await _bot_request("POST", "/internal/forum/reconnect", timeout=45.0)
+
+
+async def forum_replace_cookies(cookies: dict) -> tuple[dict | None, str | None]:
+    return await _bot_request("POST", "/internal/forum/cookies", json_body=cookies, timeout=45.0)
+
+
+async def forum_sync_judges(server_id: int) -> tuple[dict | None, str | None]:
+    return await _bot_request(
+        "POST",
+        "/internal/forum/sync-judges",
+        params={"server_id": server_id},
+        timeout=90.0,
+    )
+
+
+async def fetch_command_access(server_id: int) -> tuple[dict | None, str | None]:
+    return await _bot_request(
+        "GET",
+        "/internal/command-access",
+        params={"server_id": server_id},
+        timeout=20.0,
+    )
+
+
+async def save_command_access(server_id: int, updates: list) -> tuple[dict | None, str | None]:
+    return await _bot_request(
+        "PUT",
+        "/internal/command-access",
+        json_body={"server_id": server_id, "updates": updates},
+        timeout=30.0,
+    )

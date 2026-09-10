@@ -21,7 +21,6 @@ from app.config import (
     DEFAULT_SERVER_ID,
     PANEL_BASE_URL,
     PANEL_DATABASE_URL,
-    TASK_REMINDER_INTERVAL_SEC,
     TORTOISE_ORM,
     UPLOAD_DIR,
     is_postgres_url,
@@ -53,6 +52,7 @@ from app.services.bootstrap import ensure_defaults
 from app.services.task_helpers import migrate_legacy_task_statuses
 from app.services.error_log import record_server_exception
 from app.services import messages
+from app.services.panel_settings import get_task_reminder_interval_sec, get_task_reminders_enabled
 from app.services.staff import list_staff
 from app.services.task_notifications import run_task_reminders
 
@@ -63,10 +63,15 @@ async def _task_reminder_loop() -> None:
     await asyncio.sleep(30)
     while True:
         try:
-            await run_task_reminders()
+            if await get_task_reminders_enabled():
+                await run_task_reminders()
         except Exception as exc:
             logger.warning("task reminder loop: %s", exc)
-        await asyncio.sleep(max(300, TASK_REMINDER_INTERVAL_SEC))
+        try:
+            interval = await get_task_reminder_interval_sec()
+        except Exception:
+            interval = 3600
+        await asyncio.sleep(max(300, interval))
 
 
 @asynccontextmanager

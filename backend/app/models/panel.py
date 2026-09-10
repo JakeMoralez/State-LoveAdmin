@@ -356,6 +356,17 @@ class PanelCatalog(Model):
         table = "panel_catalog"
 
 
+class PanelSettings(Model):
+    """Key-value runtime settings for the panel (reminders, retention, …)."""
+
+    key = fields.CharField(max_length=64, pk=True)
+    value = fields.JSONField()
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "panel_settings"
+
+
 class AcademyCadet(Model):
     id = fields.IntField(pk=True)
     vk_id = fields.BigIntField(index=True)

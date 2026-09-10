@@ -8,7 +8,6 @@ import {
   developerTagFromNickname,
   extractNicknameTag,
   isDeveloperLevel,
-  isLegacyStaffTag,
   previewStaffNickname,
   stripStaffNicknameTags,
   validateDeveloperTagInput,
@@ -164,9 +163,6 @@ export function StaffProfileModal({
     if (!usesSphereRoles(parsedLevel)) {
       setIsSenior(false)
       setSeniorSpheres([])
-    }
-    if (isDeveloperLevel(parsedLevel)) {
-      setNicknameTag((tag) => (isLegacyStaffTag(tag) ? '' : tag))
     }
   }, [parsedLevel, canEditAccessLevel])
 

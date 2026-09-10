@@ -17,10 +17,16 @@ def _clip(text: str | None, limit: int) -> str:
 
 
 async def prune_error_log() -> None:
+    from app.services.panel_settings import get_dev_error_retention
+
+    try:
+        retention = await get_dev_error_retention()
+    except Exception:
+        retention = DEV_ERROR_RETENTION
     total = await DevErrorLog.all().count()
-    if total <= DEV_ERROR_RETENTION:
+    if total <= retention:
         return
-    excess = total - DEV_ERROR_RETENTION
+    excess = total - retention
     ids = await DevErrorLog.all().order_by("created_at").limit(excess).values_list("id", flat=True)
     if ids:
         await DevErrorLog.filter(id__in=list(ids)).delete()
