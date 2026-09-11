@@ -102,11 +102,11 @@ async def _dev_login_response(
         )
 
     if access_level < AccessLevel.PGS:
-        raise HTTPException(status_code=400, detail="Для теста нужен уровень ПГС (1) или выше")
+        raise HTTPException(status_code=400, detail="Для теста нужен уровень ПС (1) или выше")
 
     if not DEV_SKIP_CA and DEV_VK_ID and uid == DEV_VK_ID:
         if not await can_use_portal(uid):
-            raise HTTPException(status_code=403, detail="DEV_VK_ID без уровня ПГС+")
+            raise HTTPException(status_code=403, detail="DEV_VK_ID без уровня ПС+")
 
     dev_spheres = _normalize_dev_spheres(spheres, access_level=access_level)
 
@@ -272,7 +272,7 @@ async def vk_callback(code: str | None = None, state: str | None = None):
     if not await can_use_portal(vk_id):
         raise HTTPException(
             status_code=403,
-            detail="Нужен уровень ПГС (1) или выше для входа на портал",
+            detail="Нужен уровень ПС (1) или выше для входа на портал",
         )
 
     response = RedirectResponse(f"{PANEL_BASE_URL}/dashboard")

@@ -603,7 +603,7 @@ function EnrollModal({
               value={vkId}
               onChange={setVkId}
               options={[
-                { value: '', label: candidates.length ? 'Выберите следящего' : 'Нет кандидатов ПГС / Следящий' },
+                { value: '', label: candidates.length ? 'Выберите следящего' : 'Нет кандидатов ПС / Следящий' },
                 ...candidates.map((m) => ({ value: String(m.vk_id), label: staffLabel(m) })),
               ]}
             />

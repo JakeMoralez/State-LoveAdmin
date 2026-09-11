@@ -2,7 +2,7 @@ import type { SelectOption } from '../components/ui/Select'
 
 /** Краткие названия — канон: backend/app/domain/access_levels.py (SHORT_NAMES). */
 export const ACCESS_LEVEL_SHORT: Record<number, string> = {
-  1: 'ПГС',
+  1: 'ПС',
   2: 'Следящий',
   3: 'ЗГС',
   4: 'ГС',

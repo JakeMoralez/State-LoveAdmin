@@ -13,7 +13,7 @@ import { Alert } from '../components/ui/Alert'
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
     'Этот Discord не привязан к аккаунту. Укажите ID в боте: /editmydiscord или попросите руководство назначить вас на сайте.',
-  no_access: 'У аккаунта нет доступа к порталу (нужен уровень ПГС+).',
+  no_access: 'У аккаунта нет доступа к порталу (нужен уровень ПС+).',
   oauth: 'Не удалось войти через Discord. Попробуйте ещё раз.',
   invalid_token: 'Ссылка недействительна. Запросите новую: /panel в ЛС бота.',
   expired: 'Ссылка истекла (5 минут). Напишите боту /panel ещё раз.',

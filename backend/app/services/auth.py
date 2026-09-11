@@ -94,7 +94,7 @@ async def require_ca_user(request: Request) -> dict:
 
     if "dev_level" in payload and DEV_MODE:
         if not _dev_persona_allowed(payload):
-            raise HTTPException(status_code=403, detail="Dev-персона: нужен уровень ПГС+")
+            raise HTTPException(status_code=403, detail="Dev-персона: нужен уровень ПС+")
         raw_spheres = payload.get("dev_spheres")
         dev_spheres = [str(s) for s in raw_spheres] if isinstance(raw_spheres, list) else None
         return await get_user_profile(
@@ -108,6 +108,6 @@ async def require_ca_user(request: Request) -> dict:
     if not dev_bypass and not await can_use_portal(vk_id):
         raise HTTPException(
             status_code=403,
-            detail="Нужен уровень ПГС (1) или выше для входа на портал",
+            detail="Нужен уровень ПС (1) или выше для входа на портал",
         )
     return await get_user_profile(vk_id)

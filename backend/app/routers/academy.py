@@ -41,7 +41,7 @@ ACADEMY_MATERIAL_EXTS = {
 
 def _require_academy(user: dict) -> dict:
     if int(user.get("access_level") or 0) < AccessLevel.PGS:
-        raise HTTPException(status_code=403, detail="Академия доступна со уровня ПГС")
+        raise HTTPException(status_code=403, detail="Академия доступна со уровня ПС")
     return user
 
 

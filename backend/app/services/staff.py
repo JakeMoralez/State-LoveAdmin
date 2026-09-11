@@ -191,7 +191,7 @@ def ca_source(access: UserServerAccess | None) -> str | None:
 
 
 async def reconcile_supervisor_leader_flags(server_id: int) -> int:
-    """Снять is_leader у следящих (ПГС+): лидерский флаг только для реестра руководства без уровня."""
+    """Снять is_leader у следящих (ПС+): лидерский флаг только для реестра руководства без уровня."""
     cleared = await UserServerAccess.filter(
         server_id=server_id,
         is_leader=True,
@@ -373,7 +373,7 @@ async def count_staff(server_id: int) -> int:
 
 
 async def list_former_staff(server_id: int) -> list[dict]:
-    """Бывшие следящие: уровень ниже ПГС, ник сохранён. Discord отфильтровывает роутер."""
+    """Бывшие следящие: уровень ниже ПС, ник сохранён. Discord отфильтровывает роутер."""
     rows = await UserServerAccess.filter(
         server_id=server_id,
         access_level__lt=AccessLevel.PGS,
@@ -1296,7 +1296,7 @@ async def assign_staff_member(
     senior_spheres: list[str] | None = None,
 ) -> dict:
     if access_level < AccessLevel.PGS:
-        raise ValueError("Уровень доступа должен быть не ниже ПГС (1)")
+        raise ValueError("Уровень доступа должен быть не ниже ПС (1)")
 
     user, _ = await ensure_bot_user(vk_id, username=str(vk_id))
 

@@ -26,13 +26,13 @@ async def has_ca_access(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
 
 
 async def can_use_portal(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
-    """Вход на портал: уровень ПГС (1) и выше."""
+    """Вход на портал: уровень ПС (1) и выше."""
     level = await get_access_level(vk_id, server_id)
     return level >= AccessLevel.PGS
 
 
 async def can_use_ca_scope(vk_id: int, server_id: int = DEFAULT_SERVER_ID) -> bool:
-    """Алиас для совместимости — портал доступен с ПГС+."""
+    """Алиас для совместимости — портал доступен с ПС+."""
     return await can_use_portal(vk_id, server_id)
 
 

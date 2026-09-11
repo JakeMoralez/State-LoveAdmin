@@ -140,7 +140,7 @@ async def serve_uploaded_file(
     file_path: str,
     user: dict = Depends(require_ca_user),
 ):
-    """Скрины/галереи — только с сессией портала (уровень ПГС+)."""
+    """Скрины/галереи — только с сессией портала (уровень ПС+)."""
     del user
     path = _resolve_upload_path(file_path)
     media_type, _ = mimetypes.guess_type(str(path))

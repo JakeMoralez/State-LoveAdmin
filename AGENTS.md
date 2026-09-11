@@ -133,7 +133,7 @@ State-LoveAdmin/
 зеркало бота `database/access_levels.py`; FE `frontend/src/lib/accessLevels.ts` —
 держать синхронными, проверка `backend/scripts/check_access_levels_parity.py`):
 
-`1 ПГС · 2 Следящий · 3 ЗГС · 4 ГС · 5 Следящий структуры · 6 ЗГС ГОС ·
+`1 ПС · 2 Следящий · 3 ЗГС · 4 ГС · 5 Следящий структуры · 6 ЗГС ГОС ·
 7 ГС ГОС · 8 Куратор · 9 ЗГА · 10 ГА · 11 Разработчик`
 
 - Вход на портал: уровень **≥ 1** (`access.can_use_portal`).
