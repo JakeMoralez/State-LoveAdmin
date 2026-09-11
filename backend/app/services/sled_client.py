@@ -219,3 +219,13 @@ async def save_command_access(server_id: int, updates: list) -> tuple[dict | Non
         json_body={"server_id": server_id, "updates": updates},
         timeout=30.0,
     )
+
+
+async def notify_issuance_created(payload: dict) -> tuple[dict | None, str | None]:
+    """Новая заявка на выдачу → беседа «Управляющие»."""
+    return await _bot_request(
+        "POST",
+        "/internal/issuance-notify",
+        json_body=payload,
+        timeout=20.0,
+    )

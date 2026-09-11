@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timezone
 
@@ -12,6 +13,9 @@ from app.models.panel import IssuanceRequest
 from app.services import messages
 from app.services.audit import log_audit
 from app.services.display_names import resolve_display_names
+from app.services.sled_client import notify_issuance_created
+
+logger = logging.getLogger(__name__)
 
 CREATE_MIN_LEVEL = AccessLevel.ZGS
 REVIEW_MIN_LEVEL = AccessLevel.STRUCTURE_SUPERVISOR
@@ -227,7 +231,36 @@ async def create_request(
         created_by_vk_id=int(user["vk_id"]),
     )
     await log_audit(user["vk_id"], "issuance_created", "issuance_request", row.id, _audit_detail(row))
-    return await _serialize(row, user)
+    serialized = await _serialize(row, user)
+    await _notify_managers(row, user)
+    return serialized
+
+
+async def _notify_managers(row: IssuanceRequest, user: dict) -> None:
+    """Тихий notify в беседу «Управляющие» — ошибка бота не ломает создание заявки."""
+    try:
+        names = await resolve_display_names([int(user["vk_id"])])
+        created_by_name = names.get(int(user["vk_id"])) or f"id{user['vk_id']}"
+        payload = {
+            "server_id": int(row.server_id),
+            "request_id": int(row.id),
+            "kind": row.kind,
+            "nickname": row.nickname,
+            "amount": int(row.amount),
+            "amount_label": format_amount(int(row.amount), row.kind),
+            "role_title": row.role_title,
+            "reason": row.reason,
+            "proof_url": row.proof_url or "",
+            "created_by_vk_id": int(user["vk_id"]),
+            "created_by_name": created_by_name,
+        }
+        data, err = await notify_issuance_created(payload)
+        if err:
+            logger.warning("issuance managers notify failed id=%s: %s", row.id, err)
+        elif data is not None and not data.get("ok", True):
+            logger.warning("issuance managers notify rejected id=%s: %s", row.id, data)
+    except Exception as exc:
+        logger.warning("issuance managers notify error id=%s: %s", row.id, exc)
 
 
 async def _get(request_id: int) -> IssuanceRequest:
