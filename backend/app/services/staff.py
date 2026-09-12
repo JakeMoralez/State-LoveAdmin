@@ -1302,10 +1302,15 @@ async def assign_staff_member(
 
     access, _ = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     appointed = granted_at or datetime.now(UTC)
+    # Инвайт в судейскую/лидерскую мог выставить флаги без реестра следящих —
+    # иначе get_staff_member вернёт None и /reg «сломается» после успешной записи.
     assign_fields: dict = {
         "access_level": access_level,
         "granted_by": granted_by,
         "granted_at": appointed,
+        "is_judge": False,
+        "is_leader": False,
+        "is_congress_speaker": False,
     }
     if has_usa_senior_columns():
         assign_fields["is_senior"] = bool(is_senior)
@@ -1316,7 +1321,6 @@ async def assign_staff_member(
 
     normalized_spheres = validate_spheres(spheres, access_level)
     dev_tag = normalize_custom_tag(nickname_tag) if access_level >= AccessLevel.DEVELOPER else None
-    # refresh access object to include any new senior fields if present
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     formatted_nick = format_staff_nickname(
         nickname,
@@ -1330,9 +1334,17 @@ async def assign_staff_member(
     await _persist_staff_spheres(vk_id, server_id, normalized_spheres, granted_by=granted_by)
 
     row = await get_staff_member(server_id, vk_id)
-    if not row:
-        raise ValueError("Не удалось назначить следящего")
-    return row
+    if row:
+        return row
+    if access and access.access_level >= AccessLevel.PGS:
+        return {
+            "vk_id": vk_id,
+            "nickname": formatted_nick,
+            "bot_nickname": formatted_nick,
+            "access_level": access_level,
+            "spheres": list(normalized_spheres),
+        }
+    raise ValueError("Не удалось назначить следящего")
 
 
 async def update_staff_member(

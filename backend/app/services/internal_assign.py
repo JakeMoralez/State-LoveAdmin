@@ -39,10 +39,15 @@ async def assign_staff_from_bot(
     target_access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
     target_level = target_access.access_level if target_access else 0
     if target_level > 0:
-        raise ValueError(
-            "У пользователя уже есть доступ следящего. "
-            "Измените уровень через /setlevel или профиль на сайте."
-        )
+        from app.services.staff import get_staff_member
+
+        # Уже в реестре следящих — отказ. Если уровень есть, но карточки нет
+        # (часто из‑за is_judge/is_leader после инвайта в беседу) — доназначаем.
+        if await get_staff_member(server_id, vk_id):
+            raise ValueError(
+                "У пользователя уже есть доступ следящего. "
+                "Измените уровень через /setlevel или профиль на сайте."
+            )
 
     perms = staff_edit_permissions(
         actor_vk_id=actor_vk_id,
