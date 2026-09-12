@@ -1,10 +1,12 @@
 import { Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { ChevronDown, Filter, LayoutGrid, List, RotateCcw } from 'lucide-react'
+import { ChevronDown, Filter, LayoutGrid, List, Repeat, RotateCcw } from 'lucide-react'
 import { PRIORITY_LABELS, type Project, type StaffMember } from '../../api'
 import { staffLabel } from '../../lib/staff'
 import { cn } from '../../lib/utils'
 import { Select } from '../ui/Select'
+
+export type TaskViewMode = 'kanban' | 'list' | 'repeats'
 
 export interface TaskFilters {
   mine: boolean
@@ -12,7 +14,7 @@ export interface TaskFilters {
   assigneeVkId: string
   priority: string
   projectId: string
-  view: 'kanban' | 'list'
+  view: TaskViewMode
 }
 
 interface TasksToolbarProps {
@@ -24,6 +26,8 @@ interface TasksToolbarProps {
   total: number
   hideProjectFilter?: boolean
   onCreate?: () => void
+  showRepeatsTab?: boolean
+  createLabel?: string
 }
 
 export function TasksToolbar({
@@ -35,8 +39,11 @@ export function TasksToolbar({
   total,
   hideProjectFilter,
   onCreate,
+  showRepeatsTab,
+  createLabel = 'Задача',
 }: TasksToolbarProps) {
   const [open, setOpen] = useState(false)
+  const isRepeats = filters.view === 'repeats'
 
   const assigneeOptions = [
     { value: '', label: 'Все исполнители' },
@@ -74,10 +81,11 @@ export function TasksToolbar({
         {onCreate && (
           <button type="button" onClick={onCreate} className="btn-primary btn-sm tasks-toolbar-create shrink-0">
             <Plus size={16} aria-hidden />
-            Задача
+            {createLabel}
           </button>
         )}
 
+        {!isRepeats && (
           <button
             type="button"
             className={cn('btn-secondary btn-sm tasks-filter-toggle', open && 'tasks-filter-toggle--open')}
@@ -89,12 +97,15 @@ export function TasksToolbar({
             {activeCount > 0 && <span className="tasks-filter-count">{activeCount}</span>}
             <ChevronDown size={14} className={cn('tasks-filter-chevron', open && 'tasks-filter-chevron--open')} aria-hidden />
           </button>
+        )}
 
-        <span className="tasks-count">
-          {shown} из {total}
-        </span>
+        {!isRepeats && (
+          <span className="tasks-count">
+            {shown} из {total}
+          </span>
+        )}
 
-        <div className="tasks-view-toggle" role="group" aria-label="Вид списка">
+        <div className="tasks-view-toggle" role="group" aria-label="Вид задач">
           <button
             type="button"
             className={cn('tasks-view-btn', filters.view === 'kanban' && 'tasks-view-btn--active')}
@@ -115,10 +126,22 @@ export function TasksToolbar({
           >
             <List size={14} aria-hidden />
           </button>
+          {showRepeatsTab && (
+            <button
+              type="button"
+              className={cn('tasks-view-btn', filters.view === 'repeats' && 'tasks-view-btn--active')}
+              onClick={() => onChange({ view: 'repeats' })}
+              title="Повторы"
+              aria-label="Повторы"
+              aria-pressed={filters.view === 'repeats'}
+            >
+              <Repeat size={14} aria-hidden />
+            </button>
+          )}
         </div>
       </div>
 
-      {open && (
+      {open && !isRepeats && (
         <div className="tasks-filters-panel">
           <button
             type="button"

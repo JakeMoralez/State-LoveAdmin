@@ -64,6 +64,7 @@ interface TaskCreateModalProps {
   onCreateSphereChange?: (id: string) => void
   canManageGovAudiences?: boolean
   defaultAudience?: string | null
+  defaultRepeat?: boolean
 }
 
 export function TaskCreateModal({
@@ -80,6 +81,7 @@ export function TaskCreateModal({
   onCreateSphereChange,
   canManageGovAudiences = false,
   defaultAudience = null,
+  defaultRepeat = false,
 }: TaskCreateModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -123,9 +125,9 @@ export function TaskCreateModal({
     setStatus(defaultStatus)
     setProjectId(defaultProjectId ? String(defaultProjectId) : '')
     setAudience(defaultAudience || 'supervisors')
-    setRepeat(false)
+    setRepeat(defaultRepeat)
     setError('')
-  }, [open, defaultProjectId, defaultStatus, createSphere, defaultAudience])
+  }, [open, defaultProjectId, defaultStatus, createSphere, defaultAudience, defaultRepeat])
 
   if (!open) return null
 
@@ -166,7 +168,7 @@ export function TaskCreateModal({
         due_date: dueDate,
         labels: labels.length ? labels : undefined,
         audience: isGov ? audience : null,
-        expand_cohort: isGov,
+        expand_cohort: false,
         recurrence: repeat
           ? {
               freq,
@@ -233,7 +235,7 @@ export function TaskCreateModal({
                 options={audienceOptions}
               />
               <p className="mt-1 text-xs text-white/40">
-                Исполнители подставятся из когорты (можно дополнить вручную ниже).
+                Категория для фильтра в задачнике. Кому отправить — только вручную ниже.
               </p>
             </div>
           )}

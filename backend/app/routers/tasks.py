@@ -234,7 +234,7 @@ class TaskCreate(BaseModel):
     labels: list = []
     sphere: str | None = None
     audience: str | None = None
-    expand_cohort: bool = True
+    expand_cohort: bool = False
 
     @field_validator("due_date", mode="before")
     @classmethod
@@ -274,7 +274,7 @@ class RecurrenceCreate(BaseModel):
     project_id: int | None = None
     sphere: str | None = None
     audience: str | None = None
-    assignee_mode: str = "cohort"
+    assignee_mode: str = "explicit"
     assignee_vk_ids: list[int] = Field(default_factory=list)
     freq: str = "weekly"
     interval: int = 1
@@ -557,12 +557,12 @@ async def create_task(
 @router.get("/recurrences")
 async def list_recurrences(
     server_id: int = DEFAULT_SERVER_ID,
-    sphere: str | None = None,
+    sphere: list[str] | None = Query(default=None),
     user: dict = Depends(require_ca_user),
 ):
     if not can_manage_gov_audiences(user) and int(user.get("access_level") or 0) < ZGS_MIN_LEVEL:
         raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
-    spheres = resolve_work_spheres(user, [sphere] if sphere else None)
+    spheres = resolve_work_spheres(user, sphere)
     rows = await TaskRecurrence.filter(server_id=server_id, sphere__in=spheres).order_by("-updated_at")
     return {"recurrences": [serialize_recurrence(r) for r in rows]}
 

@@ -326,8 +326,8 @@ export const api = {
       can_manage: boolean
       own_audience: string | null
     }>('/tasks/audiences'),
-  taskRecurrences: (sphere?: string) =>
-    request<{ recurrences: TaskRecurrence[] }>(withSphere('/tasks/recurrences', sphere)),
+  taskRecurrences: (spheres?: string[]) =>
+    request<{ recurrences: TaskRecurrence[] }>(withSpheres('/tasks/recurrences', spheres)),
   createTaskRecurrence: (data: TaskRecurrenceCreate, sphere?: string) =>
     request<TaskRecurrence & { spawned_task?: Task }>(withSphere('/tasks/recurrences', sphere), {
       method: 'POST',

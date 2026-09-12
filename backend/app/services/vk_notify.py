@@ -120,6 +120,28 @@ async def notify_task_assigned(
     return await notify_vk(assignee_vk_id, "\n".join(lines), category="tasks")
 
 
+async def notify_task_auto_spawned(
+    assignee_vk_id: int,
+    task_id: int,
+    title: str,
+    *,
+    due_display: str | None = None,
+    priority: str | None = None,
+) -> bool:
+    """Уведомление при автосоздании копии по шаблону повтора."""
+    link = _task_link(task_id)
+    lines = [
+        "🔁 Поставлена автозадача",
+        f"«{title}»",
+    ]
+    if priority and priority in PRIORITY_LABELS:
+        lines.append(f"Приоритет: {PRIORITY_LABELS[priority]}")
+    if due_display:
+        lines.append(f"Срок: {due_display}")
+    lines.append(f"→ {link}")
+    return await notify_vk(assignee_vk_id, "\n".join(lines), category="tasks")
+
+
 async def notify_task_overdue(
     assignee_vk_id: int,
     task_id: int,

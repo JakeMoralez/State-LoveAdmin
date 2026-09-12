@@ -7,8 +7,9 @@ from typing import Any
 
 from app.models.panel import Task, TaskRecurrence
 from app.services.staff_spheres import GOV_STRUCTURES
-from app.services.task_audience import normalize_audience, resolve_cohort
-from app.services.task_helpers import normalize_task_status
+from app.services.task_audience import normalize_audience
+from app.services.task_helpers import format_due_display, normalize_task_status
+from app.services.vk_notify import notify_task_auto_spawned
 
 FREQ_DAILY = "daily"
 FREQ_WEEKLY = "weekly"
@@ -118,9 +119,7 @@ def next_occurrence_on_or_after(rec: TaskRecurrence, start: date) -> date | None
 
 
 async def resolve_assignees_for_recurrence(rec: TaskRecurrence) -> list[int]:
-    mode = (rec.assignee_mode or "explicit").strip()
-    if mode == "cohort" and rec.audience:
-        return await resolve_cohort(rec.server_id, rec.audience)
+    """Только явно указанные исполнители — категорию не разворачиваем в когорту."""
     ids: list[int] = []
     for vid in rec.assignee_vk_ids or []:
         try:
@@ -158,6 +157,21 @@ async def spawn_occurrence(rec: TaskRecurrence, occurrence: date) -> Task | None
         due_time=rec.due_time,
         labels=rec.labels if isinstance(rec.labels, list) else [],
     )
+
+    if assignees:
+        due_display = format_due_display(task.due_date, task.due_time) if task.due_date else None
+        for vid in assignees:
+            try:
+                await notify_task_auto_spawned(
+                    vid,
+                    task.id,
+                    task.title,
+                    due_display=due_display,
+                    priority=task.priority,
+                )
+            except Exception:
+                # Не валим spawn из‑за VK
+                pass
     return task
 
 

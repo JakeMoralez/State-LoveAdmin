@@ -20,7 +20,7 @@ import { TaskCard, TaskCardPreview, TaskListRow } from '../components/tasks/Task
 import { TaskCreateModal, type TaskCreatePayload } from '../components/tasks/TaskCreateModal'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
 import { TaskRecurrencePanel } from '../components/tasks/TaskRecurrencePanel'
-import { TasksToolbar, type TaskFilters } from '../components/tasks/TasksToolbar'
+import { TasksToolbar, type TaskFilters, type TaskViewMode } from '../components/tasks/TasksToolbar'
 import { useAuth } from '../context/AuthContext'
 import { COMPACT_QUERY, matchesMediaQuery } from '../hooks/useMediaQuery'
 import { TasksLoadingSkeleton } from '../components/ui/LoadingState'
@@ -35,10 +35,10 @@ const KANBAN_STATUSES = ['todo', 'in_progress', 'done']
 
 const TASKS_VIEW_KEY = 'sl-tasks-view'
 
-function getInitialTaskView(): 'kanban' | 'list' {
+function getInitialTaskView(): TaskViewMode {
   if (typeof window === 'undefined') return 'kanban'
   const saved = sessionStorage.getItem(TASKS_VIEW_KEY)
-  if (saved === 'kanban' || saved === 'list') return saved
+  if (saved === 'kanban' || saved === 'list' || saved === 'repeats') return saved
   if (matchesMediaQuery(COMPACT_QUERY)) return 'list'
   return 'kanban'
 }
@@ -78,11 +78,14 @@ export function TasksWorkspace({
 }: TasksWorkspaceProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
 
   const [filters, setFilters] = useState<TaskFilters>(() => {
     const urlView = searchParams.get('view')
-    const view =
-      urlView === 'kanban' || urlView === 'list' ? urlView : getInitialTaskView()
+    const view: TaskViewMode =
+      urlView === 'kanban' || urlView === 'list' || urlView === 'repeats'
+        ? urlView
+        : getInitialTaskView()
     return {
       mine: searchParams.get('mine') === '1',
       overdue: searchParams.get('overdue') === '1',
@@ -97,6 +100,7 @@ export function TasksWorkspace({
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [createOpen, setCreateOpen] = useState(false)
+  const [createPreferRepeat, setCreatePreferRepeat] = useState(false)
   const [activeId, setActiveId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -112,8 +116,16 @@ export function TasksWorkspace({
     spheres?.length === 1 && spheres[0] === GOV_STRUCTURES_SPHERE,
   )
 
+  const canManageRepeats = useMemo(() => {
+    const level = user?.access_level ?? 0
+    const role = user?.panel_role
+    return level >= 3 || role === 'owner' || role === 'lead' || canManageGov
+  }, [user?.access_level, user?.panel_role, canManageGov])
+
   const apiParams = useMemo(() => {
-    const p: Parameters<typeof api.tasks>[0] = { view: filters.view }
+    const p: Parameters<typeof api.tasks>[0] = {
+      view: filters.view === 'list' ? 'list' : 'kanban',
+    }
     if (projectId != null) p.project_id = projectId
     else if (filters.projectId) p.project_id = parseInt(filters.projectId, 10)
     if (filters.mine) p.mine = true
@@ -146,6 +158,10 @@ export function TasksWorkspace({
 
   const load = useCallback(async () => {
     if (workSpheres && workSpheres.length > 0 && !spheres?.length) return
+    if (filters.view === 'repeats') {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const res = await api.tasks(apiParams)
@@ -169,7 +185,7 @@ export function TasksWorkspace({
     } finally {
       setLoading(false)
     }
-  }, [apiParams, filterTasks, workSpheres, spheres])
+  }, [apiParams, filterTasks, workSpheres, spheres, filters.view])
 
   useEffect(() => {
     if (workSpheres && workSpheres.length > 0 && !spheres?.length) return
@@ -219,7 +235,10 @@ export function TasksWorkspace({
         }
         setOrDel('mine', filters.mine ? '1' : null)
         setOrDel('overdue', filters.overdue ? '1' : null)
-        setOrDel('view', filters.view === 'list' ? 'list' : null)
+        setOrDel(
+          'view',
+          filters.view === 'list' || filters.view === 'repeats' ? filters.view : null,
+        )
         setOrDel('audience', showGovAudiences && audience ? audience : null)
         if (next.toString() === prev.toString()) return prev
         return next
@@ -230,8 +249,14 @@ export function TasksWorkspace({
 
   const allTasks = useMemo(() => {
     if (filters.view === 'list') return listTasks
+    if (filters.view === 'repeats') return []
     return Object.values(columns).flat()
   }, [filters.view, listTasks, columns])
+
+  const openCreate = (preferRepeat = false) => {
+    setCreatePreferRepeat(preferRepeat)
+    setCreateOpen(true)
+  }
 
   const handleSelect = (task: TaskDetail, e: React.MouseEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -312,7 +337,7 @@ export function TasksWorkspace({
           labels: payload.labels,
           project_id: payload.project_id ?? projectId ?? null,
           audience: payload.audience,
-          assignee_mode: sphere === GOV_STRUCTURES_SPHERE ? 'cohort' : 'explicit',
+          assignee_mode: 'explicit',
           assignee_vk_ids: payload.assignee_vk_ids || [],
           freq: payload.recurrence.freq,
           by_weekday: payload.recurrence.by_weekday,
@@ -325,6 +350,10 @@ export function TasksWorkspace({
         sphere,
       )
       setRecurrenceRevision((n) => n + 1)
+      if (filters.view !== 'repeats') {
+        setFilters((f) => ({ ...f, view: 'repeats' }))
+        sessionStorage.setItem(TASKS_VIEW_KEY, 'repeats')
+      }
     } else {
       await api.createTask(
         {
@@ -362,7 +391,7 @@ export function TasksWorkspace({
         />
       )}
 
-      {showGovAudiences && audienceTabs.length > 0 && (
+      {showGovAudiences && audienceTabs.length > 0 && filters.view !== 'repeats' && (
         <div className="task-audience-bar shrink-0" role="tablist" aria-label="Категории госструктур">
           <span className="task-audience-bar__label">Категория</span>
           <div className="task-audience-tabs">
@@ -415,17 +444,10 @@ export function TasksWorkspace({
         shown={allTasks.length}
         total={allTasks.length}
         hideProjectFilter={projectId != null}
-        onCreate={() => setCreateOpen(true)}
+        onCreate={() => openCreate(filters.view === 'repeats')}
+        showRepeatsTab={canManageRepeats}
+        createLabel={filters.view === 'repeats' ? 'Шаблон' : 'Задача'}
       />
-
-      {showGovAudiences && canManageGov && createSphere === GOV_STRUCTURES_SPHERE && (
-        <TaskRecurrencePanel
-          sphere={GOV_STRUCTURES_SPHERE}
-          canManage={canManageGov}
-          revision={recurrenceRevision}
-          onChanged={load}
-        />
-      )}
 
       {selectedIds.size > 0 && filters.view === 'kanban' && (
         <div className="bulk-bar shrink-0">
@@ -449,8 +471,18 @@ export function TasksWorkspace({
         }
         className="min-h-0 flex min-w-0 flex-1 flex-col"
       >
-      {loading ? (
-        <TasksLoadingSkeleton view={filters.view} />
+      {filters.view === 'repeats' ? (
+        <TaskRecurrencePanel
+          spheres={apiSpheres}
+          workSpheres={workSpheres}
+          canManage={canManageRepeats}
+          revision={recurrenceRevision}
+          onChanged={load}
+          onCreate={() => openCreate(true)}
+          hideCreateButton
+        />
+      ) : loading ? (
+        <TasksLoadingSkeleton view={filters.view === 'list' ? 'list' : 'kanban'} />
       ) : filters.view === 'list' ? (
         <div className="list-stack">
           {listTasks.length === 0 ? (
@@ -495,7 +527,10 @@ export function TasksWorkspace({
 
       <TaskCreateModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false)
+          setCreatePreferRepeat(false)
+        }}
         onCreate={createTask}
         staff={staff}
         projects={projects}
@@ -506,6 +541,7 @@ export function TasksWorkspace({
         onCreateSphereChange={onCreateSphereChange}
         canManageGovAudiences={canManageGov}
         defaultAudience={(audience as TaskAudience) || null}
+        defaultRepeat={createPreferRepeat}
       />
 
       {drawerId != null && !Number.isNaN(drawerId) && (
