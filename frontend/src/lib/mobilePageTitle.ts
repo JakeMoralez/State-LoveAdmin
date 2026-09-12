@@ -13,6 +13,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/forum/formatting': 'Форматирование',
   '/issuance': 'Выдачи',
   '/projects': 'Проекты',
+  '/knowledge': 'База знаний',
   '/profile': 'Кабинет',
   '/dev': 'Лог ошибок',
   '/dev/settings': 'Настройки',
@@ -25,6 +26,7 @@ export function getMobilePageTitle(pathname: string): string {
   if (pathname.startsWith('/staff/')) return 'Следящий'
   if (pathname.startsWith('/leaders/')) return 'Профиль'
   if (pathname.startsWith('/projects/')) return 'Проект'
+  if (pathname.startsWith('/knowledge/')) return 'Статья'
   if (pathname.includes('/question-banks/') && pathname.endsWith('/review')) return 'Проверка'
   if (pathname.startsWith('/question-banks/')) return 'Банк вопросов'
   if (pathname.startsWith('/dev/cases/') && pathname.endsWith('/spin')) return 'Прокрутка кейса'

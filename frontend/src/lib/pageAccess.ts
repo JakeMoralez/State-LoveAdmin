@@ -108,6 +108,14 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
   },
   {
     section: 'Работа',
+    page: 'База знаний',
+    path: '/knowledge',
+    portal: 'ПС (1+)',
+    sphere: '—',
+    actions: 'Чтение — все; правка своей сферы — ЗГС (3+); любой сферы — следящий структуры (5+)',
+  },
+  {
+    section: 'Работа',
     page: 'Банки вопросов',
     path: '/question-banks',
     portal: 'ПС (1+)',

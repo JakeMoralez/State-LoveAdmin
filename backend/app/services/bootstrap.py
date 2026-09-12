@@ -206,6 +206,7 @@ async def ensure_defaults() -> None:
         "checklist_week_members",
         "checklist_members",
         "question_banks",
+        "knowledge_articles",
     )
     conn = Tortoise.get_connection("default")
     for table in _sphere_tables:

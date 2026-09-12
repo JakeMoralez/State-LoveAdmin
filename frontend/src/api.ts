@@ -293,6 +293,37 @@ export const api = {
   rejectIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/reject`, { method: 'POST' }),
   unrejectIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/unreject`, { method: 'POST' }),
   deleteIssuance: (id: number) => request<{ ok: boolean }>(`/issuance/${id}`, { method: 'DELETE' }),
+  knowledgeArticles: (params?: {
+    category?: string
+    q?: string
+    include_drafts?: boolean
+    spheres?: string[]
+  }) => {
+    const q = new URLSearchParams()
+    if (params?.category) q.set('category', params.category)
+    if (params?.q) q.set('q', params.q)
+    if (params?.include_drafts) q.set('include_drafts', 'true')
+    if (params?.spheres?.length) {
+      for (const s of params.spheres) q.append('sphere', s)
+    }
+    const qs = q.toString()
+    return request<{
+      articles: KnowledgeArticleListItem[]
+      categories: { id: string; label: string }[]
+      permissions: KnowledgePermissions
+    }>(`/knowledge${qs ? `?${qs}` : ''}`)
+  },
+  knowledgeArticle: (id: number) =>
+    request<KnowledgeArticleDetail>(`/knowledge/${id}`),
+  createKnowledgeArticle: (data: KnowledgeArticleWrite) =>
+    request<KnowledgeArticleDetail>('/knowledge', { method: 'POST', body: JSON.stringify(data) }),
+  updateKnowledgeArticle: (id: number, data: Partial<KnowledgeArticleWrite>) =>
+    request<KnowledgeArticleDetail>(`/knowledge/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteKnowledgeArticle: (id: number) =>
+    request<{ ok: boolean }>(`/knowledge/${id}`, { method: 'DELETE' }),
   tasks: (params?: {
     view?: string
     mine?: boolean
@@ -1811,4 +1842,51 @@ export interface IssuanceBody {
   amount: number | string
   reason: string
   proof_url: string
+}
+
+export interface KnowledgePermissions {
+  can_edit: boolean
+  editable_spheres: string[]
+  can_edit_all_spheres: boolean
+}
+
+export interface KnowledgeArticleListItem {
+  id: number
+  title: string
+  category: string
+  category_label: string
+  sphere: string
+  sphere_label: string
+  excerpt: string
+  sort_order: number
+  published: boolean
+  created_at?: string | null
+  updated_at?: string | null
+  permissions?: { can_edit: boolean }
+}
+
+export interface KnowledgeArticleDetail {
+  id: number
+  title: string
+  category: string
+  category_label: string
+  sphere: string
+  sphere_label: string
+  body_md: string
+  sort_order: number
+  published: boolean
+  created_by_vk_id?: number
+  updated_by_vk_id?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+  permissions?: { can_edit: boolean; editable_spheres?: string[] }
+}
+
+export interface KnowledgeArticleWrite {
+  title: string
+  category?: string
+  body_md?: string
+  sort_order?: number
+  published?: boolean
+  sphere?: string
 }

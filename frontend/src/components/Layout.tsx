@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  BookOpen,
   Bug,
   ChevronsLeft,
   ClipboardList,
@@ -71,6 +72,7 @@ const navCategories: NavCategory[] = [
       { to: '/question-banks', label: 'Банки вопросов', icon: Library },
       { to: '/issuance', label: 'Выдачи', icon: Gift, minAccessLevel: 3 },
       { to: '/projects', label: 'Проекты', icon: FolderKanban },
+      { to: '/knowledge', label: 'База знаний', icon: BookOpen },
     ],
   },
 ]

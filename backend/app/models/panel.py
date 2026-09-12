@@ -549,3 +549,23 @@ class IssuanceRequest(Model):
     class Meta:
         table = "issuance_requests"
 
+
+class KnowledgeArticle(Model):
+    """База знаний: регламенты, правила, инструкции (Markdown)."""
+
+    id = fields.IntField(pk=True)
+    server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
+    title = fields.CharField(max_length=256)
+    category = fields.CharField(max_length=64, default="other", index=True)
+    body_md = fields.TextField(default="")
+    sort_order = fields.IntField(default=0)
+    published = fields.BooleanField(default=True)
+    created_by_vk_id = fields.BigIntField(index=True)
+    updated_by_vk_id = fields.BigIntField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "knowledge_articles"
+
