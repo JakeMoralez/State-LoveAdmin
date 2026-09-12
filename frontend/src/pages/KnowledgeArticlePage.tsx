@@ -618,8 +618,8 @@ export function KnowledgeArticlePage() {
                   </li>
                   <li>Таблица — кнопка «Таблица» или синтаксис GFM</li>
                   <li>
-                    Внимание — каждая строка с <code>{'>'}</code>: <code>{'>'} [!WARNING]</code> /{' '}
-                    <code>{'>'} [!DANGER]</code> / <code>{'>'} [!NOTE]</code>, затем пустая строка
+                    Внимание — каждая строка с <code>{'>'}</code>, внутри можно список:{' '}
+                    <code>{'>'} [!NOTE]</code> / <code>{'>'} - пункт</code>, затем пустая строка
                   </li>
                 </ul>
               </details>

@@ -1,4 +1,3 @@
-import React from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -58,7 +57,7 @@ const components: Components = {
   blockquote({ children, ...props }) {
     const alert = parseGithubAlert(children)
     if (alert) {
-      const { def, lead, body } = alert
+      const { def, leadNode, body } = alert
       const Icon = def.Icon
       return (
         <aside
@@ -71,7 +70,7 @@ const components: Components = {
             <span>{def.label}</span>
           </div>
           <div className="kb-md-alert-body">
-            {lead ? <p>{lead}</p> : null}
+            {leadNode}
             {body}
           </div>
         </aside>

@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 import {
   Children,
+  cloneElement,
   isValidElement,
+  type ReactElement,
   type ReactNode,
 } from 'react'
 
@@ -43,10 +45,52 @@ function collectText(node: ReactNode): string {
   return ''
 }
 
+function isBlankish(node: ReactNode): boolean {
+  if (node == null || node === false) return true
+  if (typeof node === 'string') return !node.trim()
+  if (isValidElement(node) && node.type === 'br') return true
+  return false
+}
+
+/** Срезать `[!NOTE]` из первого абзаца, сохранив <strong> и остальную разметку. */
+function remainderAfterAlertTag(paragraph: ReactNode): ReactNode | null {
+  if (!isValidElement(paragraph)) {
+    if (typeof paragraph === 'string') {
+      const trimmed = paragraph.trimStart()
+      const match = ALERT_TAG_RE.exec(trimmed)
+      if (!match) return paragraph
+      const after = trimmed.slice(match[0].length).trim()
+      return after || null
+    }
+    return paragraph
+  }
+
+  const el = paragraph as ReactElement<{ children?: ReactNode }>
+  const kids = Children.toArray(el.props.children)
+  for (let i = 0; i < kids.length; i++) {
+    const kid = kids[i]
+    if (typeof kid !== 'string') continue
+    const trimmed = kid.trimStart()
+    const match = ALERT_TAG_RE.exec(trimmed)
+    if (!match) continue
+
+    const afterInString = trimmed.slice(match[0].length)
+    const rest = [...(afterInString.trim() ? [afterInString] : []), ...kids.slice(i + 1)]
+    while (rest.length && isBlankish(rest[0])) rest.shift()
+    if (!rest.length) return null
+    return cloneElement(el, undefined, ...rest)
+  }
+
+  const onlyTag =
+    ALERT_TAG_RE.test(collectText(paragraph).trimStart()) &&
+    !collectText(paragraph).trimStart().replace(ALERT_TAG_RE, '').trim()
+  return onlyTag ? null : paragraph
+}
+
 export type ParsedKbAlert = {
   def: AlertDef
-  /** Остаток первого абзаца после тега (если был в той же строке). */
-  lead: string
+  /** Первый абзац после тега (с разметкой) или null. */
+  leadNode: ReactNode | null
   body: ReactNode[]
 }
 
@@ -63,18 +107,17 @@ export function parseGithubAlert(children: ReactNode): ParsedKbAlert | null {
 
   const first = nodes[firstIdx]
   const firstText = collectText(first).replace(/^\uFEFF/, '')
-  const trimmed = firstText.trimStart()
-  const match = ALERT_TAG_RE.exec(trimmed)
+  const match = ALERT_TAG_RE.exec(firstText.trimStart())
   if (!match) return null
 
   const key = match[1].toUpperCase()
   const def = ALERT_MAP[key]
   if (!def) return null
 
-  const lead = trimmed.slice(match[0].length).trim()
+  const leadNode = remainderAfterAlertTag(first)
   const body = nodes.slice(firstIdx + 1)
 
-  return { def, lead, body }
+  return { def, leadNode, body }
 }
 
 export function alertSnippet(kind: 'WARNING' | 'DANGER' | 'NOTE' | 'TIP'): string {
