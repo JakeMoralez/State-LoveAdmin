@@ -600,7 +600,7 @@ export function KnowledgeArticlePage() {
                     className="kb-md-tool"
                     onUploaded={(url, filename) => {
                       const alt = filename.replace(/\.[^.]+$/, '') || 'изображение'
-                      insertSnippet(`![${alt}](${url})`, alt)
+                      insertSnippet(`![${alt}](${url} "md")`, alt)
                     }}
                   />
                 </div>
@@ -632,8 +632,8 @@ export function KnowledgeArticlePage() {
                     <code>{'>'} [!NOTE]</code> / <code>{'>'} - пункт</code>, затем пустая строка
                   </li>
                   <li>
-                    Картинка — кнопка с иконкой: загрузка на сервер и вставка{' '}
-                    <code>![…](/uploads/…)</code>
+                    Картинка — кнопка загрузки. Размер в кавычках: <code>"sm"</code> · <code>"md"</code> ·{' '}
+                    <code>"lg"</code> · <code>"full"</code>
                   </li>
                 </ul>
               </details>

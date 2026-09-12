@@ -663,7 +663,7 @@
 }
 
 .kb-md ::marker {
-  color: rgb(201 162 39 / 0.75);
+  color: rgb(255 255 255 / 0.4);
 }
 
 .kb-md ul ul,
@@ -741,10 +741,26 @@
 
 .kb-md-img {
   display: block;
-  max-width: 100%;
   height: auto;
   margin: 0.75em 0;
   border-radius: 8px;
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.kb-md-img--sm {
+  max-width: min(100%, 14rem);
+}
+
+.kb-md-img--md {
+  max-width: min(100%, 26rem);
+}
+
+.kb-md-img--lg {
+  max-width: min(100%, 40rem);
+}
+
+.kb-md-img--full {
+  max-width: 100%;
 }
 
 .kb-md-img-fallback {

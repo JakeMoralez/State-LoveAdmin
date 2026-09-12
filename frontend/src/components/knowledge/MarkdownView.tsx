@@ -85,11 +85,20 @@ const components: Components = {
       </div>
     )
   },
-  img({ src, alt }) {
+  img({ src, alt, title }) {
     if (!src || !isSafeMarkdownHref(src)) {
       return alt ? <span className="kb-md-img-fallback">{alt}</span> : null
     }
-    return <img src={src} alt={alt || ''} className="kb-md-img" loading="lazy" />
+    const size = (title || '').trim().toLowerCase()
+    const sizeClass =
+      size === 'sm' || size === 'small'
+        ? 'kb-md-img--sm'
+        : size === 'lg' || size === 'large'
+          ? 'kb-md-img--lg'
+          : size === 'full'
+            ? 'kb-md-img--full'
+            : 'kb-md-img--md'
+    return <img src={src} alt={alt || ''} title={title || undefined} className={cn('kb-md-img', sizeClass)} loading="lazy" />
   },
 }
 
