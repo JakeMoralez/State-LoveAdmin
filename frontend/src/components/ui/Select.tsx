@@ -17,6 +17,9 @@ interface SelectProps {
   className?: string
   disabled?: boolean
   size?: 'sm' | 'md'
+  id?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
 }
 
 export function recordToOptions(record: Record<string, string>): SelectOption[] {
@@ -35,6 +38,9 @@ export function Select({
   className,
   disabled,
   size = 'md',
+  id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
 }: SelectProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -128,7 +134,7 @@ export function Select({
               >
                 <span className="truncate">{opt.label}</span>
                 {active && !optDisabled && (
-                  <Check size={14} className="shrink-0 text-[var(--accent-gold)]" />
+                  <Check size={14} className="shrink-0 text-[var(--accent-gold)]" aria-hidden />
                 )}
               </button>
             </li>
@@ -141,9 +147,12 @@ export function Select({
     <div ref={rootRef} className={cn('select-root', className)}>
       <button
         type="button"
+        id={id}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         onClick={() => !disabled && setOpen((v) => !v)}
         className={cn(
           'control flex w-full items-center justify-between gap-2 text-left',
@@ -154,7 +163,7 @@ export function Select({
         <span className={cn('truncate', !selected && 'text-white/35')}>
           {selected?.label ?? placeholder}
         </span>
-        <ChevronDown size={16} className={cn('shrink-0 text-white/35 transition-transform', open && 'rotate-180')} />
+        <ChevronDown size={16} className={cn('shrink-0 text-white/35 transition-transform', open && 'rotate-180')} aria-hidden />
       </button>
       {menu ? createPortal(menu, document.body) : null}
     </div>

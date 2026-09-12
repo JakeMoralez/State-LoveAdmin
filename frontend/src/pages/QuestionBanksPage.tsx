@@ -178,23 +178,24 @@ export function QuestionBanksPage() {
           <div className="qb-modal-head">
             <h2 className="text-lg font-bold m-0">Новый банк</h2>
           </div>
-          <div className="qb-modal-body ll-scroll">
-            <CreateSphereField
-              spheres={spheres}
-              allowedIds={activeSpheres}
-              value={createSphere}
-              onChange={setCreateSphere}
-            />
-            <BankForm
-              submitLabel="Создать"
-              onCancel={() => setCreateOpen(false)}
-              onSubmit={async (values) => {
-                await api.createQuestionBank({ ...values, sphere: createSphere })
-                setCreateOpen(false)
-                load()
-              }}
-            />
-          </div>
+          <BankForm
+            stickyActions
+            submitLabel="Создать"
+            beforeFields={
+              <CreateSphereField
+                spheres={spheres}
+                allowedIds={activeSpheres}
+                value={createSphere}
+                onChange={setCreateSphere}
+              />
+            }
+            onCancel={() => setCreateOpen(false)}
+            onSubmit={async (values) => {
+              await api.createQuestionBank({ ...values, sphere: createSphere })
+              setCreateOpen(false)
+              load()
+            }}
+          />
         </div>
       </ModalViewport>
     </div>

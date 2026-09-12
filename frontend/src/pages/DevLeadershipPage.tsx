@@ -72,7 +72,7 @@ export function DevLeadershipPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--dev">
       <PageHeader
         section="Разработка"
         title="Флаги руководства"

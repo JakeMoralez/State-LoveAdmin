@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BANK_ICON_CATALOG, bankIconEntry, bankIconLabel } from '../../lib/bankIconCatalog'
-import { preloadLucideIcons, useLucideIcon } from '../../lib/bankIconLoader'
+import {
+  BANK_ICON_CATEGORIES,
+  BANK_ICON_CATALOG,
+  BANK_ICON_SEARCH_LIMIT,
+  type BankIconCategory,
+  bankIconEntry,
+  bankIconLabel,
+  searchBankIcons,
+} from '../../lib/bankIconCatalog'
+import { lucideIconCount, preloadLucideIcons, useLucideIcon } from '../../lib/bankIconLoader'
 import { cn } from '../../lib/utils'
 import { PageSearch } from '../ui/PageSearch'
 import { BankIcon } from './BankIcon'
@@ -60,20 +68,25 @@ function IconPresetButton({
 
 export function BankIconPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<BankIconCategory | 'all'>('all')
 
   const selected = bankIconEntry(value)
+  const totalLucide = useMemo(() => lucideIconCount(), [])
 
   useEffect(() => {
     preloadLucideIcons([selected.lucide])
   }, [selected.lucide])
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return BANK_ICON_CATALOG
-    return BANK_ICON_CATALOG.filter(
-      (entry) => entry.label.toLowerCase().includes(q) || entry.id.includes(q),
-    )
-  }, [query])
+    const q = query.trim()
+    if (q) return searchBankIcons(q)
+
+    if (category === 'all') return BANK_ICON_CATALOG
+    if (category === 'featured') return BANK_ICON_CATALOG.filter((entry) => entry.featured)
+    return BANK_ICON_CATALOG.filter((entry) => entry.category === category)
+  }, [query, category])
+
+  const searching = Boolean(query.trim())
 
   return (
     <div className="qb-icon-picker">
@@ -86,8 +99,31 @@ export function BankIconPicker({ value, onChange }: { value: string; onChange: (
         className="qb-icon-picker-search"
         value={query}
         onChange={setQuery}
-        placeholder="Поиск иконки…"
+        placeholder={`Поиск по ${totalLucide} иконкам Lucide…`}
       />
+
+      {!searching ? (
+        <div className="qb-icon-picker-cats" role="tablist" aria-label="Категории иконок">
+          {BANK_ICON_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              role="tab"
+              aria-selected={category === cat.id}
+              className={cn('qb-icon-picker-cat', category === cat.id && 'qb-icon-picker-cat--active')}
+              onClick={() => setCategory(cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <p className="qb-icon-picker-hint">
+        {searching
+          ? `Найдено: ${filtered.length}${filtered.length >= BANK_ICON_SEARCH_LIMIT ? '+' : ''} · подгрузка по мере прокрутки`
+          : `Подборка ${BANK_ICON_CATALOG.length} · введите запрос для поиска по всему Lucide (${totalLucide})`}
+      </p>
 
       <div className="qb-icon-presets qb-icon-presets--grid ll-scroll">
         {filtered.length === 0 ? (

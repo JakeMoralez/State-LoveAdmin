@@ -8,6 +8,7 @@ import { Alert } from '../ui/Alert'
 import { Select } from '../ui/Select'
 import { LeaderProfileModal } from './LeaderProfileModal'
 import { useAuth } from '../../context/AuthContext'
+import { useMediaQuery, MOBILE_NAV_QUERY } from '../../hooks/useMediaQuery'
 import { canOpenLeaderSettings } from '../../lib/accessLevels'
 import { inferLeadershipFromNickname, resolveLeadershipSphere } from '../../lib/leaderNickname'
 import { SPHERE_OPTIONS, formatSpheresDisplay } from '../../lib/spheres'
@@ -75,6 +76,7 @@ export function OfficeRegistryPage({
   subtitleInactive?: string
 }) {
   const { user } = useAuth()
+  const isMobileNav = useMediaQuery(MOBILE_NAV_QUERY)
   const actorLevel = user?.access_level ?? 0
   const actorVkId = user?.vk_id ?? 0
   const [members, setMembers] = useState<LeaderMember[]>([])
@@ -162,47 +164,51 @@ export function OfficeRegistryPage({
     }
   }
 
+  const assignButton = canAssign ? (
+    <Link to={`/assign?type=${assignType}`} className="btn btn-gold btn-sm no-underline office-registry-assign">
+      <UserPlus className="h-4 w-4" aria-hidden />
+      <span>Назначить</span>
+    </Link>
+  ) : null
+
+  const subtitle =
+    tab === 'inactive'
+      ? subtitleInactive ?? `${total} без доступа`
+      : subtitleActive ?? `${total} в реестре`
+
   return (
-    <div className="page-stack">
+      <div className="page-stack office-registry-page">
       <PageHeader
         section="Команда"
         title={title}
         icon={Icon}
-        subtitle={
-          tab === 'inactive'
-            ? subtitleInactive ?? `${total} без доступа`
-            : subtitleActive ?? `${total} в реестре`
-        }
+        subtitle={subtitle || undefined}
         shrink
-        actions={
-          canAssign ? (
-            <Link to={`/assign?type=${assignType}`} className="btn btn-gold btn-sm no-underline">
-              <UserPlus className="h-4 w-4" />
-              Назначить
-            </Link>
-          ) : undefined
-        }
+        actions={!isMobileNav ? assignButton ?? undefined : undefined}
       />
 
-      <div className="sphere-tabs" role="tablist" aria-label={title}>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'active'}
-          className={tab === 'active' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
-          onClick={() => setTab('active')}
-        >
-          В реестре
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'inactive'}
-          className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
-          onClick={() => setTab('inactive')}
-        >
-          Без доступа
-        </button>
+      <div className="office-registry-control shrink-0">
+        <div className="sphere-tabs" role="tablist" aria-label={title}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'active'}
+            className={tab === 'active' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+            onClick={() => setTab('active')}
+          >
+            В реестре
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'inactive'}
+            className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+            onClick={() => setTab('inactive')}
+          >
+            Без доступа
+          </button>
+        </div>
+        {isMobileNav ? assignButton : null}
       </div>
 
       {sphereFilter ? (
@@ -280,22 +286,24 @@ export function OfficeRegistryPage({
                         loading="lazy"
                       />
                     </span>
-                    <Link
-                      to={`${profilePath}/${m.vk_id}`}
-                      className="staff-nick staff-nick-btn staff-nick-link no-underline"
-                    >
-                      {staffLabel(m)}
-                    </Link>
+                    <span className="staff-nick-cluster">
+                      <Link
+                        to={`${profilePath}/${m.vk_id}`}
+                        className="staff-nick staff-nick-btn staff-nick-link no-underline"
+                      >
+                        {staffLabel(m)}
+                      </Link>
+                    </span>
                     {tab === 'inactive' && canAssign ? (
                       <Link
                         to={`/assign?type=${assignType}&vk_id=${m.vk_id}`}
                         className="staff-settings-btn no-underline"
                         title="Назначить"
+                        aria-label={`Назначить: ${staffLabel(m)}`}
                       >
                         <UserPlus size={15} />
                       </Link>
-                    ) : null}
-                    {canOpenLeaderSettings(actorLevel, actorVkId, m.vk_id) && (
+                    ) : canOpenLeaderSettings(actorLevel, actorVkId, m.vk_id) ? (
                       <button
                         type="button"
                         className="staff-settings-btn"
@@ -309,8 +317,8 @@ export function OfficeRegistryPage({
                           className={settingsLoadingVkId === m.vk_id ? 'animate-spin' : undefined}
                         />
                       </button>
-                    )}
-                    <span className="staff-badges">{badge}</span>
+                    ) : null}
+                    {badge ? <span className="staff-badges">{badge}</span> : null}
                   </div>
                   <div className="staff-col-position staff-col-readonly" title={memberPosition(m) || '—'}>
                     {memberPosition(m) || '—'}

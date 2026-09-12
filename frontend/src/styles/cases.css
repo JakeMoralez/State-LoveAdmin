@@ -472,7 +472,7 @@
   flex-wrap: nowrap;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   .case-prizes-head {
     display: none;
   }
@@ -480,6 +480,17 @@
   .case-prizes-row {
     grid-template-columns: 1fr;
     gap: 0.375rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+    background: rgb(255 255 255 / 0.03);
+  }
+
+  .case-prizes-table {
+    border: none;
+    background: transparent;
+    overflow: visible;
   }
 
   .case-prizes-row-actions {

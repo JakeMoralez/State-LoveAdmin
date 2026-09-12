@@ -7,6 +7,30 @@ type IconImporter = (typeof dynamicIconImports)[keyof typeof dynamicIconImports]
 const cache = new Map<string, LucideIcon>()
 const pending = new Map<string, Promise<LucideIcon>>()
 
+let lucideNameList: string[] | null = null
+const lucideNameSet = new Set<string>()
+
+function ensureLucideIndex() {
+  if (lucideNameList) return
+  lucideNameList = Object.keys(dynamicIconImports).sort()
+  for (const name of lucideNameList) lucideNameSet.add(name)
+}
+
+export function listLucideIconNames(): string[] {
+  ensureLucideIndex()
+  return lucideNameList!
+}
+
+export function lucideIconCount(): number {
+  ensureLucideIndex()
+  return lucideNameList!.length
+}
+
+export function isLucideIconName(name: string): boolean {
+  ensureLucideIndex()
+  return lucideNameSet.has(name)
+}
+
 export function loadLucideIcon(lucideName: string, fallback = 'library'): Promise<LucideIcon> {
   const cached = cache.get(lucideName)
   if (cached) return Promise.resolve(cached)

@@ -106,7 +106,7 @@ function SidebarNavLink({
         )
       }
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className="h-4 w-4 shrink-0" aria-hidden />
       <span className="sidebar-nav-label">{item.label}</span>
       {item.badge != null && item.badge > 0 && (
         <span className="sidebar-nav-badge">{item.badge > 99 ? '99+' : item.badge}</span>
@@ -196,6 +196,9 @@ function LayoutShell() {
 
   return (
     <div className="app-shell flex h-full bg-[#050508] overflow-hidden">
+      <a href="#app-main" className="skip-link">
+        Перейти к содержимому
+      </a>
       {mobileOpen && (
         <button
           type="button"
@@ -224,7 +227,7 @@ function LayoutShell() {
             )}
             aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
           >
-            <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} />
+            <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
           </button>
         )}
 
@@ -245,7 +248,7 @@ function LayoutShell() {
                   className="sidebar-toggle sidebar-toggle--mobile"
                   aria-label="Закрыть меню"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-4 w-4" aria-hidden />
                 </button>
               )}
             </div>
@@ -329,7 +332,7 @@ function LayoutShell() {
             </nav>
 
             <button type="button" onClick={() => void handleLogout()} className="sidebar-logout">
-              <LogOut className="sidebar-logout-icon h-4 w-4 shrink-0" />
+              <LogOut className="sidebar-logout-icon h-4 w-4 shrink-0" aria-hidden />
               <span className="sidebar-logout-label">Выйти</span>
             </button>
           </div>
@@ -346,7 +349,7 @@ function LayoutShell() {
             aria-expanded={mobileOpen}
             aria-controls="app-sidebar"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-5 w-5" aria-hidden />
           </button>
           <div className="mobile-top-bar-brand">
             <span className="mobile-top-bar-title">{mobilePageTitle}</span>
@@ -387,8 +390,10 @@ function LayoutShell() {
         </header>
 
         <main
+          id="app-main"
           key={location.pathname}
           className="app-main ll-scroll page-enter-fade"
+          tabIndex={-1}
         >
           <Outlet />
         </main>

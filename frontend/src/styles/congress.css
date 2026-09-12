@@ -245,9 +245,10 @@
   font: inherit;
 }
 
-.cg-page .control:focus {
+.cg-page .control:focus-visible {
   outline: none;
   border-color: rgba(201, 162, 39, 0.45);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.12);
 }
 
 .cg-textarea {

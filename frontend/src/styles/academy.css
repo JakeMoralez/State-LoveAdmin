@@ -627,14 +627,78 @@
   gap: 0.75rem;
 }
 
+.academy-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 @media (max-width: 1023px) {
   .academy-stats,
   .academy-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
 
-@media (max-width: 639px) {
+  .page-stack--academy {
+    gap: var(--space-2);
+  }
+
+  .page-stack--academy .academy-page-control {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-stack--academy .academy-main-tabs {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .page-stack--academy .academy-main-tabs .sphere-tab {
+    flex: 1 1 auto;
+    min-height: var(--touch-min);
+    justify-content: center;
+  }
+
+  .page-stack--academy .academy-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .page-stack--academy .academy-page-actions .btn,
+  .page-stack--academy .academy-page-actions .btn-sm {
+    flex: 1 1 auto;
+    min-height: var(--touch-min);
+    justify-content: center;
+  }
+
+  /* Roster filter chips: one row + horizontal scroll */
+  .page-stack--academy .academy-roster-filters {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    gap: 2px;
+  }
+
+  .page-stack--academy .academy-roster-filters .sphere-tab {
+    flex: 0 0 auto;
+    min-height: 2.25rem;
+    scroll-snap-align: start;
+  }
+
+  .academy-registry-scroll {
+    overflow-x: visible;
+  }
+
   .academy-registry .staff-registry-head,
   .academy-registry .staff-registry-body,
   .academy-registry--reserve .staff-registry-head,
@@ -642,46 +706,102 @@
     min-width: 0;
   }
 
-  .academy-registry.staff-registry .staff-registry-head,
-  .academy-registry.staff-registry .staff-registry-row,
-  .academy-registry--reserve.staff-registry .staff-registry-head,
-  .academy-registry--reserve.staff-registry .staff-registry-row {
-    grid-template-columns: 36px 1fr;
-    grid-template-rows: auto auto;
-    gap: 0.5rem 0.75rem;
-  }
-
-  .academy-registry .staff-registry-head .academy-col-dir,
-  .academy-registry .staff-registry-head .academy-col-mentor,
-  .academy-registry .staff-registry-head .academy-col-tasks,
-  .academy-registry .staff-registry-head .academy-col-rec {
+  .academy-registry.staff-registry .staff-registry-head {
     display: none;
   }
 
-  .academy-col-dir,
+  /* Compact 2-line cards */
+  .academy-registry.staff-registry .staff-registry-row,
+  .academy-registry--reserve.staff-registry .staff-registry-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    padding: 0.55rem 0.65rem !important;
+    margin-bottom: 0.5rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: var(--radius-lg, 12px);
+    background: rgb(255 255 255 / 0.03);
+  }
+
+  .academy-registry .staff-col-num {
+    flex: 0 0 1.5rem;
+    width: 1.5rem;
+  }
+
+  .academy-registry .staff-col-nick {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .academy-col-stage {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .academy-col-stage::before {
+    content: none;
+  }
+
+  /* Line break before meta (hide direction value) */
+  .academy-col-dir {
+    flex-basis: 100%;
+    width: 100%;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    font-size: 0;
+    color: transparent;
+  }
+
+  .academy-col-dir::before {
+    content: none;
+  }
+
   .academy-col-mentor,
-  .academy-col-stage,
   .academy-col-tasks,
   .academy-col-overdue,
   .academy-col-rec {
-    grid-column: 2;
-    white-space: normal;
+    flex: 0 1 auto;
+    max-width: 100%;
+    font-size: 0.75rem !important;
+    font-weight: 400 !important;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.55) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
-  .academy-col-dir,
-  .academy-col-mentor,
-  .academy-col-tasks,
-  .academy-col-rec {
-    display: none;
+  .academy-col-mentor {
+    padding-left: 2rem;
+  }
+
+  .academy-col-mentor::before,
+  .academy-col-rec::before {
+    content: none;
+  }
+
+  .academy-col-tasks::before,
+  .academy-col-overdue::before {
+    content: '· ';
+    color: rgba(255, 255, 255, 0.28);
   }
 
   .academy-registry--reserve .academy-col-rec {
-    display: block;
+    padding-left: 0;
   }
 
   .academy-registry--reserve .academy-col-rec::before {
-    content: 'Рекомендация: ';
-    color: rgba(255, 255, 255, 0.4);
+    content: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .academy-col-mentor {
+    padding-left: 1.75rem;
   }
 
   .academy-review-actions {
@@ -700,6 +820,10 @@
   .academy-form-grid,
   .academy-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .academy-stats {
+    grid-template-columns: 1fr 1fr;
   }
 
   .academy-profile-head {

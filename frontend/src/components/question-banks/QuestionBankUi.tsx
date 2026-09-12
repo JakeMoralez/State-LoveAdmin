@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Clock, History, Pencil, Send, Trash2, X } from 'lucide-react'
 import {
   QB_STATUS_LABELS,
@@ -35,12 +35,17 @@ export function BankForm({
   onCancel,
   submitLabel = 'Сохранить',
   visibilityOptions,
+  stickyActions = false,
+  beforeFields,
 }: {
   initial?: Partial<BankFormValues>
   onSubmit: (values: BankFormValues) => Promise<void>
   onCancel: () => void
   submitLabel?: string
   visibilityOptions?: { value: string; label: string }[]
+  /** Кнопки вне скролла — как staff-profile-footer / qb-modal-foot */
+  stickyActions?: boolean
+  beforeFields?: ReactNode
 }) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
@@ -86,7 +91,7 @@ export function BankForm({
     }
   }
 
-  return (
+  const fields = (
     <div className="qb-bank-form">
       <FormField label="Иконка">
         <BankIconPicker value={emoji} onChange={setEmoji} />
@@ -116,15 +121,38 @@ export function BankForm({
         <Select value={visibility} onChange={setVisibility} options={visibilitySelectOptions} />
       </FormField>
       {error && <Alert>{error}</Alert>}
-      <div className="qb-bank-form-actions">
-        <button type="button" className="btn-secondary" onClick={onCancel}>
-          Отмена
-        </button>
-        <button type="button" className="btn-primary" disabled={saving || !title.trim()} onClick={() => void submit()}>
-          {saving ? 'Сохранение…' : submitLabel}
-        </button>
-      </div>
     </div>
+  )
+
+  const actions = (
+    <div className={stickyActions ? 'qb-modal-foot' : 'qb-bank-form-actions'}>
+      <button type="button" className="btn-secondary" onClick={onCancel} disabled={saving}>
+        Отмена
+      </button>
+      <button type="button" className="btn-primary" disabled={saving || !title.trim()} onClick={() => void submit()}>
+        {saving ? 'Сохранение…' : submitLabel}
+      </button>
+    </div>
+  )
+
+  if (stickyActions) {
+    return (
+      <>
+        <div className="qb-modal-body ll-scroll">
+          {beforeFields}
+          {fields}
+        </div>
+        {actions}
+      </>
+    )
+  }
+
+  return (
+    <>
+      {beforeFields}
+      {fields}
+      {actions}
+    </>
   )
 }
 

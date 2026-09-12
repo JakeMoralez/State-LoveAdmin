@@ -208,6 +208,95 @@
   min-height: 0;
 }
 
+/* Tablet (mobile shell ≤1023): equal columns, no sideways scroll for 3 statuses */
+@media (max-width: 1023px) {
+  .page-stack--tasks {
+    gap: var(--space-3);
+  }
+
+  .page-stack--tasks > .sphere-select,
+  .page-stack--tasks > .sphere-select--multi {
+    width: 100%;
+    max-width: none;
+  }
+
+  .page-stack--tasks > .task-audience-bar {
+    width: 100%;
+  }
+
+  .page-stack--tasks > .task-audience-bar .task-audience-tabs {
+    width: 100%;
+  }
+
+  .page-stack--tasks .tasks-toolbar-panel {
+    padding: var(--space-1) 0;
+  }
+
+  .page-stack--tasks .tasks-toolbar-panel-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .page-stack--tasks .tasks-toolbar-create {
+    flex: 0 0 auto;
+  }
+
+  .page-stack--tasks .tasks-filter-toggle {
+    flex: 0 0 auto;
+  }
+
+  .page-stack--tasks .tasks-count {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .page-stack--tasks .tasks-view-toggle {
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+
+  .page-stack--tasks .kanban-board {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    padding-bottom: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .page-stack--tasks .kanban-column {
+    flex: unset;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    padding: var(--space-2);
+  }
+
+  .page-stack--tasks .kanban-drop {
+    min-height: 8rem;
+    padding: var(--space-2);
+  }
+
+  .page-stack--tasks .kanban-scroll-hint {
+    display: none;
+  }
+
+  .page-stack--tasks .task-card {
+    padding: var(--space-2) !important;
+  }
+
+  .page-stack--tasks .bulk-bar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font-size: 0.8125rem;
+  }
+}
+
 @media (max-width: 767px) {
   .has-app-top-bar .app-main {
     padding: var(--space-2) var(--space-3) var(--space-3);
@@ -222,37 +311,51 @@
     min-height: 0;
   }
 
-  .tasks-toolbar-panel-row {
+  .page-stack--tasks .tasks-toolbar-panel {
+    padding: var(--space-1) 0 0;
+  }
+
+  .page-stack--tasks .tasks-toolbar-panel-row {
     display: grid;
-    grid-template-columns: 1fr auto;
-    gap: var(--space-2);
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: var(--space-1) var(--space-2);
     align-items: center;
   }
 
-  .tasks-toolbar-create {
+  .page-stack--tasks .tasks-toolbar-create {
     grid-column: 1 / -1;
     width: 100%;
+    min-height: 2.5rem;
     justify-content: center;
   }
 
-  .tasks-filter-toggle {
+  .page-stack--tasks .tasks-filter-toggle {
     justify-self: start;
+    min-height: 2.5rem;
   }
 
-  .tasks-count {
+  .page-stack--tasks .tasks-count {
     justify-self: end;
     font-size: 0.75rem;
   }
 
-  .tasks-view-toggle {
-    grid-column: 1 / -1;
-    width: 100%;
+  .page-stack--tasks .tasks-view-toggle {
+    grid-column: auto;
+    width: auto;
+    height: auto;
+    min-height: 2.5rem;
     margin-left: 0;
+    justify-self: end;
+    align-items: center;
   }
 
-  .tasks-view-btn {
-    flex: 1;
+  .page-stack--tasks .tasks-view-btn {
+    flex: 0 0 auto;
     justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
   }
 
   .tasks-filters-panel {
@@ -263,6 +366,7 @@
   .tasks-filter-reset {
     width: 100%;
     justify-content: center;
+    min-height: var(--touch-min);
   }
 
   .tasks-kanban-view {
@@ -270,8 +374,62 @@
     min-height: 18rem;
   }
 
-  .kanban-board {
+  /* Phone: swipe one column at a time */
+  .page-stack--tasks .kanban-board {
+    display: flex;
+    gap: 0.65rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.35rem;
     min-height: 16rem;
+  }
+
+  .page-stack--tasks .kanban-column {
+    flex: 0 0 min(88vw, 20rem);
+    width: min(88vw, 20rem);
+    min-width: min(88vw, 20rem);
+    max-width: min(88vw, 20rem);
+    scroll-snap-align: center;
+  }
+
+  .page-stack--tasks .kanban-scroll-hint {
+    display: block;
+  }
+
+  .page-stack--tasks > .sphere-select,
+  .page-stack--tasks > .sphere-select--multi {
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: var(--touch-min);
+  }
+
+  .page-stack--tasks > .sphere-select .sphere-filter-trigger,
+  .page-stack--tasks > .sphere-select .sphere-select-control .control {
+    min-height: var(--touch-min);
+  }
+
+  .page-stack--tasks > .task-audience-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .page-stack--tasks > .task-audience-bar .task-audience-bar__label {
+    width: auto;
+  }
+
+  .page-stack--tasks > .task-audience-bar .task-audience-tabs {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .page-stack--tasks > .task-audience-bar .task-audience-tab {
+    flex: 1 1 auto;
+    min-height: var(--touch-min);
+    justify-content: center;
+    text-align: center;
   }
 }
 
@@ -419,45 +577,58 @@
 }
 
 /* ── Checklist control ── */
-.checklist-control-row--primary {
+.checklist-control-row--chrome {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-start;
   gap: var(--space-2);
   padding: var(--space-1) 0;
 }
 
-.checklist-control-start {
-  flex-wrap: nowrap;
-}
-
-.checklist-control-center {
-  flex: 0 0 auto;
-  margin-left: auto;
-  justify-content: flex-end;
-}
-
-@media (max-width: 767px) {
-  .polish-checklist-control-center,
-  .checklist-control-center {
-    flex: 1 1 100%;
-    margin-left: 0;
-    justify-content: stretch;
-  }
+.checklist-sphere {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 
 .checklist-week-nav {
+  margin-left: auto;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid var(--sl-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  padding: 0.2rem;
 }
 
 .checklist-week-label {
-  min-width: 9.5rem;
+  min-width: 9.25rem;
   font-size: 0.75rem;
-  color: var(--sl-text-muted);
+  color: rgb(255 255 255 / 0.78);
+}
+
+@media (max-width: 1023px) {
+  .checklist-control-row--chrome {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding: 0;
+  }
+
+  .checklist-sphere,
+  .checklist-week-nav {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    flex: 0 0 auto;
+  }
+
+  .checklist-sphere {
+    height: 2.5rem;
+    min-height: 2.5rem;
+  }
+
+  .checklist-week-nav {
+    justify-content: space-between;
+    min-height: 2.5rem;
+  }
 }
 
 .checklist-control-row--members {
@@ -474,7 +645,9 @@
 }
 
 .checklist-member-bar {
-  border-color: var(--sl-border);
+  border: none;
+  background: transparent;
+  padding: 0;
 }
 
 .checklist-member-pill--active {
@@ -656,7 +829,9 @@
   gap: var(--space-2);
   flex-shrink: 0;
   padding: var(--space-4) var(--space-6);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--sl-border);
+  background: rgba(12, 13, 18, 0.98);
 }
 
 .qb-field-textarea--question {

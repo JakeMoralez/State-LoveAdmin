@@ -198,7 +198,7 @@
   word-break: break-all;
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .assign-card {
     padding: var(--space-3);
   }

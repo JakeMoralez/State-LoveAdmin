@@ -704,6 +704,8 @@ export interface StaffMember {
   senior_spheres?: string[]
   is_academy?: boolean
   academy?: StaffAcademyBrief | null
+  /** false = карточка открыта, но человека нет в реестре следящих */
+  in_registry?: boolean
 }
 
 export interface StaffMemberPermissions {
@@ -784,6 +786,8 @@ export interface LeaderMember {
   discord_username?: string | null
   discord_display_name?: string | null
   badges?: string[]
+  in_registry?: boolean
+  access_role_title?: string
 }
 
 export interface LeaderMemberPermissions {

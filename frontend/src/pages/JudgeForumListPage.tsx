@@ -377,16 +377,17 @@ export function JudgeForumListPage() {
                   />
                 </FormField>
 
-                <FormField label="Тема на форуме">
+                <FormField label="Тема на форуме" htmlFor="jfl-thread-input">
                   <div className="jfl-thread-row">
                     <input
+                      id="jfl-thread-input"
                       className="control"
                       value={threadInput}
                       onChange={(e) => {
                         setThreadInput(e.target.value)
                         setThreadCheck(null)
                       }}
-                      placeholder="Ссылка или ID темы"
+                      placeholder="Ссылка или ID темы…"
                     />
                     <button
                       type="button"

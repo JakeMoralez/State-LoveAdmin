@@ -26,9 +26,11 @@ from app.services.staff import (
     parse_appointment_date,
     clear_ca_leader_nickname,
     get_ca_leader,
+    get_ca_leader_profile,
     get_judge_member,
     get_leadership_peer_id,
     get_staff_member,
+    get_staff_member_profile,
     list_ca_leaders,
     list_inactive_judges,
     list_inactive_leaders,
@@ -359,11 +361,32 @@ async def get_judge_one(
 ):
     row = await get_judge_member(server_id, vk_id)
     if not row:
-        raise HTTPException(status_code=404, detail=messages.NOT_FOUND_JUDGE)
+        row = await get_ca_leader_profile(server_id, vk_id)
+        if row.get("in_registry") and not row.get("is_judge"):
+            # Не судья и не в судейском чате — всё равно показываем карточку без доступа
+            row = {
+                **row,
+                "in_registry": False,
+                "access_role_title": "Без доступа",
+                "position": None,
+            }
     row = await _enrich_staff_row(row, server_id)
     actor_level = await _actor_access_level(user, server_id)
     row["server_id"] = server_id
-    row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
+    if row.get("in_registry"):
+        row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
+    else:
+        row["permissions"] = {
+            "edit_nickname": False,
+            "edit_forum_account": False,
+            "edit_position": False,
+            "edit_note": False,
+            "edit_discord": False,
+            "clear_nickname": False,
+            "remove_from_registry": False,
+            "manage_registry": False,
+        }
+        row.setdefault("access_role_title", "Без доступа")
     return row
 
 
@@ -397,13 +420,24 @@ async def get_ca_leader_one(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    row = await get_ca_leader(server_id, vk_id)
-    if not row:
-        raise HTTPException(status_code=404, detail=messages.NOT_FOUND_LEADER)
+    row = await get_ca_leader_profile(server_id, vk_id)
     row = await _enrich_staff_row(row, server_id)
     actor_level = await _actor_access_level(user, server_id)
     row["server_id"] = server_id
-    row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
+    if row.get("in_registry"):
+        row["permissions"] = _leader_edit_permissions(user, actor_level, vk_id)
+    else:
+        row["permissions"] = {
+            "edit_nickname": False,
+            "edit_forum_account": False,
+            "edit_position": False,
+            "edit_note": False,
+            "edit_discord": False,
+            "clear_nickname": False,
+            "remove_from_registry": False,
+            "manage_registry": False,
+        }
+        row.setdefault("access_role_title", "Без доступа")
     return row
 
 
@@ -741,19 +775,44 @@ async def get_staff_one(
     server_id: int = Query(DEFAULT_SERVER_ID),
     user: dict = Depends(require_ca_user),
 ):
-    row = await get_staff_member(server_id, vk_id)
-    if not row:
-        raise HTTPException(status_code=404, detail=messages.NOT_FOUND_STAFF)
+    try:
+        row = await get_staff_member_profile(server_id, vk_id)
+    except Exception:
+        # Карточку всё равно отдаём — ссылки из журнала не должны упираться в 404
+        row = {
+            "vk_id": vk_id,
+            "bot_nickname": None,
+            "nickname": "",
+            "display_name": f"id{vk_id}",
+            "username": None,
+            "access_level": 0,
+            "access_level_name": "Нет доступа",
+            "access_role_title": "Без доступа",
+            "sphere": "",
+            "spheres": [],
+            "badges": [],
+            "has_ca_access": False,
+            "ca_source": None,
+            "granted_by": None,
+            "granted_at": None,
+            "promoted_at": None,
+            "note": "",
+            "is_senior": False,
+            "senior_spheres": [],
+            "is_academy": False,
+            "academy": None,
+            "in_registry": False,
+        }
     row = await _enrich_staff_row(row, server_id)
     actor_level = _session_access_level(user)
-    target_level = int(row["access_level"])
+    target_level = int(row.get("access_level") or 0)
     perms = _build_staff_perms(
         user, actor_level, vk_id, target_level, list(row.get("spheres") or [])
     )
     from app.services.access import panel_role
 
     row["server_id"] = server_id
-    row["panel_role"] = panel_role(row["access_level"])
+    row["panel_role"] = panel_role(target_level)
     row["permissions"] = perms
     return row
 

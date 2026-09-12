@@ -1,11 +1,44 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { api, ApiError, type StaffMemberDetail } from '../api'
+import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { ProfileView } from '../components/profile/ProfileView'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { staffLabel } from '../lib/staff'
 import { PageSkeleton } from '../components/ui/LoadingState'
+
+const EMPTY_PERMS: StaffMemberPermissions = {
+  edit_nickname: false,
+  edit_access_level: false,
+  edit_ca_access: false,
+  edit_spheres: false,
+  edit_sphere: false,
+  edit_discord: false,
+  edit_forum_account: false,
+  revoke_staff_access: false,
+  assign_staff: false,
+  max_access_level: 0,
+}
+
+function stubMember(vkId: number): StaffMemberDetail {
+  return {
+    vk_id: vkId,
+    nickname: `id${vkId}`,
+    display_name: `id${vkId}`,
+    username: null,
+    access_level: 0,
+    access_level_name: 'Нет доступа',
+    access_role_title: 'Без доступа',
+    badges: [],
+    has_ca_access: false,
+    ca_source: null,
+    granted_by: null,
+    granted_at: null,
+    note: '',
+    in_registry: false,
+    permissions: EMPTY_PERMS,
+  }
+}
 
 export function StaffMemberPage() {
   const { vkId } = useParams()
@@ -25,8 +58,16 @@ export function StaffMemberPage() {
       .staffMember(parsedId)
       .then(setMember)
       .catch((e: unknown) => {
+        // Профиль открываем всегда: 404/403 «не в реестре» → карточка без доступа
+        const status = e instanceof ApiError ? e.status : typeof e === 'object' && e && 'status' in e ? Number((e as { status: unknown }).status) : NaN
+        const msg = e instanceof Error ? e.message : ''
+        if (status === 404 || status === 403 || /не найден в реестре/i.test(msg)) {
+          setMember(stubMember(parsedId))
+          setError(null)
+          return
+        }
         setMember(null)
-        setError(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось загрузить профиль')
+        setError(msg || 'Не удалось загрузить профиль')
       })
       .finally(() => setLoading(false))
   }
@@ -54,15 +95,17 @@ export function StaffMemberPage() {
     )
   }
 
+  const inRegistry = member.in_registry !== false && member.access_level > 0
   const perms = member.permissions
   const canOpenSettings =
-    perms.edit_nickname ||
-    perms.edit_access_level ||
-    perms.edit_spheres ||
-    perms.edit_ca_access ||
-    perms.edit_sphere ||
-    perms.edit_discord ||
-    perms.revoke_staff_access
+    inRegistry &&
+    (perms.edit_nickname ||
+      perms.edit_access_level ||
+      perms.edit_spheres ||
+      perms.edit_ca_access ||
+      perms.edit_sphere ||
+      perms.edit_discord ||
+      perms.revoke_staff_access)
 
   return (
     <>
@@ -94,26 +137,29 @@ export function StaffMemberPage() {
           discord_display_name: member.discord_display_name,
           granted_at: member.granted_at,
           promoted_at: member.promoted_at,
+          in_registry: inRegistry,
         }}
         backTo={{ label: 'Следящие', href: '/staff' }}
       />
 
-      <StaffProfileModal
-        member={member}
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onSaved={(result) => {
-          if (result?.removed) {
-            navigate('/staff')
-            return
-          }
-          load()
-          if (member.vk_id === user?.vk_id) {
-            void refresh()
-          }
-        }}
-        permissions={member.permissions}
-      />
+      {canOpenSettings ? (
+        <StaffProfileModal
+          member={member}
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={(result) => {
+            if (result?.removed) {
+              navigate('/staff')
+              return
+            }
+            load()
+            if (member.vk_id === user?.vk_id) {
+              void refresh()
+            }
+          }}
+          permissions={member.permissions}
+        />
+      ) : null}
     </>
   )
 }

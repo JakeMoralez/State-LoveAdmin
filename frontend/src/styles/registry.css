@@ -23,6 +23,19 @@
   gap: 0.5rem;
 }
 
+.office-registry-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.office-registry-control > .sphere-tabs {
+  width: fit-content;
+  max-width: 100%;
+}
+
 .staff-registry-toolbar .page-toolbar-search-slot {
   flex: 1 1 auto;
   min-width: 0;
@@ -62,28 +75,28 @@
     width: 100%;
     max-width: none;
   }
+}
 
-  /* Search + one filter: keep a single row */
+/* Search + one filter (leaders): stack on tablet/phone — не сжимать в одну строку */
+@media (max-width: 1023px) {
   .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter)) {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: stretch;
     gap: 0.5rem;
   }
 
   .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter))
-    .page-toolbar-search-slot {
-    grid-column: auto;
-    flex: 1 1 auto;
-    width: auto;
-  }
-
+    .page-toolbar-search-slot,
   .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter))
-    .staff-registry-filter {
-    flex: 0 0 14rem;
-    width: 14rem;
-    max-width: 16rem;
+    .staff-registry-filter,
+  .staff-registry-toolbar.page-toolbar-row:not(:has(.staff-registry-filter ~ .staff-registry-filter))
+    .staff-registry-filter--sphere {
+    grid-column: auto;
+    flex: none;
+    width: 100%;
+    max-width: none;
   }
 }
 
@@ -314,55 +327,28 @@
   object-fit: cover;
 }
 
-/* Tablet: keep real columns, just tighter tracks */
-@media (min-width: 640px) and (max-width: 1023px) {
-  .staff-registry-head,
-  .staff-registry-row {
-    display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1.7fr) minmax(0, 0.9fr) minmax(0, 0.8fr);
-    grid-template-rows: auto;
-    gap: 0.5rem 0.75rem;
-  }
-
-  .leaders-registry-head,
-  .leaders-registry-row {
-    display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1.5fr) minmax(0, 1fr);
-    grid-template-rows: auto;
-  }
-
-  .leaders-registry--spheres .leaders-registry-head,
-  .leaders-registry--spheres .leaders-registry-row {
-    grid-template-columns: 2.25rem minmax(0, 1.4fr) minmax(0, 0.85fr) minmax(0, 1fr);
-  }
-
-  .leaders-registry .staff-registry-head .staff-col-position,
-  .leaders-registry .staff-registry-head .staff-col-sphere,
-  .staff-registry-head .staff-col-role,
-  .staff-registry-head .staff-col-sphere {
-    display: inline-flex;
-  }
-
-  .leaders-registry .staff-col-position::before,
-  .leaders-registry .staff-col-sphere::before,
-  .staff-col-role::before,
-  .staff-col-sphere::before {
-    content: none;
-  }
-
-  .dev-leadership-head,
-  .dev-leadership-row {
-    grid-template-columns: 2.25rem minmax(0, 1fr) 7.5rem;
-  }
-}
-
-/* Phone card layout */
+/* Card rows for staff / leaders — только phone ≤639; с 640px таблица в одну линию */
 @media (max-width: 639px) {
   .staff-registry-head,
-  .staff-registry-row {
-    grid-template-columns: 36px 1fr;
-    grid-template-rows: auto auto;
-    gap: 0.5rem 0.75rem;
+  .staff-registry-row,
+  .leaders-registry-head,
+  .leaders-registry-row,
+  .leaders-registry--spheres .leaders-registry-head,
+  .leaders-registry--spheres .leaders-registry-row {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    grid-template-rows: auto;
+    gap: 0.35rem 0.75rem;
+    align-items: start;
+  }
+
+  .staff-registry-head .staff-col-role,
+  .staff-registry-head .staff-col-sphere,
+  .staff-registry-head .staff-col-position,
+  .staff-registry-head .staff-col-note,
+  .leaders-registry .staff-registry-head .staff-col-position,
+  .leaders-registry .staff-registry-head .staff-col-sphere {
+    display: none;
   }
 
   .staff-col-role,
@@ -371,13 +357,8 @@
   .staff-col-note {
     grid-column: 2;
     white-space: normal;
-  }
-
-  .staff-registry-head .staff-col-role,
-  .staff-registry-head .staff-col-sphere,
-  .staff-registry-head .staff-col-position,
-  .staff-registry-head .staff-col-note {
-    display: none;
+    font-size: 0.8125rem;
+    line-height: 1.35;
   }
 
   .staff-col-role::before {
@@ -385,12 +366,14 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
-  .staff-col-sphere::before {
+  .staff-col-sphere::before,
+  .leaders-registry .staff-col-sphere::before {
     content: 'Сфера: ';
     color: rgba(255, 255, 255, 0.4);
   }
 
-  .staff-col-position::before {
+  .staff-col-position::before,
+  .leaders-registry .staff-col-position::before {
     content: 'Должность: ';
     color: rgba(255, 255, 255, 0.4);
   }
@@ -400,6 +383,43 @@
     color: rgba(255, 255, 255, 0.4);
   }
 
+  .staff-registry-row {
+    padding: 0.75rem 0.25rem !important;
+  }
+
+  .staff-registry-head {
+    padding: 0 0.25rem 0.5rem !important;
+  }
+
+  /* # на одной линии с аватаркой / кнопками ника */
+  .staff-registry-row .staff-col-num {
+    display: flex;
+    align-items: center;
+    align-self: start;
+    min-height: var(--touch-min);
+    height: var(--touch-min);
+    line-height: 1;
+  }
+
+  .staff-registry-head .staff-col-num {
+    display: flex;
+    align-items: center;
+    min-height: var(--touch-min);
+  }
+
+  .staff-col-nick {
+    flex-wrap: nowrap;
+    align-items: center;
+    row-gap: 0.35rem;
+    min-width: 0;
+    min-height: var(--touch-min);
+  }
+
+  .staff-nick-cluster {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .staff-settings-btn {
     width: var(--touch-min);
     height: var(--touch-min);
@@ -407,7 +427,7 @@
 
   .dev-leadership-head,
   .dev-leadership-row {
-    grid-template-columns: 36px 1fr;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
     grid-template-rows: auto auto;
   }
 
@@ -428,8 +448,7 @@
 
   .leaders-registry--manage .leaders-registry-head,
   .leaders-registry--manage .leaders-registry-row {
-    grid-template-columns: 36px 1fr;
-    grid-template-rows: auto auto auto;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
   }
 
   .leaders-registry--manage .leaders-registry-head .leaders-col-actions,
@@ -444,13 +463,61 @@
     grid-column: 2;
   }
 
-  .leaders-registry--manage .staff-col-position::before {
-    content: 'Должность: ';
-    color: rgba(255, 255, 255, 0.4);
-  }
-
   .leaders-registry--manage .staff-col-note::before {
     content: 'Заметка: ';
     color: rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* Планшет / узкий ПК (640–1023): компактная таблица в одну линию с номером */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .staff-registry-head,
+  .staff-registry-row {
+    grid-template-columns: 2.5rem minmax(0, 1.4fr) minmax(0, 0.85fr) minmax(0, 0.95fr);
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+  }
+
+  .leaders-registry-head,
+  .leaders-registry-row {
+    grid-template-columns: 2.5rem minmax(0, 1.35fr) minmax(0, 0.9fr);
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+  }
+
+  .leaders-registry--spheres .leaders-registry-head,
+  .leaders-registry--spheres .leaders-registry-row {
+    grid-template-columns: 2.5rem minmax(0, 1.2fr) minmax(0, 0.75fr) minmax(0, 0.95fr);
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+  }
+
+  .staff-registry-row {
+    padding: 0.45rem 0.25rem !important;
+  }
+
+  .staff-registry-head {
+    padding: 0 0.25rem 0.45rem !important;
+  }
+
+  .staff-col-role,
+  .staff-col-sphere,
+  .staff-col-position,
+  .staff-col-note {
+    white-space: nowrap;
+  }
+
+  .staff-col-role::before,
+  .staff-col-sphere::before,
+  .staff-col-position::before,
+  .staff-col-note::before,
+  .leaders-registry .staff-col-sphere::before,
+  .leaders-registry .staff-col-position::before {
+    content: none;
+  }
+
+  .staff-settings-btn {
+    width: 1.75rem;
+    height: 1.75rem;
   }
 }

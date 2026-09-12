@@ -1125,6 +1125,73 @@ async def get_staff_member(server_id: int, vk_id: int) -> dict | None:
     )
 
 
+async def get_staff_member_profile(server_id: int, vk_id: int) -> dict:
+    """Карточка /staff/:id — в реестре или без доступа (для ссылок из журнала и т.п.)."""
+    row = await get_staff_member(server_id, vk_id)
+    if row:
+        row["in_registry"] = True
+        return row
+
+    user = await User.get_or_none(vk_id=vk_id)
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    nick_fields = _leader_nick_fields(bot_nickname, vk_id)
+    level = int(access.access_level) if access else 0
+    return {
+        "vk_id": vk_id,
+        "bot_nickname": nick_fields["bot_nickname"],
+        "nickname": nick_fields["nickname"],
+        "display_name": nick_fields["display_name"] or f"id{vk_id}",
+        "username": user.username if user else None,
+        "access_level": 0,
+        "access_level_name": "Нет доступа",
+        "access_role_title": "Без доступа",
+        "sphere": "",
+        "spheres": [],
+        "badges": [],
+        "has_ca_access": False,
+        "ca_source": None,
+        "granted_by": None,
+        "granted_at": _access_dt_iso(access, "granted_at") if access else None,
+        "promoted_at": _access_dt_iso(access, "promoted_at") if access else None,
+        "note": "",
+        "is_senior": False,
+        "senior_spheres": [],
+        "is_academy": False,
+        "academy": None,
+        "in_registry": False,
+        "stored_access_level": level,
+    }
+
+
+async def get_ca_leader_profile(server_id: int, vk_id: int) -> dict:
+    """Карточка /leaders/:id — в реестре или без доступа к беседе."""
+    row = await get_ca_leader(server_id, vk_id)
+    if row:
+        row["in_registry"] = True
+        return row
+
+    user = await User.get_or_none(vk_id=vk_id)
+    access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    bot_nickname = await resolve_bot_nickname(vk_id, server_id, access=access, user=user)
+    nick_fields = _leader_nick_fields(bot_nickname, vk_id)
+    return {
+        "vk_id": vk_id,
+        "bot_nickname": nick_fields["bot_nickname"],
+        "nickname": nick_fields["nickname"],
+        "display_name": nick_fields["display_name"] or f"id{vk_id}",
+        "username": user.username if user else None,
+        "position": None,
+        "note": None,
+        "sphere": None,
+        "badges": ["🛡"],
+        "discord_id": None,
+        "in_chat": False,
+        "in_registry": False,
+        "access_role_title": "Без доступа",
+    }
+
+
 async def revoke_staff_access(
     server_id: int,
     vk_id: int,

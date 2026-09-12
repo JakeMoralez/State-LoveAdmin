@@ -77,16 +77,21 @@ export function TasksWorkspace({
   taskIdParam,
 }: TasksWorkspaceProps) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  const [filters, setFilters] = useState<TaskFilters>(() => ({
-    mine: searchParams.get('mine') === '1',
-    overdue: searchParams.get('overdue') === '1',
-    assigneeVkId: '',
-    priority: '',
-    projectId: projectId ? String(projectId) : '',
-    view: getInitialTaskView(),
-  }))
+  const [filters, setFilters] = useState<TaskFilters>(() => {
+    const urlView = searchParams.get('view')
+    const view =
+      urlView === 'kanban' || urlView === 'list' ? urlView : getInitialTaskView()
+    return {
+      mine: searchParams.get('mine') === '1',
+      overdue: searchParams.get('overdue') === '1',
+      assigneeVkId: '',
+      priority: '',
+      projectId: projectId ? String(projectId) : '',
+      view,
+    }
+  })
   const [listTasks, setListTasks] = useState<TaskDetail[]>([])
   const [columns, setColumns] = useState<Record<string, TaskDetail[]>>({})
   const [staff, setStaff] = useState<StaffMember[]>([])
@@ -95,11 +100,13 @@ export function TasksWorkspace({
   const [activeId, setActiveId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [audience, setAudience] = useState<string>('')
+  const [audience, setAudience] = useState<string>(() => searchParams.get('audience') || '')
   const [audienceTabs, setAudienceTabs] = useState<{ id: string; label: string }[]>([])
   const [canManageGov, setCanManageGov] = useState(false)
+  const [recurrenceRevision, setRecurrenceRevision] = useState(0)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+  const tasksPanelId = 'tasks-workspace-panel'
 
   const showGovAudiences = Boolean(
     spheres?.length === 1 && spheres[0] === GOV_STRUCTURES_SPHERE,
@@ -182,12 +189,14 @@ export function TasksWorkspace({
       setCanManageGov(false)
       return
     }
+    const urlAudience = searchParams.get('audience') || ''
     void api
       .taskAudiences()
       .then((r) => {
         setAudienceTabs(r.audiences.length ? r.audiences : TASK_AUDIENCE_OPTIONS)
         setCanManageGov(r.can_manage)
         setAudience((prev) => {
+          if (urlAudience && r.audiences.some((a) => a.id === urlAudience)) return urlAudience
           if (prev && r.audiences.some((a) => a.id === prev)) return prev
           if (r.can_manage) return r.audiences[0]?.id || ''
           return r.own_audience || r.audiences[0]?.id || ''
@@ -197,7 +206,27 @@ export function TasksWorkspace({
         setAudienceTabs(TASK_AUDIENCE_OPTIONS)
         setCanManageGov(false)
       })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-fetch when sphere mode flips
   }, [showGovAudiences])
+
+  useEffect(() => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        const setOrDel = (key: string, value: string | null) => {
+          if (value) next.set(key, value)
+          else next.delete(key)
+        }
+        setOrDel('mine', filters.mine ? '1' : null)
+        setOrDel('overdue', filters.overdue ? '1' : null)
+        setOrDel('view', filters.view === 'list' ? 'list' : null)
+        setOrDel('audience', showGovAudiences && audience ? audience : null)
+        if (next.toString() === prev.toString()) return prev
+        return next
+      },
+      { replace: true },
+    )
+  }, [filters.mine, filters.overdue, filters.view, audience, showGovAudiences, setSearchParams])
 
   const allTasks = useMemo(() => {
     if (filters.view === 'list') return listTasks
@@ -295,6 +324,7 @@ export function TasksWorkspace({
         },
         sphere,
       )
+      setRecurrenceRevision((n) => n + 1)
     } else {
       await api.createTask(
         {
@@ -341,6 +371,8 @@ export function TasksWorkspace({
                 type="button"
                 role="tab"
                 aria-selected={!audience}
+                aria-controls={tasksPanelId}
+                id="task-audience-all"
                 className={cn('task-audience-tab', !audience && 'task-audience-tab--active')}
                 onClick={() => setAudience('')}
               >
@@ -352,7 +384,9 @@ export function TasksWorkspace({
                 key={tab.id}
                 type="button"
                 role="tab"
+                id={`task-audience-${tab.id}`}
                 aria-selected={audience === tab.id}
+                aria-controls={tasksPanelId}
                 className={cn(
                   'task-audience-tab',
                   `task-audience-tab--${tab.id}`,
@@ -385,7 +419,12 @@ export function TasksWorkspace({
       />
 
       {showGovAudiences && canManageGov && createSphere === GOV_STRUCTURES_SPHERE && (
-        <TaskRecurrencePanel sphere={GOV_STRUCTURES_SPHERE} canManage={canManageGov} onChanged={load} />
+        <TaskRecurrencePanel
+          sphere={GOV_STRUCTURES_SPHERE}
+          canManage={canManageGov}
+          revision={recurrenceRevision}
+          onChanged={load}
+        />
       )}
 
       {selectedIds.size > 0 && filters.view === 'kanban' && (
@@ -398,6 +437,18 @@ export function TasksWorkspace({
         </div>
       )}
 
+      <div
+        id={tasksPanelId}
+        role="tabpanel"
+        aria-labelledby={
+          showGovAudiences
+            ? audience
+              ? `task-audience-${audience}`
+              : 'task-audience-all'
+            : undefined
+        }
+        className="min-h-0 flex min-w-0 flex-1 flex-col"
+      >
       {loading ? (
         <TasksLoadingSkeleton view={filters.view} />
       ) : filters.view === 'list' ? (
@@ -438,6 +489,7 @@ export function TasksWorkspace({
         </DndContext>
         </div>
       )}
+      </div>
       </>
       )}
 

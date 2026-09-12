@@ -75,7 +75,7 @@ export function LootCasesPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--cases">
       <PageHeader
         section="Разработка"
         title="Кейсы"

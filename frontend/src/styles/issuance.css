@@ -1,36 +1,3 @@
-.issuance-tabs {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.2rem;
-  padding: 0.2rem;
-  width: fit-content;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.03);
-}
-
-.issuance-tab {
-  border: 0;
-  background: transparent;
-  color: rgb(255 255 255 / 0.5);
-  border-radius: 999px;
-  padding: 0.38rem 0.95rem;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    background 0.15s;
-}
-
-.issuance-tab:hover {
-  color: rgb(255 255 255 / 0.82);
-}
-
-.issuance-tab--active {
-  color: rgb(255 255 255 / 0.95);
-  background: rgb(201 162 39 / 0.16);
-}
-
 .issuance-total {
   margin: 0;
   font-size: 0.875rem;
@@ -375,26 +342,253 @@
   gap: 0.75rem;
 }
 
+/* Short copy-all label only on narrow phones */
+.issuance-btn-copy-all-short {
+  display: none;
+}
+
+/* ── Phone + tablet (≤1023): card rows, no horizontal table scroll ── */
+@media (max-width: 1023px) {
+  .page-stack--issuance {
+    gap: var(--space-4, 1rem);
+  }
+
+  .page-stack--issuance > .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3, 0.75rem);
+  }
+
+  .page-stack--issuance .page-header-actions {
+    width: 100%;
+    max-width: none;
+  }
+
+  .issuance-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .issuance-header-actions .btn {
+    flex: 1 1 auto;
+    min-height: var(--touch-min, 2.75rem);
+    justify-content: center;
+  }
+
+  .page-stack--issuance > .sphere-tabs {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .page-stack--issuance > .sphere-tabs .sphere-tab {
+    flex: 1 1 auto;
+    min-height: var(--touch-min, 2.75rem);
+    justify-content: center;
+    text-align: center;
+  }
+
+  .issuance-registry.staff-registry {
+    overflow: visible;
+  }
+
+  .issuance-registry.staff-registry .staff-registry-head {
+    display: none;
+  }
+
+  .issuance-registry.staff-registry .staff-registry-body,
+  .issuance-registry .staff-registry-body {
+    min-width: 0;
+    gap: var(--space-2, 0.5rem);
+  }
+
+  /* ~3 линии: nick·role + status/actions · amount · reason · date·who·proof */
+  .issuance-registry.staff-registry .staff-registry-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'person person status actions'
+      'amount reason reason reason'
+      'date who who proof';
+    gap: 0.3rem 0.45rem;
+    align-items: center;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.55rem 0.7rem !important;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: var(--radius-lg, 12px);
+    background: rgb(255 255 255 / 0.03);
+  }
+
+  .issuance-registry.staff-registry .staff-registry-row > * {
+    overflow: visible;
+  }
+
+  .issuance-col-person {
+    grid-area: person;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+  }
+
+  .issuance-col-person .issuance-role {
+    white-space: nowrap;
+  }
+
+  .issuance-col-person .issuance-role::before {
+    content: '· ';
+    color: rgb(255 255 255 / 0.28);
+  }
+
+  .issuance-col-status {
+    grid-area: status;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .issuance-col-actions {
+    grid-area: actions;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .issuance-col-amount {
+    grid-area: amount;
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  .issuance-col-amount > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .issuance-col-reason {
+    grid-area: reason;
+    min-width: 0;
+  }
+
+  .issuance-reason {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+
+  .issuance-reason::before {
+    content: '· ';
+    color: rgb(255 255 255 / 0.28);
+  }
+
+  .issuance-col-date {
+    grid-area: date;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .issuance-col-who {
+    grid-area: who;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.65rem;
+    min-width: 0;
+  }
+
+  .issuance-who-line {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .issuance-col-proof {
+    grid-area: proof;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .issuance-stamp {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+  }
+
+  .issuance-who-label,
+  .issuance-who-name {
+    font-size: 0.6875rem;
+  }
+
+  .issuance-who-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .issuance-role {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .issuance-copy-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .issuance-proof {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .issuance-col-actions .staff-settings-btn {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  .issuance-row--issued {
+    border-color: rgb(201 162 39 / 0.22);
+    background: rgb(201 162 39 / 0.05);
+  }
+
+  .issuance-row--rejected {
+    border-color: rgb(248 113 113 / 0.18);
+  }
+}
+
 @media (max-width: 639px) {
   .issuance-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .issuance-registry.staff-registry .staff-registry-head,
   .issuance-registry.staff-registry .staff-registry-row {
-    grid-template-columns:
-      4.85rem
-      minmax(5.5rem, 0.7fr)
-      minmax(7.5rem, 1.15fr)
-      minmax(6.5rem, 0.85fr)
-      minmax(6rem, 1.1fr)
-      2.5rem
-      minmax(7.5rem, 1fr)
-      2.25rem;
-    grid-template-rows: auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'person person status actions'
+      'amount reason reason reason'
+      'date who who proof';
   }
 
-  .issuance-registry .staff-registry-head {
-    display: grid;
+  .issuance-btn-copy-all-label {
+    display: none;
+  }
+
+  .issuance-btn-copy-all-short {
+    display: inline;
+  }
+
+  .issuance-header-actions {
+    flex-wrap: nowrap;
   }
 }

@@ -151,6 +151,9 @@ export function MessageComposer({
           placeholder={placeholder}
           disabled={disabled || busy}
           className="msg-composer-input"
+          aria-label={placeholder}
+          name="message"
+          autoComplete="off"
         />
         <button
           type="button"

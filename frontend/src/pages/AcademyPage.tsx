@@ -18,6 +18,7 @@ import { Alert } from '../components/ui/Alert'
 import { Select } from '../components/ui/Select'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { useAuth } from '../context/AuthContext'
+import { useMediaQuery, MOBILE_NAV_QUERY } from '../hooks/useMediaQuery'
 import { ACADEMY_ENROLL_MIN_LEVEL, accessLevelShort } from '../lib/accessLevels'
 import { PageSkeleton } from '../components/ui/LoadingState'
 import {
@@ -51,6 +52,7 @@ function parseLinks(raw: string): string[] {
 
 export function AcademyPage() {
   const { user } = useAuth()
+  const isMobileNav = useMediaQuery(MOBILE_NAV_QUERY)
   const [tab, setTab] = useState<Tab | null>(null)
   const [filter, setFilter] = useState<RosterFilter>('all')
   const [summary, setSummary] = useState<AcademySummary | null>(null)
@@ -153,54 +155,63 @@ export function AcademyPage() {
     ...(canLead ? [{ id: 'reserve' as const, label: 'Резерв' }] : []),
   ]
 
+  const subtitle = summary
+    ? `${summary.cadets} академиков · ${summary.pending_reviews} на проверке`
+    : 'Подготовка управленца сферы'
+
+  const headerActions = (
+    <div className="academy-page-actions">
+      {canLead ? (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setTemplatesOpen(true)}>
+          Шаблоны
+        </button>
+      ) : null}
+      {canAssign ? (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignOpen(true)}>
+          Выдать задание
+        </button>
+      ) : null}
+      {canEnroll ? (
+        <button type="button" className="btn btn-gold btn-sm" onClick={() => setEnrollOpen(true)}>
+          <Plus size={16} />
+          Зачислить
+        </button>
+      ) : null}
+    </div>
+  )
+
+  const hasActions = canLead || canAssign || canEnroll
+
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--academy">
       <PageHeader
         section="Работа"
         title="Академия"
         icon={GraduationCap}
         shrink
-        subtitle={
-          summary
-            ? `${summary.cadets} академиков · ${summary.pending_reviews} на проверке`
-            : 'Подготовка управленца сферы'
-        }
-        actions={
-          <div className="flex flex-wrap gap-2">
-            {canLead ? (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setTemplatesOpen(true)}>
-                Шаблоны
-              </button>
-            ) : null}
-            {canAssign ? (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAssignOpen(true)}>
-                Выдать задание
-              </button>
-            ) : null}
-            {canEnroll ? (
-              <button type="button" className="btn btn-gold btn-sm" onClick={() => setEnrollOpen(true)}>
-                <Plus size={16} />
-                Зачислить
-              </button>
-            ) : null}
-          </div>
-        }
+        subtitle={isMobileNav ? undefined : subtitle}
+        actions={!isMobileNav && hasActions ? headerActions : undefined}
       />
 
-      <div className="sphere-tabs" role="tablist" aria-label="Академия">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === item.id}
-            className={activeTab === item.id ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+      <div className="office-registry-control academy-page-control shrink-0">
+        <div className="sphere-tabs academy-main-tabs" role="tablist" aria-label="Академия">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === item.id}
+              className={activeTab === item.id ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+              onClick={() => setTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {isMobileNav && hasActions ? headerActions : null}
       </div>
+
+      {isMobileNav ? <p className="staff-registry-count">{subtitle}</p> : null}
 
       {error && <Alert className="shrink-0">{error}</Alert>}
 
@@ -226,7 +237,7 @@ export function AcademyPage() {
               <div className="academy-stat-label">Выпусков за месяц</div>
             </div>
           </div>
-          <div className="sphere-tabs" role="tablist" aria-label="Фильтр состава">
+          <div className="sphere-tabs academy-roster-filters" role="tablist" aria-label="Фильтр состава">
             {(
               [
                 ['all', 'Все'],

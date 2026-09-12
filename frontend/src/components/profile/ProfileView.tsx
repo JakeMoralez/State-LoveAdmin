@@ -49,6 +49,8 @@ export interface ProfileViewData {
   senior_spheres?: string[]
   notify_tasks?: boolean
   notify_assign?: boolean
+  /** false = нет в реестре / без доступа на портале */
+  in_registry?: boolean
 }
 
 function parseNickname(nickname: string | null, vkId: number) {

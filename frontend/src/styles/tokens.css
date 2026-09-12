@@ -43,6 +43,11 @@
   --glass-blur: 10px;
   --accent-gold-soft: rgba(201, 162, 39, 0.1);
 
+  /* Type */
+  --font-sans: Inter, system-ui, -apple-system, sans-serif;
+  --font-display: "Space Grotesk", Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
   /* Radius */
   --radius-sm: 6px;
   --radius-md: 8px;

@@ -73,43 +73,47 @@ export function TasksToolbar({
       <div className="tasks-toolbar-panel-row">
         {onCreate && (
           <button type="button" onClick={onCreate} className="btn-primary btn-sm tasks-toolbar-create shrink-0">
-            <Plus size={16} />
+            <Plus size={16} aria-hidden />
             Задача
           </button>
         )}
 
-        <button
-          type="button"
-          className={cn('btn-secondary btn-sm tasks-filter-toggle', open && 'tasks-filter-toggle--open')}
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-        >
-          <Filter size={14} />
-          Фильтры
-          {activeCount > 0 && <span className="tasks-filter-count">{activeCount}</span>}
-          <ChevronDown size={14} className={cn('tasks-filter-chevron', open && 'tasks-filter-chevron--open')} />
-        </button>
+          <button
+            type="button"
+            className={cn('btn-secondary btn-sm tasks-filter-toggle', open && 'tasks-filter-toggle--open')}
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            <Filter size={14} aria-hidden />
+            Фильтры
+            {activeCount > 0 && <span className="tasks-filter-count">{activeCount}</span>}
+            <ChevronDown size={14} className={cn('tasks-filter-chevron', open && 'tasks-filter-chevron--open')} aria-hidden />
+          </button>
 
         <span className="tasks-count">
           {shown} из {total}
         </span>
 
-        <div className="tasks-view-toggle">
+        <div className="tasks-view-toggle" role="group" aria-label="Вид списка">
           <button
             type="button"
             className={cn('tasks-view-btn', filters.view === 'kanban' && 'tasks-view-btn--active')}
             onClick={() => onChange({ view: 'kanban' })}
             title="Канбан"
+            aria-label="Канбан"
+            aria-pressed={filters.view === 'kanban'}
           >
-            <LayoutGrid size={14} />
+            <LayoutGrid size={14} aria-hidden />
           </button>
           <button
             type="button"
             className={cn('tasks-view-btn', filters.view === 'list' && 'tasks-view-btn--active')}
             onClick={() => onChange({ view: 'list' })}
             title="Список"
+            aria-label="Список"
+            aria-pressed={filters.view === 'list'}
           >
-            <List size={14} />
+            <List size={14} aria-hidden />
           </button>
         </div>
       </div>
@@ -136,6 +140,7 @@ export function TasksToolbar({
               value={filters.assigneeVkId}
               onChange={(v) => onChange({ assigneeVkId: v, mine: false })}
               options={assigneeOptions}
+              aria-label="Исполнитель"
             />
           </div>
           <div className="tasks-filter-field">
@@ -143,6 +148,7 @@ export function TasksToolbar({
               size="sm"
               value={filters.priority}
               onChange={(v) => onChange({ priority: v })}
+              aria-label="Приоритет"
               options={[
                 { value: '', label: 'Все приоритеты' },
                 ...Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label })),
@@ -156,11 +162,12 @@ export function TasksToolbar({
                 value={filters.projectId}
                 onChange={(v) => onChange({ projectId: v })}
                 options={projectOptions}
+                aria-label="Проект"
               />
             </div>
           )}
           <button type="button" className="btn-ghost btn-sm tasks-filter-reset" onClick={reset}>
-            <RotateCcw size={14} />
+            <RotateCcw size={14} aria-hidden />
             Сброс
           </button>
         </div>

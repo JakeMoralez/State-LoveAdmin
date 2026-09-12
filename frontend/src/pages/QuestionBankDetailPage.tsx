@@ -293,27 +293,26 @@ export function QuestionBankDetailPage() {
           <div className="qb-modal-head">
             <h2 className="text-lg font-bold m-0">Редактировать банк</h2>
           </div>
-          <div className="qb-modal-body ll-scroll">
-            {bank && (
-              <BankForm
-                initial={{
-                  title: bank.title,
-                  description: bank.description,
-                  emoji: bank.emoji,
-                  min_submit_level: bank.min_submit_level,
-                  min_approve_level: bank.min_approve_level,
-                  contributor_visibility: bank.contributor_visibility ?? 'own_workflow',
-                }}
-                visibilityOptions={meta?.contributor_visibility_modes}
-                onCancel={() => setEditBankOpen(false)}
-                onSubmit={async (values) => {
-                  await api.updateQuestionBank(bank.id, values)
-                  setEditBankOpen(false)
-                  load()
-                }}
-              />
-            )}
-          </div>
+          {bank && (
+            <BankForm
+              stickyActions
+              initial={{
+                title: bank.title,
+                description: bank.description,
+                emoji: bank.emoji,
+                min_submit_level: bank.min_submit_level,
+                min_approve_level: bank.min_approve_level,
+                contributor_visibility: bank.contributor_visibility ?? 'own_workflow',
+              }}
+              visibilityOptions={meta?.contributor_visibility_modes}
+              onCancel={() => setEditBankOpen(false)}
+              onSubmit={async (values) => {
+                await api.updateQuestionBank(bank.id, values)
+                setEditBankOpen(false)
+                load()
+              }}
+            />
+          )}
         </div>
       </ModalViewport>
     </div>

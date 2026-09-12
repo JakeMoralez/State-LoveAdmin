@@ -172,6 +172,99 @@ export function ChecklistPage() {
 
   const hasChecklistBoard = Boolean(!loading && !error && data && data.members.length > 0)
 
+  const weekNav = (
+    <div className="checklist-week-nav">
+      <button
+        type="button"
+        className="checklist-week-btn"
+        aria-label="Предыдущая неделя"
+        onClick={() => setWeek((w) => addDays(w, -7))}
+      >
+        <ChevronLeft size={15} />
+      </button>
+      <span className="checklist-week-label">
+        {data ? formatWeekRu(data.week_start, data.week_end) : week}
+      </span>
+      <button
+        type="button"
+        className="checklist-week-btn"
+        aria-label="Следующая неделя"
+        onClick={() => setWeek((w) => addDays(w, 7))}
+      >
+        <ChevronRight size={15} />
+      </button>
+      {week !== mondayOf(new Date()) && (
+        <button
+          type="button"
+          className="checklist-week-btn checklist-week-btn--now"
+          onClick={() => setWeek(mondayOf(new Date()))}
+        >
+          Сейчас
+        </button>
+      )}
+      <button
+        type="button"
+        className="checklist-week-btn"
+        aria-label="Обновить"
+        onClick={load}
+        disabled={loading}
+      >
+        <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+      </button>
+      {isNarrow && data?.can_edit_all && (
+        <button
+          type="button"
+          className="checklist-week-btn"
+          title="Настройки"
+          aria-label="Настройки"
+          onClick={() => openSettings('tasks')}
+        >
+          <Settings size={15} />
+        </button>
+      )}
+    </div>
+  )
+
+  const modeBar =
+    hasChecklistBoard && !isNarrow ? (
+      <div className="checklist-mode-bar">
+        {data?.can_edit_all && (
+          <>
+            <button
+              type="button"
+              className="checklist-mode-btn checklist-mode-btn--icon"
+              title="Настройки"
+              aria-label="Настройки"
+              onClick={() => openSettings('tasks')}
+            >
+              <Settings size={14} />
+            </button>
+            <span className="checklist-mode-divider" aria-hidden />
+          </>
+        )}
+        {!isCompact && (
+          <button
+            type="button"
+            className={`checklist-mode-btn ${viewMode === 'all' ? 'checklist-mode-btn--active' : ''}`}
+            onClick={() => setMode('all')}
+            title="Все колонки"
+          >
+            <Columns3 size={14} />
+            Все
+          </button>
+        )}
+        <button
+          type="button"
+          className={`checklist-mode-btn ${effectiveViewMode === 'single' ? 'checklist-mode-btn--active' : ''}`}
+          onClick={() => setMode('single')}
+          title="По одному следящему"
+        >
+          <UserRound size={14} />
+          Один
+        </button>
+      </div>
+    ) : null
+
   return (
     <div className="content-fixed page-stack page-stack--checklist">
       <PageHeader
@@ -187,263 +280,168 @@ export function ChecklistPage() {
         }
       />
 
-      {spheres.length > 0 && <SphereTabs pageKey="checklist" spheres={spheres} mode="single" className="shrink-0" />}
-
       {spheres.length === 0 ? (
         <p className="text-white/40 text-sm">Нет назначенных сфер — обратитесь к ЗГС.</p>
       ) : (
-      <>
-      {hasChecklistBoard && (
-      <div className="checklist-control-panel shrink-0">
-        <div className="checklist-control-row checklist-control-row--primary">
-          {!isNarrow && (
-            <div className="checklist-control-start">
-              {!loading && !error && data && data.members.length > 0 && (
-                <div className="checklist-mode-bar">
-                  {data.can_edit_all && (
-                    <>
+        <>
+          <div className="checklist-control-panel shrink-0">
+            <div className="checklist-control-row checklist-control-row--chrome">
+              <SphereTabs
+                pageKey="checklist"
+                spheres={spheres}
+                mode="single"
+                className="checklist-sphere"
+              />
+              {modeBar}
+              {(hasChecklistBoard || loading) && weekNav}
+            </div>
+
+            {hasChecklistBoard && effectiveViewMode === 'single' && (
+              <div className="checklist-control-row checklist-control-row--members">
+                <div className="checklist-member-bar ll-scroll" role="tablist" aria-label="Следящие">
+                  {data!.members.map((m) => {
+                    const isSelf = m.vk_id === data!.current_vk_id
+                    const active = m.vk_id === activeMemberId
+                    return (
                       <button
+                        key={m.vk_id}
                         type="button"
-                        className="checklist-mode-btn checklist-mode-btn--icon"
-                        title="Настройки"
-                        aria-label="Настройки"
-                        onClick={() => openSettings('tasks')}
+                        role="tab"
+                        aria-selected={active}
+                        className={`checklist-member-pill ${active ? 'checklist-member-pill--active' : ''} ${isSelf ? 'checklist-member-pill--self' : ''}`}
+                        onClick={() => setActiveMemberId(m.vk_id)}
+                        title={m.display_name}
                       >
-                        <Settings size={14} />
+                        <span className="checklist-member-pill-label">{m.display_name}</span>
+                        {isSelf && <span className="checklist-member-pill-tag">я</span>}
                       </button>
-                      <span className="checklist-mode-divider" aria-hidden />
-                    </>
-                  )}
-                  {!isCompact && (
+                    )
+                  })}
+                  {!data!.can_edit_all && !hasMyColumn && (
                     <button
                       type="button"
-                      className={`checklist-mode-btn ${viewMode === 'all' ? 'checklist-mode-btn--active' : ''}`}
-                      onClick={() => setMode('all')}
-                      title="Все колонки"
+                      className="checklist-member-pill checklist-member-pill--add"
+                      onClick={enableMyColumn}
+                      disabled={enablingSelf}
                     >
-                      <Columns3 size={14} />
-                      Все
+                      {enablingSelf ? '…' : '+ Моя колонка'}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className={`checklist-mode-btn ${effectiveViewMode === 'single' ? 'checklist-mode-btn--active' : ''}`}
-                    onClick={() => setMode('single')}
-                    title="По одному следящему"
-                  >
-                    <UserRound size={14} />
-                    Один
-                  </button>
                 </div>
-              )}
-              {data?.can_edit_all && (!data || data.members.length === 0) && !loading && !error && (
+              </div>
+            )}
+          </div>
+
+          {loading ? (
+            <PageSkeleton variant="checklist" label="Загрузка чеклиста" />
+          ) : error ? (
+            <div className="glass-card modal-card modal-card--sm">
+              <Alert className="mb-3">{error}</Alert>
+              <button type="button" className="btn btn-gold btn-sm" onClick={load}>
+                Повторить
+              </button>
+            </div>
+          ) : !data ? (
+            <div className="page-empty-state page-empty-state--card">
+              <p className="page-empty-state-title">Чеклист пуст</p>
+              <p className="page-empty-state-hint">Обновите страницу или выберите другую сферу.</p>
+            </div>
+          ) : data.members.length === 0 ? (
+            <div className="glass-card modal-card modal-card--md">
+              <p className="text-white/70 mb-2">В чеклисте пока никого нет.</p>
+              <p className="text-white/45 text-sm mb-4">
+                {data.can_edit_all
+                  ? 'Откройте «Настройки» и заранее выберите колонки следящих.'
+                  : 'Нажмите «Моя колонка» ниже, чтобы появиться в таблице.'}
+              </p>
+              {data.can_edit_all ? (
                 <button
                   type="button"
-                  className="checklist-mode-btn checklist-mode-btn--icon checklist-mode-bar--solo"
-                  title="Настройки"
-                  aria-label="Настройки"
-                  onClick={() => openSettings('tasks')}
+                  className="btn btn-gold btn-sm"
+                  onClick={() => {
+                    openSettings('members')
+                  }}
                 >
                   <Settings size={14} />
+                  Настроить состав
+                </button>
+              ) : (
+                <button type="button" className="btn btn-gold btn-sm" onClick={enableMyColumn} disabled={enablingSelf}>
+                  {enablingSelf ? 'Включение…' : 'Моя колонка'}
                 </button>
               )}
             </div>
-          )}
-
-          <div className="checklist-control-center">
-            <div className="checklist-week-nav">
-              <button
-                type="button"
-                className="checklist-week-btn"
-                aria-label="Предыдущая неделя"
-                onClick={() => setWeek((w) => addDays(w, -7))}
-              >
-                <ChevronLeft size={15} />
-              </button>
-              <span className="checklist-week-label">
-                {data ? formatWeekRu(data.week_start, data.week_end) : week}
-              </span>
-              <button
-                type="button"
-                className="checklist-week-btn"
-                aria-label="Следующая неделя"
-                onClick={() => setWeek((w) => addDays(w, 7))}
-              >
-                <ChevronRight size={15} />
-              </button>
-              {week !== mondayOf(new Date()) && (
-                <button
-                  type="button"
-                  className="checklist-week-btn checklist-week-btn--now"
-                  onClick={() => setWeek(mondayOf(new Date()))}
-                >
-                  Эта неделя
-                </button>
-              )}
-              <button
-                type="button"
-                className="checklist-week-btn"
-                aria-label="Обновить"
-                onClick={load}
-                disabled={loading}
-              >
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-              </button>
-              {isNarrow && data?.can_edit_all && (
-                <button
-                  type="button"
-                  className="checklist-week-btn"
-                  title="Настройки"
-                  aria-label="Настройки"
-                  onClick={() => openSettings('tasks')}
-                >
-                  <Settings size={15} />
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {!loading && !error && data && data.members.length > 0 && effectiveViewMode === 'single' && (
-          <div className="checklist-control-row checklist-control-row--members">
-            <div className="checklist-member-bar ll-scroll">
-              {data.members.map((m) => {
-                const isSelf = m.vk_id === data.current_vk_id
-                const active = m.vk_id === activeMemberId
-                return (
-                  <button
-                    key={m.vk_id}
-                    type="button"
-                    className={`checklist-member-pill ${active ? 'checklist-member-pill--active' : ''} ${isSelf ? 'checklist-member-pill--self' : ''}`}
-                    onClick={() => setActiveMemberId(m.vk_id)}
-                    title={m.display_name}
-                  >
-                    <span className="checklist-member-pill-label">{m.display_name}</span>
-                    {isSelf && <span className="checklist-member-pill-tag">я</span>}
-                  </button>
-                )
-              })}
-              {!data.can_edit_all && !hasMyColumn && (
-                <button
-                  type="button"
-                  className="checklist-member-pill checklist-member-pill--add"
-                  onClick={enableMyColumn}
-                  disabled={enablingSelf}
-                >
-                  {enablingSelf ? '…' : '+ Моя колонка'}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {loading ? (
-        <PageSkeleton variant="checklist" label="Загрузка чеклиста" />
-      ) : error ? (
-        <div className="glass-card modal-card modal-card--sm">
-          <Alert className="mb-3">{error}</Alert>
-          <button type="button" className="btn btn-gold btn-sm" onClick={load}>
-            Повторить
-          </button>
-        </div>
-      ) : !data ? (
-        <div className="page-empty-state page-empty-state--card">
-          <p className="page-empty-state-title">Чеклист пуст</p>
-          <p className="page-empty-state-hint">Обновите страницу или выберите другую сферу.</p>
-        </div>
-      ) : data.members.length === 0 ? (
-        <div className="glass-card modal-card modal-card--md">
-          <p className="text-white/70 mb-2">В чеклисте пока никого нет.</p>
-          <p className="text-white/45 text-sm mb-4">
-            {data.can_edit_all
-              ? 'Откройте «Настройки» и заранее выберите колонки следящих.'
-              : 'Нажмите «Моя колонка» ниже, чтобы появиться в таблице.'}
-          </p>
-          {data.can_edit_all ? (
-            <button
-              type="button"
-              className="btn btn-gold btn-sm"
-              onClick={() => {
-                openSettings('members')
-              }}
-            >
-              <Settings size={14} />
-              Настроить состав
-            </button>
           ) : (
-            <button type="button" className="btn btn-gold btn-sm" onClick={enableMyColumn} disabled={enablingSelf}>
-              {enablingSelf ? 'Включение…' : 'Моя колонка'}
-            </button>
+            <div className="checklist-body flex min-w-0 flex-1 flex-col">
+              <div className="checklist-scroll flex-1 min-h-0 overflow-auto ll-scroll">
+                {grouped.map((day) => (
+                  <section key={day.day_offset} className="checklist-day-section">
+                    <div
+                      className={`checklist-board ${effectiveViewMode === 'all' ? 'checklist-board--wide' : 'checklist-board--single'}`}
+                    >
+                      <div className="checklist-board-day">{day.day_label}</div>
+                      <div className="checklist-table-wrap">
+                        <table className="checklist-table">
+                          <thead>
+                            <tr>
+                              <th className="checklist-sticky-col">Задача</th>
+                              {effectiveViewMode === 'all'
+                                ? data.members.map((m) => (
+                                    <th
+                                      key={m.vk_id}
+                                      className={`checklist-member-col ${m.vk_id === data.current_vk_id ? 'checklist-member-col--self' : ''}`}
+                                      title={m.display_name}
+                                    >
+                                      {m.display_name}
+                                    </th>
+                                  ))
+                                : (
+                                    <th className="checklist-active-col">{activeMember?.display_name ?? '—'}</th>
+                                  )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {day.rows.map((row) => (
+                              <tr
+                                key={`${row.day_offset}-${row.task_slug}`}
+                                className={row.is_header ? 'checklist-row-header' : ''}
+                              >
+                                <td className="checklist-sticky-col">{row.task_title}</td>
+                                {(effectiveViewMode === 'all'
+                                  ? data.members
+                                  : activeMemberId
+                                    ? [{ vk_id: activeMemberId }]
+                                    : []
+                                ).map((member) => {
+                                  const cell = row.cells.find((c) => c.member_vk_id === member.vk_id)
+                                  return (
+                                    <td key={member.vk_id} className="checklist-cell">
+                                      {cell ? (
+                                        <ChecklistCellEditor
+                                          cell={cell}
+                                          disabled={data.is_locked || row.is_header || cell.can_edit === false}
+                                          onSave={(patch) =>
+                                            saveCell(row.day_offset, row.task_slug, cell.member_vk_id, patch)
+                                          }
+                                        />
+                                      ) : (
+                                        <span className="text-white/15 text-xs">—</span>
+                                      )}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
           )}
-        </div>
-      ) : (
-        <div className="checklist-body flex min-w-0 flex-1 flex-col">
-          <div className="checklist-scroll flex-1 min-h-0 overflow-auto ll-scroll">
-            {grouped.map((day) => (
-              <section key={day.day_offset} className="checklist-day-section">
-                <div className={`checklist-board ${effectiveViewMode === 'all' ? 'checklist-board--wide' : 'checklist-board--single'}`}>
-                  <div className="checklist-board-day">{day.day_label}</div>
-                  <div className="checklist-table-wrap">
-                    <table className="checklist-table">
-                      <thead>
-                        <tr>
-                          <th className="checklist-sticky-col">Задача</th>
-                          {effectiveViewMode === 'all'
-                            ? data.members.map((m) => (
-                                <th
-                                  key={m.vk_id}
-                                  className={`checklist-member-col ${m.vk_id === data.current_vk_id ? 'checklist-member-col--self' : ''}`}
-                                  title={m.display_name}
-                                >
-                                  {m.display_name}
-                                </th>
-                              ))
-                            : (
-                                <th className="checklist-active-col">{activeMember?.display_name ?? '—'}</th>
-                              )}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {day.rows.map((row) => (
-                          <tr
-                            key={`${row.day_offset}-${row.task_slug}`}
-                            className={row.is_header ? 'checklist-row-header' : ''}
-                          >
-                            <td className="checklist-sticky-col">{row.task_title}</td>
-                            {(effectiveViewMode === 'all' ? data.members : activeMemberId ? [{ vk_id: activeMemberId }] : []).map(
-                              (member) => {
-                                const cell = row.cells.find((c) => c.member_vk_id === member.vk_id)
-                                return (
-                                  <td key={member.vk_id} className="checklist-cell">
-                                    {cell ? (
-                                <ChecklistCellEditor
-                                  cell={cell}
-                                  disabled={data.is_locked || row.is_header || cell.can_edit === false}
-                                        onSave={(patch) =>
-                                          saveCell(row.day_offset, row.task_slug, cell.member_vk_id, patch)
-                                        }
-                                      />
-                                    ) : (
-                                      <span className="text-white/15 text-xs">—</span>
-                                    )}
-                                  </td>
-                                )
-                              },
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-      )}
-      </>
+        </>
       )}
 
       <ChecklistSettingsModal

@@ -1,5 +1,5 @@
 import { Check, ChevronDown } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams } from 'react-router-dom'
 import type { WorkSphere } from '../api'
@@ -176,6 +176,7 @@ function SphereMultiFilter({
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const labelId = useId()
 
   const setSelected = useCallback(
     (next: string[]) => {
@@ -270,16 +271,23 @@ function SphereMultiFilter({
 
   return (
     <div ref={rootRef} className={cn('sphere-select sphere-select--multi', className)}>
-      <span className="sphere-select-label">Сферы</span>
+      <span className="sphere-select-label" id={labelId}>
+        Сферы
+      </span>
       <button
         type="button"
         className={cn('control control-sm sphere-filter-trigger', open && 'control-focus')}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-labelledby={labelId}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="truncate">{sphereFilterLabel(selected, spheres)}</span>
-        <ChevronDown size={16} className={cn('shrink-0 text-white/35 transition-transform', open && 'rotate-180')} />
+        <span className="sphere-filter-value truncate">{sphereFilterLabel(selected, spheres)}</span>
+        <ChevronDown
+          size={15}
+          className={cn('shrink-0 text-white/40 transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
       </button>
       {menu ? createPortal(menu, document.body) : null}
     </div>
@@ -319,6 +327,7 @@ function SphereSingleFilter({
         options={spheres.map((s) => ({ value: s.id, label: s.label }))}
         className="sphere-select-control"
         size="sm"
+        aria-label="Сфера"
       />
     </label>
   )

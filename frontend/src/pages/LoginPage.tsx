@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { BrandLogo } from '../components/BrandLogo'
@@ -49,6 +49,9 @@ export function LoginPage() {
   const [accessLevel, setAccessLevel] = useState('11')
   const [devSpheres, setDevSpheres] = useState<string[]>(['central_apparatus'])
   const [levelOptions, setLevelOptions] = useState(ACCESS_LEVEL_OPTIONS)
+  const levelFieldId = useId()
+  const vkFieldId = useId()
+  const spheresFieldId = useId()
 
   useEffect(() => {
     const oauthError = searchParams.get('error')
@@ -148,6 +151,7 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
+      <div className="login-vignette" aria-hidden />
       <div className="login-card">
         <div className="login-auth-card">
           <header className="login-auth-head">
@@ -163,24 +167,39 @@ export function LoginPage() {
             <div className="login-dev-fields">
               <div className="login-dev-grid">
                 <div>
-                  <label className="login-field-label">Уровень</label>
-                  <Select value={accessLevel} onChange={setAccessLevel} options={levelOptions} />
+                  <label className="login-field-label" htmlFor={levelFieldId}>
+                    Уровень
+                  </label>
+                  <Select
+                    id={levelFieldId}
+                    value={accessLevel}
+                    onChange={setAccessLevel}
+                    options={levelOptions}
+                  />
                 </div>
                 <div>
-                  <label className="login-field-label">VK ID</label>
+                  <label className="login-field-label" htmlFor={vkFieldId}>
+                    VK ID
+                  </label>
                   <input
+                    id={vkFieldId}
                     type="text"
+                    name="vk_id"
                     inputMode="numeric"
+                    autoComplete="username"
+                    spellCheck={false}
                     value={devVkId}
                     onChange={(e) => setDevVkId(e.target.value)}
-                    placeholder={defaultDevVkId ? String(defaultDevVkId) : 'Ваш VK ID'}
+                    placeholder={defaultDevVkId ? String(defaultDevVkId) : 'Ваш VK ID…'}
                     required={!defaultDevVkId}
                     className="control w-full"
                   />
                 </div>
               </div>
-              <div>
-                <label className="login-field-label">{sphereFieldLabel(parsedLevel)}</label>
+              <div role="group" aria-labelledby={spheresFieldId}>
+                <label className="login-field-label" id={spheresFieldId}>
+                  {sphereFieldLabel(parsedLevel)}
+                </label>
                 <SphereMultiSelect
                   accessLevel={parsedLevel}
                   value={devSpheres}

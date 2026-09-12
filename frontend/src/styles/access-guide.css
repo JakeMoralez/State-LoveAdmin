@@ -51,9 +51,79 @@
   line-height: 1.5;
 }
 
+@media (max-width: 1023px) {
+  .access-guide-table-wrap {
+    overflow-x: visible;
+  }
+}
+
 @media (max-width: 767px) {
-  .access-guide-table th:nth-child(3),
-  .access-guide-table td:nth-child(3) {
+  .access-guide-table thead {
     display: none;
+  }
+
+  .access-guide-table,
+  .access-guide-table tbody,
+  .access-guide-table tr,
+  .access-guide-table th,
+  .access-guide-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .access-guide-table tbody tr {
+    margin: 0 0 0.65rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.03);
+  }
+
+  .access-guide-table tbody td {
+    border: none;
+    padding: 0.25rem 0;
+  }
+
+  .access-guide-table tbody td:first-child {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgb(255 255 255 / 0.4);
+    margin-bottom: 0.1rem;
+  }
+
+  .access-guide-table tbody td:nth-child(2) {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+
+  .access-guide-table tbody td:nth-child(3)::before {
+    content: 'Путь: ';
+    color: rgb(255 255 255 / 0.38);
+    font-size: 0.6875rem;
+  }
+
+  .access-guide-table tbody td:nth-child(4)::before {
+    content: 'Вход: ';
+    color: rgb(255 255 255 / 0.38);
+    font-size: 0.6875rem;
+  }
+
+  .access-guide-table tbody td:nth-child(5)::before {
+    content: 'Сферы: ';
+    color: rgb(255 255 255 / 0.38);
+    font-size: 0.6875rem;
+  }
+
+  .access-guide-table tbody td:nth-child(6)::before {
+    content: 'Действия: ';
+    color: rgb(255 255 255 / 0.38);
+    font-size: 0.6875rem;
+  }
+
+  .access-guide-path {
+    font-size: 0.75rem;
   }
 }

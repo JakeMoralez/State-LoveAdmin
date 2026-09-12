@@ -6,12 +6,14 @@ import { CreateSphereField, pickDefaultCreateSphere } from '../components/Create
 import { PageHeader } from '../components/PageHeader'
 import { SphereBadge, SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
 import { useAuth } from '../context/AuthContext'
+import { useMediaQuery, MOBILE_NAV_QUERY } from '../hooks/useMediaQuery'
 import { ModalViewport } from '../components/ui/ModalViewport'
 import { Alert } from '../components/ui/Alert'
 import { PageSkeleton } from '../components/ui/LoadingState'
 
 export function ProjectsPage() {
   const { user } = useAuth()
+  const isMobileNav = useMediaQuery(MOBILE_NAV_QUERY)
   const spheres = user?.work_spheres ?? []
   const { selected: activeSpheres, apiSpheres, apiKey, setSelected } = useWorkSphereQuery('projects', spheres)
   const showSphereBadge = spheres.length > 1 && (!apiSpheres || apiSpheres.length > 1)
@@ -70,30 +72,39 @@ export function ProjectsPage() {
     }
   }
 
+  const createButton = canCreate ? (
+    <button
+      type="button"
+      onClick={openCreate}
+      className="btn-primary btn-sm shrink-0 office-registry-assign"
+    >
+      <Plus size={16} />
+      Проект
+    </button>
+  ) : null
+
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--projects">
       <PageHeader
         section="Работа"
         title="Проекты"
         icon={FolderKanban}
         shrink
-        actions={
-          canCreate ? (
-            <button type="button" onClick={openCreate} className="btn-primary btn-sm shrink-0">
-              <Plus size={16} />
-              Проект
-            </button>
-          ) : undefined
-        }
+        actions={!isMobileNav ? createButton ?? undefined : undefined}
       />
 
-      {spheres.length > 0 && (
-        <SphereTabs
-          pageKey="projects"
-          spheres={spheres}
-          selected={activeSpheres}
-          onSelectedChange={setSelected}
-        />
+      {(spheres.length > 0 || (isMobileNav && createButton)) && (
+        <div className="office-registry-control projects-page-control shrink-0">
+          {spheres.length > 0 ? (
+            <SphereTabs
+              pageKey="projects"
+              spheres={spheres}
+              selected={activeSpheres}
+              onSelectedChange={setSelected}
+            />
+          ) : null}
+          {isMobileNav ? createButton : null}
+        </div>
       )}
 
       {spheres.length === 0 ? (
@@ -151,17 +162,18 @@ export function ProjectsPage() {
             <PageSkeleton variant="cards" label="Загрузка проектов" />
           ) : (
             <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="projects-grid">
             {projects.map((p) => (
-              <Link
-                key={p.id}
-                to={`/projects/${p.id}`}
-                className="glass-card p-4 block no-underline hover:border-white/20 transition-colors"
-              >
-                <h3 className="font-medium text-white/90 m-0">{p.title}</h3>
-                {showSphereBadge && p.sphere && <SphereBadge sphereId={p.sphere} className="mt-2" />}
-                {p.description && <p className="text-sm text-white/45 mt-2 m-0 line-clamp-2">{p.description}</p>}
-                <p className="text-xs text-white/30 mt-3 m-0">{p.task_count ?? 0} задач</p>
+              <Link key={p.id} to={`/projects/${p.id}`} className="project-card">
+                <span className="project-card-icon" aria-hidden>
+                  <FolderKanban size={18} strokeWidth={1.75} />
+                </span>
+                <div className="project-card-body">
+                  <h3 className="project-card-title">{p.title}</h3>
+                  {showSphereBadge && p.sphere ? <SphereBadge sphereId={p.sphere} /> : null}
+                  {p.description ? <p className="project-card-desc">{p.description}</p> : null}
+                  <div className="project-card-meta">{p.task_count ?? 0} задач</div>
+                </div>
               </Link>
             ))}
           </div>

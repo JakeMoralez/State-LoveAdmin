@@ -8,6 +8,7 @@ import { Alert } from '../components/ui/Alert'
 import { Select } from '../components/ui/Select'
 import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { useAuth } from '../context/AuthContext'
+import { useMediaQuery, MOBILE_NAV_QUERY } from '../hooks/useMediaQuery'
 import { ACCESS_LEVEL_OPTIONS, ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
 import { SPHERE_OPTIONS } from '../lib/spheres'
 import { staffLabel } from '../lib/staff'
@@ -36,6 +37,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 export function StaffPage() {
   const { user, refresh } = useAuth()
+  const isMobileNav = useMediaQuery(MOBILE_NAV_QUERY)
   const [members, setMembers] = useState<StaffMember[]>([])
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
@@ -141,48 +143,52 @@ export function StaffPage() {
     }
   }
 
+  const assignButton = canAssign ? (
+    <Link to="/assign?type=staff" className="btn btn-gold btn-sm no-underline office-registry-assign">
+      <UserPlus className="h-4 w-4" aria-hidden />
+      <span>Назначить</span>
+    </Link>
+  ) : null
+
+  const subtitle =
+    tab === 'inactive' ? `${total} без доступа` : `${total} человек в реестре`
+
   return (
-    <div className="page-stack">
+    <div className="page-stack staff-registry-page">
       <PageHeader
         section="Команда"
         title="Следящие"
         icon={Users}
-        subtitle={
-          tab === 'inactive'
-            ? `${total} без доступа`
-            : `${total} человек в реестре`
-        }
+        subtitle={isMobileNav ? undefined : subtitle}
         shrink
-        actions={
-          canAssign ? (
-            <Link to="/assign?type=staff" className="btn btn-gold btn-sm no-underline">
-              <UserPlus className="h-4 w-4" />
-              Назначить
-            </Link>
-          ) : undefined
-        }
+        actions={!isMobileNav ? assignButton ?? undefined : undefined}
       />
 
-      <div className="sphere-tabs" role="tablist" aria-label="Реестр следящих">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'active'}
-          className={tab === 'active' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
-          onClick={() => setTab('active')}
-        >
-          В составе
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'inactive'}
-          className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
-          onClick={() => setTab('inactive')}
-        >
-          Без доступа
-        </button>
+      <div className="office-registry-control shrink-0">
+        <div className="sphere-tabs" role="tablist" aria-label="Реестр следящих">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'active'}
+            className={tab === 'active' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+            onClick={() => setTab('active')}
+          >
+            В составе
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'inactive'}
+            className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
+            onClick={() => setTab('inactive')}
+          >
+            Без доступа
+          </button>
+        </div>
+        {isMobileNav ? assignButton : null}
       </div>
+
+      {isMobileNav ? <p className="staff-registry-count">{subtitle}</p> : null}
 
       <PageToolbarRow className="staff-registry-toolbar">
         <PageSearch

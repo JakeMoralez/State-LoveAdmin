@@ -1,3 +1,5 @@
+import { listLucideIconNames, isLucideIconName } from './bankIconLoader'
+
 export type BankIconCategory =
   | 'featured'
   | 'gov'
@@ -144,19 +146,48 @@ const ICON_BY_ID = Object.fromEntries(BANK_ICON_CATALOG.map((entry) => [entry.id
   BankIconEntry
 >
 
+const ICON_BY_LUCIDE = Object.fromEntries(
+  BANK_ICON_CATALOG.map((entry) => [entry.lucide, entry]),
+) as Record<string, BankIconEntry>
+
 export const DEFAULT_BANK_ICON = 'library'
+
+/** Сколько иконок из полного Lucide отдавать в выдаче поиска */
+export const BANK_ICON_SEARCH_LIMIT = 120
+
+export function humanizeIconLabel(id: string): string {
+  return id
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+export function makeLucideIconEntry(lucideName: string): BankIconEntry {
+  const curated = ICON_BY_LUCIDE[lucideName] ?? ICON_BY_ID[lucideName]
+  if (curated) return curated
+  return {
+    id: lucideName,
+    lucide: lucideName,
+    label: humanizeIconLabel(lucideName),
+    category: 'life',
+  }
+}
 
 export function bankIconEntry(raw?: string | null): BankIconEntry {
   const id = bankIconId(raw)
-  return ICON_BY_ID[id] ?? ICON_BY_ID[DEFAULT_BANK_ICON]
+  return ICON_BY_ID[id] ?? makeLucideIconEntry(id)
 }
 
 export function bankIconId(raw?: string | null): string {
   const trimmed = raw?.trim()
   if (!trimmed) return DEFAULT_BANK_ICON
   if (LEGACY_EMOJI_TO_ICON[trimmed]) return LEGACY_EMOJI_TO_ICON[trimmed]
-  if (ICON_BY_ID[trimmed]) return trimmed
-  if (ICON_BY_ID[trimmed.replace(/_/g, '-')]) return trimmed.replace(/_/g, '-')
+
+  const normalized = trimmed.replace(/_/g, '-')
+  if (ICON_BY_ID[normalized]) return normalized
+  if (ICON_BY_LUCIDE[normalized]) return ICON_BY_LUCIDE[normalized].id
+  if (isLucideIconName(normalized)) return normalized
   return DEFAULT_BANK_ICON
 }
 
@@ -166,4 +197,29 @@ export function bankIconLabel(raw?: string | null): string {
 
 export function bankIconLucide(raw?: string | null): string {
   return bankIconEntry(raw).lucide
+}
+
+export function searchBankIcons(query: string, limit = BANK_ICON_SEARCH_LIMIT): BankIconEntry[] {
+  const q = query.trim().toLowerCase()
+  if (!q) return BANK_ICON_CATALOG
+
+  const curatedHits = BANK_ICON_CATALOG.filter(
+    (entry) =>
+      entry.label.toLowerCase().includes(q) ||
+      entry.id.includes(q) ||
+      entry.lucide.includes(q),
+  )
+
+  const seen = new Set(curatedHits.map((entry) => entry.lucide))
+  const extras: BankIconEntry[] = []
+
+  for (const name of listLucideIconNames()) {
+    if (seen.has(name)) continue
+    if (!name.includes(q) && !humanizeIconLabel(name).toLowerCase().includes(q)) continue
+    extras.push(makeLucideIconEntry(name))
+    seen.add(name)
+    if (curatedHits.length + extras.length >= limit) break
+  }
+
+  return [...curatedHits, ...extras].slice(0, limit)
 }

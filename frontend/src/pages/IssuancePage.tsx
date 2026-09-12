@@ -191,7 +191,7 @@ export function IssuancePage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack page-stack--issuance">
       <PageHeader
         section="Работа"
         title="Выдачи"
@@ -208,13 +208,18 @@ export function IssuancePage() {
               {kind === 'virts' ? (
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm shrink-0"
+                  className="btn btn-secondary btn-sm shrink-0 issuance-btn-copy-all"
                   disabled={pendingVirts.length === 0}
                   title="Никнейм // Вирты — для чекера"
                   onClick={() => void copyText(issuanceCheckerList(pendingVirts), 'all')}
                 >
                   {copied === 'all' ? <Check size={14} /> : <Copy size={14} />}
-                  {copied === 'all' ? 'Скопировано' : 'Скопировать все ники'}
+                  <span className="issuance-btn-copy-all-label">
+                    {copied === 'all' ? 'Скопировано' : 'Скопировать все ники'}
+                  </span>
+                  <span className="issuance-btn-copy-all-short" aria-hidden>
+                    {copied === 'all' ? 'OK' : 'Ники'}
+                  </span>
                 </button>
               ) : null}
               {canCreate ? (
@@ -228,14 +233,14 @@ export function IssuancePage() {
         }
       />
 
-      <div className="issuance-tabs" role="tablist" aria-label="Тип выдачи">
+      <div className="sphere-tabs" role="tablist" aria-label="Тип выдачи">
         {KINDS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={kind === tab.id}
-            className={cn('issuance-tab', kind === tab.id && 'issuance-tab--active')}
+            className={cn('sphere-tab', kind === tab.id && 'sphere-tab--active')}
             onClick={() => setKind(tab.id)}
           >
             {tab.label}

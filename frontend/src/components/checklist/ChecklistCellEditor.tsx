@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, ImagePlus, Images, Loader2, Video, X } from 'lucide-react'
 import { api } from '../../api'
 import { useToast } from '../../context/ToastContext'
-import { COMPACT_QUERY, useMediaQuery } from '../../hooks/useMediaQuery'
+import { MOBILE_NAV_QUERY, useMediaQuery } from '../../hooks/useMediaQuery'
 
 export type ChecklistCellData = {
   proof_urls?: string[]
@@ -70,7 +70,7 @@ export function ChecklistCellEditor({
   const [videoUrl, setVideoUrl] = useState(cell.proof_video_url ?? '')
   const [videoDraft, setVideoDraft] = useState(cell.proof_video_url ?? '')
   const [uploading, setUploading] = useState(false)
-  const isCompact = useMediaQuery(COMPACT_QUERY)
+  const isCompact = useMediaQuery(MOBILE_NAV_QUERY)
   const readOnly = disabled
 
   useEffect(() => {

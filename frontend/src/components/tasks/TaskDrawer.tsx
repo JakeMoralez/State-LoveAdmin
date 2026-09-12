@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Link2, Paperclip, Trash2, X } from 'lucide-react'
 import {
@@ -12,6 +12,7 @@ import {
   type TaskDetail,
 } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import { useOverlayFocus } from '../../hooks/useOverlayFocus'
 import { normalizeLabels, type TaskLabel } from '../../lib/labels'
 import { PageSkeleton } from '../ui/LoadingState'
 import { cn, statusBadgeClass } from '../../lib/utils'
@@ -47,6 +48,12 @@ export function TaskDrawer({
 }) {
   const { user } = useAuth()
   const canDelete = (user?.access_level ?? 0) >= 3
+  const rootRef = useRef<HTMLDivElement>(null)
+  const drawerTitleId = useId()
+  const titleFieldId = useId()
+  const descFieldId = useId()
+  const priorityFieldId = useId()
+  const projectFieldId = useId()
 
   const [tab, setTab] = useState<DrawerTab>('details')
   const [task, setTask] = useState<TaskDetail | null>(null)
@@ -105,10 +112,12 @@ export function TaskDrawer({
     )
   }, [task, title, description, status, priority, taskType, assigneeVkIds, projectId, dueDate, labels])
 
-  const tryClose = () => {
+  const tryClose = useCallback(() => {
     if (dirty && !window.confirm('Есть несохранённые изменения. Закрыть без сохранения?')) return
     onClose()
-  }
+  }, [dirty, onClose])
+
+  useOverlayFocus(true, rootRef, tryClose)
 
   const save = async () => {
     setSaving(true)
@@ -180,8 +189,15 @@ export function TaskDrawer({
 
   if (!task) {
     return (
-      <div className="fixed inset-0 z-50 flex justify-end">
-        <div className="absolute inset-0 bg-black/50 overlay-backdrop" onClick={onClose} />
+      <div
+        ref={rootRef}
+        className="fixed inset-0 z-50 flex justify-end"
+        style={{ overscrollBehavior: 'contain' }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Загрузка задачи"
+      >
+        <div className="absolute inset-0 bg-black/50 overlay-backdrop" onClick={onClose} aria-hidden />
         <div className="drawer-panel">
           <PageSkeleton variant="form" className="page-skeleton--compact" label="Загрузка задачи" />
         </div>
@@ -192,13 +208,22 @@ export function TaskDrawer({
   const commentCount = task.comments.length
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 cursor-pointer bg-black/50 overlay-backdrop" onClick={tryClose} />
+    <div
+      ref={rootRef}
+      className="fixed inset-0 z-50 flex justify-end"
+      style={{ overscrollBehavior: 'contain' }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={drawerTitleId}
+    >
+      <div className="absolute inset-0 cursor-pointer bg-black/50 overlay-backdrop" onClick={tryClose} aria-hidden />
       <div className="drawer-panel">
         <div className="drawer-panel-header flex shrink-0 items-center justify-between border-b border-white/8 px-6 py-4">
           <div className="min-w-0">
             <p className="text-caption">Задача #{task.id}</p>
-            <h2 className="text-lg font-bold mt-0.5 truncate">{task.title}</h2>
+            <h2 id={drawerTitleId} className="text-lg font-bold mt-0.5 truncate">
+              {task.title}
+            </h2>
             {task.project_title && task.project_id && (
               <Link to={`/projects/${task.project_id}`} className="text-xs link-gold">
                 {task.project_title}
@@ -212,22 +237,25 @@ export function TaskDrawer({
                 onClick={removeTask}
                 disabled={deleting}
                 className="btn-icon h-9 w-9 text-red-400/80 hover:text-red-300"
+                aria-label="Удалить задачу"
                 title="Удалить задачу"
               >
-                <Trash2 size={17} />
+                <Trash2 size={17} aria-hidden />
               </button>
             )}
-            <button type="button" onClick={tryClose} className="btn-icon h-9 w-9">
-              <X size={18} />
+            <button type="button" onClick={tryClose} className="btn-icon h-9 w-9" aria-label="Закрыть">
+              <X size={18} aria-hidden />
             </button>
           </div>
         </div>
 
-        <div className="drawer-tabs shrink-0">
+        <div className="drawer-tabs shrink-0" role="tablist" aria-label="Разделы задачи">
           {(['details', 'comments'] as DrawerTab[]).map((key) => (
             <button
               key={key}
               type="button"
+              role="tab"
+              aria-selected={tab === key}
               className={`drawer-tab ${tab === key ? 'drawer-tab-active' : ''}`}
               onClick={() => setTab(key)}
             >
@@ -240,16 +268,30 @@ export function TaskDrawer({
           {tab === 'details' && (
             <div className="min-h-0 flex-1 overflow-y-auto p-6 ll-scroll space-y-4">
               <div>
-                <label className="text-caption mb-1.5 block">Название</label>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} className="control" />
+                <label className="text-caption mb-1.5 block" htmlFor={titleFieldId}>
+                  Название
+                </label>
+                <input
+                  id={titleFieldId}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="control"
+                  name="task-title"
+                  autoComplete="off"
+                />
               </div>
               <div>
-                <label className="text-caption mb-1.5 block">Описание</label>
+                <label className="text-caption mb-1.5 block" htmlFor={descFieldId}>
+                  Описание
+                </label>
                 <textarea
+                  id={descFieldId}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
                   className="control h-auto min-h-[100px] resize-none py-2"
+                  name="task-description"
+                  autoComplete="off"
                 />
               </div>
 
@@ -265,6 +307,7 @@ export function TaskDrawer({
                         statusBadgeClass(value),
                         status === value && 'status-chip--active',
                       )}
+                      aria-pressed={status === value}
                       onClick={() => setStatus(value)}
                     >
                       {STATUS_LABELS[value]}
@@ -279,8 +322,11 @@ export function TaskDrawer({
               </div>
 
               <div>
-                <label className="text-caption mb-1.5 block">Приоритет</label>
+                <label className="text-caption mb-1.5 block" htmlFor={priorityFieldId}>
+                  Приоритет
+                </label>
                 <Select
+                  id={priorityFieldId}
                   value={priority}
                   onChange={setPriority}
                   options={Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
@@ -288,8 +334,11 @@ export function TaskDrawer({
               </div>
 
               <div>
-                <label className="text-caption mb-1.5 block">Проект</label>
+                <label className="text-caption mb-1.5 block" htmlFor={projectFieldId}>
+                  Проект
+                </label>
                 <Select
+                  id={projectFieldId}
                   value={projectId}
                   onChange={setProjectId}
                   placeholder="Без проекта"
@@ -340,7 +389,7 @@ export function TaskDrawer({
                             rel="noreferrer"
                             className="task-attachment-link"
                           >
-                            <Paperclip size={14} />
+                            <Paperclip size={14} aria-hidden />
                             <span className="truncate">{a.title || a.url}</span>
                           </a>
                         )}
@@ -348,9 +397,10 @@ export function TaskDrawer({
                           type="button"
                           className="task-attachment-remove"
                           onClick={() => removeAttachment(a.id)}
+                          aria-label="Удалить вложение"
                           title="Удалить"
                         >
-                          <X size={12} />
+                          <X size={12} aria-hidden />
                         </button>
                       </div>
                     ))}
@@ -364,6 +414,7 @@ export function TaskDrawer({
                       onChange={(e) => setAttachUrl(e.target.value)}
                       placeholder="Вставьте ссылку…"
                       className="attach-field-input"
+                      aria-label="Ссылка на вложение"
                       onKeyDown={(e) => e.key === 'Enter' && addAttachment()}
                     />
                     <div className="attach-field-actions">
@@ -371,9 +422,10 @@ export function TaskDrawer({
                         type="button"
                         onClick={addAttachment}
                         className="attach-field-btn"
+                        aria-label="Добавить ссылку"
                         title="Добавить ссылку"
                       >
-                        <Link2 size={16} />
+                        <Link2 size={16} aria-hidden />
                       </button>
                       <ImageUploadButton
                         iconOnly

@@ -13,7 +13,7 @@ export function LeadersPage() {
       list={api.leaders}
       loadOne={api.leaderMember}
       sphereFilter
-      subtitleActive="Реестр лидеров и руководства · назначить — через «Назначить»"
+      subtitleActive=""
       subtitleInactive="Снятые с реестра · без активного флага руководителя"
     />
   )

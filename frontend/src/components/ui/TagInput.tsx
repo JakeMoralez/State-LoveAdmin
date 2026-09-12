@@ -33,8 +33,13 @@ export function TagInput({
       {value.map((tag) => (
         <span key={tag} className="tag-chip">
           {tag}
-          <button type="button" className="tag-chip-x" onClick={() => onChange(value.filter((t) => t !== tag))}>
-            <X size={12} />
+          <button
+            type="button"
+            className="tag-chip-x"
+            aria-label={`Убрать ${tag}`}
+            onClick={() => onChange(value.filter((t) => t !== tag))}
+          >
+            <X size={12} aria-hidden />
           </button>
         </span>
       ))}
@@ -44,7 +49,7 @@ export function TagInput({
         onKeyDown={onKeyDown}
         onBlur={() => draft && commit(draft)}
         placeholder={value.length ? '' : placeholder}
-        className="min-w-[80px] flex-1 bg-transparent border-0 outline-none text-sm text-white placeholder:text-white/30"
+        className="tag-input-field min-w-[80px] flex-1 bg-transparent border-0 text-sm text-white placeholder:text-white/30"
       />
     </div>
   )

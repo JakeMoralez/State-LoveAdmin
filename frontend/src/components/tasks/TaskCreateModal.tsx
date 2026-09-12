@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import {
   PRIORITY_LABELS,
@@ -21,6 +21,7 @@ import { DatePicker } from '../ui/DatePicker'
 import { LabelInput } from '../ui/LabelInput'
 import { MultiAssigneePicker } from '../ui/MultiAssigneePicker'
 import { Select } from '../ui/Select'
+import { Switch } from '../ui/Switch'
 import { ModalViewport } from '../ui/ModalViewport'
 import { Alert } from '../ui/Alert'
 import { FieldReq } from '../ui/FormField'
@@ -99,6 +100,18 @@ export function TaskCreateModal({
   const [error, setError] = useState('')
 
   const isGov = createSphere === GOV_STRUCTURES_SPHERE
+  const titleFieldId = useId()
+  const descFieldId = useId()
+  const audienceFieldId = useId()
+  const priorityFieldId = useId()
+  const projectFieldId = useId()
+  const monthdaysId = useId()
+  const datesId = useId()
+  const modalTitleId = useId()
+  const freqFieldId = useId()
+  const statusLabelId = useId()
+  const repeatSwitchId = useId()
+  const repeatSwitchLabelId = useId()
 
   const audienceOptions = useMemo(
     () => TASK_AUDIENCE_OPTIONS.map((o) => ({ value: o.id, label: o.label })),
@@ -181,16 +194,18 @@ export function TaskCreateModal({
   }
 
   return (
-    <ModalViewport open={open} onBackdropClick={onClose}>
+    <ModalViewport open={open} onBackdropClick={onClose} ariaLabelledBy={modalTitleId}>
       <div
         className="glass-card task-create-modal task-create-modal--wide modal-pop relative z-10 flex w-full flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="shrink-0 p-6 pb-4">
           <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-lg font-bold">Новая задача</h2>
-            <button type="button" onClick={onClose} className="btn-icon h-9 w-9">
-              <X size={18} />
+            <h2 id={modalTitleId} className="text-lg font-bold">
+              Новая задача
+            </h2>
+            <button type="button" onClick={onClose} className="btn-icon h-9 w-9" aria-label="Закрыть">
+              <X size={18} aria-hidden />
             </button>
           </div>
         </div>
@@ -207,11 +222,16 @@ export function TaskCreateModal({
 
           {isGov && (
             <div>
-              <label className="text-caption mb-1.5 block">
+              <label className="text-caption mb-1.5 block" htmlFor={audienceFieldId}>
                 Категория
                 <FieldReq />
               </label>
-              <Select value={audience} onChange={setAudience} options={audienceOptions} />
+              <Select
+                id={audienceFieldId}
+                value={audience}
+                onChange={setAudience}
+                options={audienceOptions}
+              />
               <p className="mt-1 text-xs text-white/40">
                 Исполнители подставятся из когорты (можно дополнить вручную ниже).
               </p>
@@ -219,31 +239,40 @@ export function TaskCreateModal({
           )}
 
           <div>
-            <label className="text-caption mb-1.5 block">
+            <label className="text-caption mb-1.5 block" htmlFor={titleFieldId}>
               Название
               <FieldReq />
             </label>
             <input
-              autoFocus
+              id={titleFieldId}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="control"
-              placeholder="Название задачи"
+              placeholder="Название задачи…"
+              name="task-title"
+              autoComplete="off"
             />
           </div>
           <div>
-            <label className="text-caption mb-1.5 block">Описание</label>
+            <label className="text-caption mb-1.5 block" htmlFor={descFieldId}>
+              Описание
+            </label>
             <textarea
+              id={descFieldId}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               className="control h-auto resize-none py-2"
+              name="task-description"
+              autoComplete="off"
             />
           </div>
 
           <div>
-            <label className="text-caption mb-1.5 block">Статус</label>
-            <div className="status-chip-row">
+            <span className="text-caption mb-1.5 block" id={statusLabelId}>
+              Статус
+            </span>
+            <div className="status-chip-row" role="group" aria-labelledby={statusLabelId}>
               {TASK_FORM_STATUSES.map((value) => (
                 <button
                   key={value}
@@ -253,6 +282,7 @@ export function TaskCreateModal({
                     statusBadgeClass(value),
                     status === value && 'status-chip--active',
                   )}
+                  aria-pressed={status === value}
                   onClick={() => setStatus(value)}
                 >
                   {STATUS_LABELS[value]}
@@ -263,16 +293,22 @@ export function TaskCreateModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-caption mb-1.5 block">Приоритет</label>
+              <label className="text-caption mb-1.5 block" htmlFor={priorityFieldId}>
+                Приоритет
+              </label>
               <Select
+                id={priorityFieldId}
                 value={priority}
                 onChange={setPriority}
                 options={Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
               />
             </div>
             <div>
-              <label className="text-caption mb-1.5 block">Проект</label>
+              <label className="text-caption mb-1.5 block" htmlFor={projectFieldId}>
+                Проект
+              </label>
               <Select
+                id={projectFieldId}
                 value={projectId}
                 onChange={setProjectId}
                 placeholder="Без проекта"
@@ -302,25 +338,43 @@ export function TaskCreateModal({
           </div>
 
           {(isGov ? canManageGovAudiences : true) && (
-            <div className="space-y-3 rounded-lg border border-white/10 p-3">
-              <label className="flex items-center gap-2 text-sm text-white/80">
-                <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
-                Повторять задачу
-              </label>
+            <div className={cn('task-recurrence-box', repeat && 'task-recurrence-box--on')}>
+              <div className="ui-switch-row">
+                <label className="ui-switch-row-copy" htmlFor={repeatSwitchId}>
+                  <span className="ui-switch-row-title" id={repeatSwitchLabelId}>
+                    Повторять задачу
+                  </span>
+                  <span className="ui-switch-row-hint">
+                    Создаст шаблон: новые копии по расписанию
+                  </span>
+                </label>
+                <Switch
+                  checked={repeat}
+                  onChange={setRepeat}
+                  id={repeatSwitchId}
+                  aria-label="Повторять задачу"
+                />
+              </div>
               {repeat && (
-                <>
+                <div className="space-y-3">
                   <Select
+                    id={freqFieldId}
+                    aria-label="Частота повтора"
                     value={freq}
                     onChange={setFreq}
                     options={RECURRENCE_FREQ_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
                   />
                   {freq === 'weekly' && (
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="task-recurrence-weekdays" role="group" aria-label="Дни недели">
                       {WEEKDAY_OPTIONS.map((d) => (
                         <button
                           key={d.value}
                           type="button"
-                          className={cn('status-chip', weekdays.includes(d.value) && 'status-chip--active')}
+                          className={cn(
+                            'task-recurrence-day',
+                            weekdays.includes(d.value) && 'task-recurrence-day--on',
+                          )}
+                          aria-pressed={weekdays.includes(d.value)}
                           onClick={() => toggleWeekday(d.value)}
                         >
                           {d.label}
@@ -330,23 +384,34 @@ export function TaskCreateModal({
                   )}
                   {freq === 'monthly' && (
                     <div>
-                      <label className="text-caption mb-1.5 block">Числа месяца (через запятую)</label>
+                      <label className="text-caption mb-1.5 block" htmlFor={monthdaysId}>
+                        Числа месяца (через запятую)
+                      </label>
                       <input
+                        id={monthdaysId}
                         className="control"
                         value={monthdays}
                         onChange={(e) => setMonthdays(e.target.value)}
-                        placeholder="1,15"
+                        placeholder="1, 15…"
+                        name="monthdays"
+                        autoComplete="off"
+                        inputMode="numeric"
                       />
                     </div>
                   )}
                   {freq === 'dates' && (
                     <div>
-                      <label className="text-caption mb-1.5 block">Даты YYYY-MM-DD</label>
+                      <label className="text-caption mb-1.5 block" htmlFor={datesId}>
+                        Даты YYYY-MM-DD
+                      </label>
                       <input
+                        id={datesId}
                         className="control"
                         value={specificDates}
                         onChange={(e) => setSpecificDates(e.target.value)}
-                        placeholder="2026-09-20, 2026-10-01"
+                        placeholder="2026-09-20, 2026-10-01…"
+                        name="specific-dates"
+                        autoComplete="off"
                       />
                     </div>
                   )}
@@ -354,7 +419,7 @@ export function TaskCreateModal({
                     <label className="text-caption mb-1.5 block">До даты (опц.)</label>
                     <DatePicker value={endsOn} onChange={setEndsOn} />
                   </div>
-                </>
+                </div>
               )}
             </div>
           )}

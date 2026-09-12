@@ -26,8 +26,32 @@ export function JudgeMemberPage() {
       .judgeMember(parsedId)
       .then(setMember)
       .catch((e: unknown) => {
+        const status = e instanceof ApiError ? e.status : typeof e === 'object' && e && 'status' in e ? Number((e as { status: unknown }).status) : NaN
+        const msg = e instanceof Error ? e.message : ''
+        if (status === 404 || status === 403 || /не найден в реестре/i.test(msg)) {
+          setMember({
+            vk_id: parsedId,
+            nickname: `id${parsedId}`,
+            display_name: `id${parsedId}`,
+            in_registry: false,
+            access_role_title: 'Без доступа',
+            badges: [],
+            permissions: {
+              edit_nickname: false,
+              edit_forum_account: false,
+              edit_position: false,
+              edit_note: false,
+              edit_discord: false,
+              clear_nickname: false,
+              remove_from_registry: false,
+              manage_registry: false,
+            },
+          })
+          setError(null)
+          return
+        }
         setMember(null)
-        setError(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось загрузить профиль')
+        setError(msg || 'Не удалось загрузить профиль')
       })
       .finally(() => setLoading(false))
   }
@@ -53,8 +77,9 @@ export function JudgeMemberPage() {
     )
   }
 
+  const inRegistry = member.in_registry !== false
   const perms = effectiveLeaderPermissions(member, user?.access_level ?? 0, user?.vk_id ?? 0)
-  const canOpenSettings = perms.manage_registry || perms.edit_discord
+  const canOpenSettings = inRegistry && (perms.manage_registry || perms.edit_discord)
 
   return (
     <>
@@ -72,27 +97,28 @@ export function JudgeMemberPage() {
           username: member.username,
           avatar_url: member.avatar_url,
           access_level: 0,
-          access_level_name: 'Судья',
-          access_role_title: member.position || 'Судья',
+          access_level_name: inRegistry ? 'Судья' : 'Нет доступа',
+          access_role_title:
+            member.access_role_title || (inRegistry ? member.position || 'Судья' : 'Без доступа'),
           has_ca_access: false,
           server_id: member.server_id ?? 30,
-          badges: member.badges?.length ? member.badges : ['⚖'],
+          badges: member.badges?.length ? member.badges : inRegistry ? ['⚖'] : [],
           discord_id: member.discord_id,
           discord_username: member.discord_username,
           discord_display_name: member.discord_display_name,
-          sphere: member.note || undefined,
+          in_registry: inRegistry,
         }}
         backTo={{ label: 'Судьи', href: '/judges' }}
       />
-      <LeaderProfileModal
-        member={member}
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onSaved={(result) => {
-          if (result?.removed) navigate('/judges')
-          else load()
-        }}
-      />
+
+      {canOpenSettings ? (
+        <LeaderProfileModal
+          member={member}
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onSaved={load}
+        />
+      ) : null}
     </>
   )
 }
