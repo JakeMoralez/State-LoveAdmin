@@ -1,13 +1,17 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import {
   Bold,
   BookOpen,
+  CheckSquare,
+  Code2,
   Eye,
   Heading2,
+  Italic,
   List,
   ListOrdered,
   Pencil,
   Quote,
+  Table2,
   Trash2,
 } from 'lucide-react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -21,6 +25,7 @@ import { PageSkeleton } from '../components/ui/LoadingState'
 import { Select } from '../components/ui/Select'
 import { Switch } from '../components/ui/Switch'
 import { FieldReq } from '../components/ui/FormField'
+import { useMobileTopBarTitle } from '../context/MobileTopBarTitleContext'
 import { cn } from '../lib/utils'
 
 const CATEGORY_FALLBACK = [
@@ -30,6 +35,29 @@ const CATEGORY_FALLBACK = [
   { value: 'other', label: 'Прочее' },
 ]
 
+const BODY_PLACEHOLDER = `# Регламент
+
+Кратко опишите правило. Пустая строка = новый абзац.
+
+## Глава 1. Назначение
+1.1. Первый пункт регламента (просто Enter).
+1.2. Второй пункт.
+
+## Списки
+- пункт
+- пункт
+  - вложенный (2–4 пробела или Tab)
+1. нумерованный
+2. пункт
+
+- [ ] задача
+- [x] готово
+
+| Колонка | Значение |
+| --- | --- |
+| A | 1 |
+`
+
 function wrapSelection(
   value: string,
   start: number,
@@ -38,10 +66,87 @@ function wrapSelection(
   after: string,
   placeholder = 'текст',
 ) {
-  const selected = value.slice(start, end) || placeholder
-  const next = value.slice(0, start) + before + selected + after + value.slice(end)
-  const cursor = start + before.length + selected.length
-  return { next, cursorStart: start + before.length, cursorEnd: cursor }
+  // Уже обёрнуто снаружи выделения → снять
+  if (
+    start >= before.length &&
+    end + after.length <= value.length &&
+    value.slice(start - before.length, start) === before &&
+    value.slice(end, end + after.length) === after
+  ) {
+    const next = value.slice(0, start - before.length) + value.slice(start, end) + value.slice(end + after.length)
+    return {
+      next,
+      cursorStart: start - before.length,
+      cursorEnd: end - before.length,
+    }
+  }
+
+  const selected = value.slice(start, end)
+  // Выделение включает маркеры → снять
+  if (
+    selected.length >= before.length + after.length &&
+    selected.startsWith(before) &&
+    selected.endsWith(after)
+  ) {
+    const inner = selected.slice(before.length, selected.length - after.length)
+    const next = value.slice(0, start) + inner + value.slice(end)
+    return { next, cursorStart: start, cursorEnd: start + inner.length }
+  }
+
+  const piece = selected || placeholder
+  const next = value.slice(0, start) + before + piece + after + value.slice(end)
+  return {
+    next,
+    cursorStart: start + before.length,
+    cursorEnd: start + before.length + piece.length,
+  }
+}
+
+function toggleLinePrefix(value: string, start: number, end: number, prefix: string) {
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1
+  let lineEnd = value.indexOf('\n', end)
+  if (lineEnd === -1) lineEnd = value.length
+  const block = value.slice(lineStart, lineEnd)
+  const lines = block.split('\n')
+  const allPrefixed = lines.every((line) => !line.length || line.startsWith(prefix))
+  const nextLines = lines.map((line) => {
+    if (!line.length) return line
+    if (allPrefixed) {
+      return line.startsWith(prefix) ? line.slice(prefix.length) : line
+    }
+    return line.startsWith(prefix) ? line : `${prefix}${line}`
+  })
+  const nextBlock = nextLines.join('\n')
+  const next = value.slice(0, lineStart) + nextBlock + value.slice(lineEnd)
+  return {
+    next,
+    cursorStart: lineStart,
+    cursorEnd: lineStart + nextBlock.length,
+  }
+}
+
+function indentSelectedLines(value: string, start: number, end: number, outdent: boolean) {
+  const lineStart = value.lastIndexOf('\n', start - 1) + 1
+  let lineEnd = value.indexOf('\n', end)
+  if (lineEnd === -1) lineEnd = value.length
+  const block = value.slice(lineStart, lineEnd)
+  const lines = block.split('\n')
+  const nextLines = lines.map((line) => {
+    if (outdent) {
+      if (line.startsWith('  ')) return line.slice(2)
+      if (line.startsWith('\t')) return line.slice(1)
+      return line
+    }
+    return line.length ? `  ${line}` : line
+  })
+  const nextBlock = nextLines.join('\n')
+  const next = value.slice(0, lineStart) + nextBlock + value.slice(lineEnd)
+  const delta = nextBlock.length - block.length
+  return {
+    next,
+    cursorStart: lineStart,
+    cursorEnd: Math.max(lineStart, end + delta),
+  }
 }
 
 export function KnowledgeArticlePage() {
@@ -70,6 +175,10 @@ export function KnowledgeArticlePage() {
   const titleFieldId = useId()
   const bodyFieldId = useId()
   const publishedId = useId()
+
+  useMobileTopBarTitle(
+    editing ? (title.trim() || article?.title || 'Редактор') : article?.title || 'Статья',
+  )
 
   const categoryOptions = useMemo(() => {
     if (article?.category_label) {
@@ -169,37 +278,83 @@ export function KnowledgeArticlePage() {
     }
   }
 
+  const applyRange = (next: string, cursorStart: number, cursorEnd: number) => {
+    setBodyMd(next)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(cursorStart, cursorEnd)
+    })
+  }
+
   const applyWrap = (before: string, after: string, placeholder?: string) => {
     const el = textareaRef.current
     if (!el) {
       setBodyMd((v) => v + before + (placeholder || 'текст') + after)
       return
     }
-    const start = el.selectionStart
-    const end = el.selectionEnd
-    const { next, cursorStart, cursorEnd } = wrapSelection(bodyMd, start, end, before, after, placeholder)
-    setBodyMd(next)
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(cursorStart, cursorEnd)
-    })
+    const { next, cursorStart, cursorEnd } = wrapSelection(
+      bodyMd,
+      el.selectionStart,
+      el.selectionEnd,
+      before,
+      after,
+      placeholder,
+    )
+    applyRange(next, cursorStart, cursorEnd)
   }
 
   const applyLinePrefix = (prefix: string) => {
     const el = textareaRef.current
     if (!el) {
-      setBodyMd((v) => `${prefix}${v}`)
+      setBodyMd((v) => (v.startsWith(prefix) ? v.slice(prefix.length) : `${prefix}${v}`))
+      return
+    }
+    const { next, cursorStart, cursorEnd } = toggleLinePrefix(
+      bodyMd,
+      el.selectionStart,
+      el.selectionEnd,
+      prefix,
+    )
+    applyRange(next, cursorStart, cursorEnd)
+  }
+
+  const insertSnippet = (snippet: string, selectPlaceholder?: string) => {
+    const el = textareaRef.current
+    if (!el) {
+      setBodyMd((v) => (v ? `${v}\n${snippet}` : snippet))
       return
     }
     const start = el.selectionStart
-    const lineStart = bodyMd.lastIndexOf('\n', start - 1) + 1
-    const next = bodyMd.slice(0, lineStart) + prefix + bodyMd.slice(lineStart)
-    setBodyMd(next)
-    requestAnimationFrame(() => {
-      el.focus()
-      const pos = start + prefix.length
-      el.setSelectionRange(pos, pos)
-    })
+    const end = el.selectionEnd
+    const padBefore = start > 0 && bodyMd[start - 1] !== '\n' ? '\n' : ''
+    const padAfter = end < bodyMd.length && bodyMd[end] !== '\n' ? '\n' : ''
+    const chunk = padBefore + snippet + padAfter
+    const next = bodyMd.slice(0, start) + chunk + bodyMd.slice(end)
+    let cursorStart = start + padBefore.length
+    let cursorEnd = cursorStart + snippet.length
+    if (selectPlaceholder) {
+      const idx = snippet.indexOf(selectPlaceholder)
+      if (idx >= 0) {
+        cursorStart = start + padBefore.length + idx
+        cursorEnd = cursorStart + selectPlaceholder.length
+      }
+    }
+    applyRange(next, cursorStart, cursorEnd)
+  }
+
+  const onBodyKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== 'Tab') return
+    e.preventDefault()
+    const el = e.currentTarget
+    const { next, cursorStart, cursorEnd } = indentSelectedLines(
+      bodyMd,
+      el.selectionStart,
+      el.selectionEnd,
+      e.shiftKey,
+    )
+    applyRange(next, cursorStart, cursorEnd)
   }
 
   if (!Number.isFinite(articleId)) {
@@ -255,11 +410,21 @@ export function KnowledgeArticlePage() {
                 </>
               ) : (
                 <>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={startEdit}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm kb-header-btn"
+                    onClick={startEdit}
+                    aria-label="Править"
+                  >
                     <Pencil size={14} aria-hidden />
-                    Править
+                    <span className="kb-action-label">Править</span>
                   </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => void remove()} aria-label="Удалить">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm kb-header-btn kb-header-btn--icon"
+                    onClick={() => void remove()}
+                    aria-label="Удалить"
+                  >
                     <Trash2 size={14} aria-hidden />
                   </button>
                 </>
@@ -357,6 +522,9 @@ export function KnowledgeArticlePage() {
                   <button type="button" className="kb-md-tool" title="Жирный" onClick={() => applyWrap('**', '**')}>
                     <Bold size={14} aria-hidden />
                   </button>
+                  <button type="button" className="kb-md-tool" title="Курсив" onClick={() => applyWrap('*', '*')}>
+                    <Italic size={14} aria-hidden />
+                  </button>
                   <button
                     type="button"
                     className="kb-md-tool"
@@ -368,7 +536,7 @@ export function KnowledgeArticlePage() {
                   <button
                     type="button"
                     className="kb-md-tool"
-                    title="Список"
+                    title="Маркированный список"
                     onClick={() => applyLinePrefix('- ')}
                   >
                     <List size={14} aria-hidden />
@@ -384,10 +552,36 @@ export function KnowledgeArticlePage() {
                   <button
                     type="button"
                     className="kb-md-tool"
+                    title="Чекбокс"
+                    onClick={() => applyLinePrefix('- [ ] ')}
+                  >
+                    <CheckSquare size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="kb-md-tool"
                     title="Цитата"
                     onClick={() => applyLinePrefix('> ')}
                   >
                     <Quote size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="kb-md-tool"
+                    title="Таблица"
+                    onClick={() =>
+                      insertSnippet('| Колонка | Значение |\n| --- | --- |\n| A | 1 |', 'Колонка')
+                    }
+                  >
+                    <Table2 size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="kb-md-tool"
+                    title="Код"
+                    onClick={() => applyWrap('`', '`', 'код')}
+                  >
+                    <Code2 size={14} aria-hidden />
                   </button>
                 </div>
               ) : (
@@ -395,9 +589,37 @@ export function KnowledgeArticlePage() {
               )}
             </div>
 
+            {!preview ? (
+              <details className="kb-md-cheat">
+                <summary>Как писать Markdown</summary>
+                <ul className="kb-md-cheat-body">
+                  <li>Абзац — пустая строка между блоками</li>
+                  <li>
+                    Регламент <code>1.1.</code> — каждый пункт с новой строки (Enter)
+                  </li>
+                  <li>
+                    Список — <code>- пункт</code> или <code>1. пункт</code>
+                  </li>
+                  <li>
+                    Вложение — Tab или 2–4 пробела перед <code>-</code>
+                  </li>
+                  <li>
+                    Заголовок главы — <code>## Глава 1</code>
+                  </li>
+                  <li>Таблица — кнопка «Таблица» или синтаксис GFM</li>
+                </ul>
+              </details>
+            ) : null}
+
             {preview ? (
               <div className="kb-manuscript-preview ll-scroll">
-                <MarkdownView source={bodyMd} />
+                {bodyMd.trim() ? (
+                  <MarkdownView source={bodyMd} />
+                ) : (
+                  <div className="kb-manuscript-hint" style={{ display: 'block', paddingTop: '0.5rem' }}>
+                    Пусто — переключитесь на «Текст» и вставьте регламент или список.
+                  </div>
+                )}
               </div>
             ) : (
               <textarea
@@ -406,8 +628,9 @@ export function KnowledgeArticlePage() {
                 className="kb-manuscript-textarea"
                 value={bodyMd}
                 onChange={(e) => setBodyMd(e.target.value)}
+                onKeyDown={onBodyKeyDown}
                 spellCheck
-                placeholder={'# Заголовок\n\nКратко опишите правило…\n\n## Пункт\n- …'}
+                placeholder={BODY_PLACEHOLDER}
               />
             )}
           </section>

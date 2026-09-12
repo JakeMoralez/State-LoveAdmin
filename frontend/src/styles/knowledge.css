@@ -6,6 +6,19 @@
 .page-stack--knowledge-desk {
   min-height: 0;
   flex: 1 1 auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-stack--knowledge-desk > .page-header,
+.page-stack--knowledge-desk > .sl-alert {
+  flex: 0 0 auto;
+}
+
+.page-stack--knowledge-desk > .kb-desk {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .kb-toolbar {
@@ -164,13 +177,128 @@
   gap: 0.4rem;
 }
 
-/* —— Reading folio —— */
+@media (max-width: 767px) {
+  .page-stack--knowledge-article > .page-header {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 0;
+    padding-top: 0;
+    margin-bottom: 0;
+  }
+
+  .page-stack--knowledge-article > .page-header .page-header-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 0;
+  }
+
+  /* Заголовок уже в top-bar и в folio — не дублируем */
+  .page-stack--knowledge-article > .page-header .page-header-title-block,
+  .page-stack--knowledge-article > .page-header .page-subtitle,
+  .page-stack--knowledge-article > .page-header .page-header-hint {
+    display: none;
+  }
+
+  .page-stack--knowledge-article > .page-header .page-header-crumb {
+    margin-bottom: 0;
+    font-size: 0.75rem;
+    gap: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-stack--knowledge-article > .page-header .page-header-crumb-section {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-stack--knowledge-article > .page-header .page-header-actions {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    align-self: center;
+    flex: 0 0 auto;
+  }
+
+  .page-stack--knowledge-article .kb-header-actions {
+    gap: 0.3rem;
+  }
+
+  .page-stack--knowledge-article:not(.page-stack--knowledge-desk) .kb-action-label {
+    display: none;
+  }
+
+  .page-stack--knowledge-article:not(.page-stack--knowledge-desk) .kb-header-btn {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  /* Редактор: Отмена / Сохранить на всю ширину под крошками */
+  .page-stack--knowledge-article.page-stack--knowledge-desk > .page-header {
+    flex-wrap: wrap;
+  }
+
+  .page-stack--knowledge-article.page-stack--knowledge-desk > .page-header .page-header-actions {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .page-stack--knowledge-article.page-stack--knowledge-desk .kb-header-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .page-stack--knowledge-article.page-stack--knowledge-desk .kb-header-actions .btn {
+    width: 100%;
+    min-height: 2.5rem;
+    justify-content: center;
+  }
+
+  .page-stack--knowledge-article .kb-folio {
+    padding: 1rem 0.85rem 1.5rem;
+    border-radius: 12px;
+  }
+
+  .page-stack--knowledge-article .kb-folio-title {
+    font-size: 1.35rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .page-stack--knowledge-article .kb-folio-head {
+    gap: 0.4rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .page-stack--knowledge-article .kb-folio-updated {
+    margin-left: 0;
+    width: 100%;
+    order: 3;
+  }
+}
+
+/* —— Reading folio (на всю ширину контента) —— */
+.page-stack--knowledge-article:not(.page-stack--knowledge-desk) {
+  gap: 0.75rem;
+}
+
 .kb-folio {
   position: relative;
-  max-width: 46rem;
-  margin: 0 auto;
-  padding: 1.35rem 1.5rem 2rem;
-  border-radius: 16px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 1.25rem 1.35rem 2.25rem;
+  border-radius: 14px;
   border: 1px solid rgb(255 255 255 / 0.07);
   background:
     linear-gradient(180deg, rgb(201 162 39 / 0.05), transparent 7rem),
@@ -182,8 +310,8 @@
 .kb-folio-rule {
   position: absolute;
   top: 0;
-  left: 1.5rem;
-  right: 1.5rem;
+  left: 1.35rem;
+  right: 1.35rem;
   height: 2px;
   border-radius: 999px;
   background: linear-gradient(90deg, transparent, rgb(201 162 39 / 0.75), transparent);
@@ -214,7 +342,7 @@
 .kb-folio-title {
   margin: 0 0 1.15rem;
   font-family: var(--font-display);
-  font-size: clamp(1.45rem, 2.2vw, 1.85rem);
+  font-size: clamp(1.55rem, 2.4vw, 2.05rem);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.02em;
@@ -222,8 +350,14 @@
 }
 
 .kb-folio-body {
-  padding-top: 0.25rem;
+  padding-top: 0.35rem;
   border-top: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.kb-folio-body .kb-md {
+  font-size: clamp(0.95rem, 1.05vw, 1.05rem);
+  line-height: 1.75;
+  max-width: none;
 }
 
 @keyframes kb-folio-in {
@@ -251,11 +385,16 @@
   gap: 0.85rem;
   min-height: 0;
   flex: 1 1 auto;
+  overflow: hidden;
+  /* Одна колонка: мета сверху, рукопись занимает остаток и скроллится внутри */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 @media (min-width: 980px) {
   .kb-desk {
     grid-template-columns: minmax(15rem, 17.5rem) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     align-items: stretch;
   }
 }
@@ -270,6 +409,8 @@
   background:
     linear-gradient(165deg, rgb(201 162 39 / 0.07), transparent 42%),
     rgb(0 0 0 / 0.28);
+  overflow: auto;
+  max-height: 100%;
 }
 
 .kb-desk-meta-label {
@@ -318,6 +459,7 @@
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  height: 100%;
   border-radius: 14px;
   border: 1px solid rgb(255 255 255 / 0.08);
   background: rgb(6 7 12 / 0.92);
@@ -326,6 +468,7 @@
 }
 
 .kb-manuscript-chrome {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -333,7 +476,8 @@
   gap: 0.55rem;
   padding: 0.55rem 0.7rem;
   border-bottom: 1px solid rgb(255 255 255 / 0.06);
-  background: rgb(255 255 255 / 0.02);
+  background: rgb(12 13 18 / 0.98);
+  z-index: 2;
 }
 
 .kb-mode-toggle {
@@ -397,7 +541,7 @@
 .kb-manuscript-textarea {
   flex: 1 1 auto;
   width: 100%;
-  min-height: min(58vh, 34rem);
+  min-height: 0;
   margin: 0;
   padding: 1.1rem 1.2rem 1.4rem;
   border: 0;
@@ -409,6 +553,7 @@
   font-size: 0.8125rem;
   line-height: 1.65;
   tab-size: 2;
+  overflow: auto;
 }
 
 .kb-manuscript-textarea::placeholder {
@@ -421,22 +566,15 @@
 
 .kb-manuscript-preview {
   flex: 1 1 auto;
-  min-height: min(58vh, 34rem);
+  min-height: 0;
   padding: 1.15rem 1.35rem 1.6rem;
   overflow: auto;
 }
 
-@media (min-width: 980px) {
-  .page-stack--knowledge-desk .kb-desk,
-  .page-stack--knowledge-desk .kb-manuscript,
-  .page-stack--knowledge-desk .kb-manuscript-textarea,
-  .page-stack--knowledge-desk .kb-manuscript-preview {
-    min-height: 0;
-  }
-
-  .page-stack--knowledge-desk .kb-manuscript-textarea,
-  .page-stack--knowledge-desk .kb-manuscript-preview {
-    min-height: 100%;
+@media (max-width: 979px) {
+  .kb-manuscript-textarea,
+  .kb-manuscript-preview {
+    min-height: 22rem;
   }
 }
 
@@ -486,23 +624,126 @@
 .kb-md ol,
 .kb-md blockquote,
 .kb-md pre,
-.kb-md table {
+.kb-md .kb-md-table-wrap {
   margin: 0.7em 0;
 }
 
 .kb-md ul,
 .kb-md ol {
-  padding-left: 1.35rem;
+  padding-left: 1.6rem;
+  /* Tailwind preflight снимает маркеры — возвращаем для чтения */
+  list-style-position: outside;
+}
+
+.kb-md ul:not(.kb-md-task-list) {
+  list-style-type: disc;
+}
+
+.kb-md ul:not(.kb-md-task-list) ul {
+  list-style-type: circle;
+}
+
+.kb-md ul:not(.kb-md-task-list) ul ul {
+  list-style-type: square;
+}
+
+.kb-md ol {
+  list-style-type: decimal;
+}
+
+.kb-md li {
+  display: list-item;
+  padding-left: 0.2rem;
+}
+
+.kb-md ::marker {
+  color: rgb(201 162 39 / 0.75);
+}
+
+.kb-md ul ul,
+.kb-md ul ol,
+.kb-md ol ul,
+.kb-md ol ol {
+  margin: 0.35em 0;
 }
 
 .kb-md li + li {
   margin-top: 0.28rem;
 }
 
+.kb-md li > p {
+  margin: 0.25em 0;
+}
+
+.kb-md li > p:first-child {
+  margin-top: 0;
+}
+
+.kb-md li > p:last-child {
+  margin-bottom: 0;
+}
+
+.kb-md-task-list {
+  list-style: none;
+  padding-left: 0.15rem;
+}
+
+.kb-md-task-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.35rem 0.5rem;
+}
+
+.kb-md-task-item > input[type='checkbox'] {
+  margin: 0.35em 0 0;
+  accent-color: rgb(201 162 39);
+}
+
+.kb-md-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.kb-md-table-wrap > table {
+  margin: 0;
+  border: 0;
+}
+
+.kb-md-table-wrap th:first-child,
+.kb-md-table-wrap td:first-child {
+  border-left: 0;
+}
+
+.kb-md-table-wrap th:last-child,
+.kb-md-table-wrap td:last-child {
+  border-right: 0;
+}
+
 .kb-md a {
   color: rgb(232 212 140 / 0.95);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.kb-md-link-blocked {
+  color: inherit;
+}
+
+.kb-md-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75em 0;
+  border-radius: 8px;
+}
+
+.kb-md-img-fallback {
+  color: rgb(255 255 255 / 0.45);
+  font-style: italic;
 }
 
 .kb-md code {
@@ -562,6 +803,63 @@
 .kb-md strong {
   color: rgb(255 255 255 / 0.96);
   font-weight: 700;
+}
+
+.kb-md del {
+  color: rgb(255 255 255 / 0.55);
+}
+
+.kb-md input[type='checkbox'] {
+  pointer-events: none;
+}
+
+.kb-md-cheat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.45rem 0.75rem 0.55rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+  background: rgb(255 255 255 / 0.015);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 0.42);
+}
+
+.kb-md-cheat summary {
+  cursor: pointer;
+  color: rgb(232 212 140 / 0.75);
+  font-weight: 600;
+  list-style: none;
+}
+
+.kb-md-cheat summary::-webkit-details-marker {
+  display: none;
+}
+
+.kb-md-cheat-body {
+  flex: 1 1 100%;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  columns: 2;
+  column-gap: 1.25rem;
+}
+
+.kb-md-cheat-body li {
+  break-inside: avoid;
+  margin: 0.2rem 0;
+}
+
+.kb-md-cheat-body code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: rgb(232 212 140 / 0.85);
+}
+
+@media (max-width: 639px) {
+  .kb-md-cheat-body {
+    columns: 1;
+  }
 }
 
 @media (max-width: 639px) {
