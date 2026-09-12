@@ -85,11 +85,11 @@ const components: Components = {
       </div>
     )
   },
-  img({ src, alt, ...props }) {
+  img({ src, alt }) {
     if (!src || !isSafeMarkdownHref(src)) {
       return alt ? <span className="kb-md-img-fallback">{alt}</span> : null
     }
-    return <img src={src} alt={alt || ''} className="kb-md-img" loading="lazy" {...props} />
+    return <img src={src} alt={alt || ''} className="kb-md-img" loading="lazy" />
   },
 }
 

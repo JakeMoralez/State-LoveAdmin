@@ -23,6 +23,7 @@ import { alertSnippet } from '../components/knowledge/markdownAlerts'
 import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import { Alert } from '../components/ui/Alert'
+import { ImageUploadButton } from '../components/ui/ImageUpload'
 import { PageSkeleton } from '../components/ui/LoadingState'
 import { Select } from '../components/ui/Select'
 import { Switch } from '../components/ui/Switch'
@@ -593,6 +594,15 @@ export function KnowledgeArticlePage() {
                   >
                     <Code2 size={14} aria-hidden />
                   </button>
+                  <ImageUploadButton
+                    iconOnly
+                    label="Изображение"
+                    className="kb-md-tool"
+                    onUploaded={(url, filename) => {
+                      const alt = filename.replace(/\.[^.]+$/, '') || 'изображение'
+                      insertSnippet(`![${alt}](${url})`, alt)
+                    }}
+                  />
                 </div>
               ) : (
                 <span className="kb-manuscript-hint">Как увидят следящие</span>
@@ -620,6 +630,10 @@ export function KnowledgeArticlePage() {
                   <li>
                     Внимание — каждая строка с <code>{'>'}</code>, внутри можно список:{' '}
                     <code>{'>'} [!NOTE]</code> / <code>{'>'} - пункт</code>, затем пустая строка
+                  </li>
+                  <li>
+                    Картинка — кнопка с иконкой: загрузка на сервер и вставка{' '}
+                    <code>![…](/uploads/…)</code>
                   </li>
                 </ul>
               </details>

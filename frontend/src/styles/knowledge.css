@@ -533,6 +533,11 @@
   color: rgb(232 212 140 / 0.9);
 }
 
+.kb-md-tool:disabled {
+  opacity: 0.45;
+  cursor: wait;
+}
+
 .kb-manuscript-hint {
   font-size: 0.7rem;
   color: rgb(255 255 255 / 0.35);
