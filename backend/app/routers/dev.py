@@ -14,6 +14,8 @@ from app.config import (
     DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET,
     PANEL_DATABASE_URL,
+    SESSION_ABSOLUTE_HOURS,
+    SESSION_IDLE_HOURS,
     SESSION_TTL_HOURS,
     SLED_BOT_SECRET,
     SLED_INTERNAL_URL,
@@ -70,15 +72,13 @@ async def _optional_vk_id(request: Request) -> int | None:
         return None
 
 
-async def require_dev_user(request: Request) -> dict:
-    user = await require_ca_user(request)
+async def require_dev_user(user: dict = Depends(require_ca_user)) -> dict:
     if not can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0)):
         raise HTTPException(status_code=403, detail="Раздел разработчика недоступен")
     return user
 
 
-async def require_leadership_manager(request: Request) -> dict:
-    user = await require_dev_user(request)
+async def require_leadership_manager(user: dict = Depends(require_dev_user)) -> dict:
     return user
 
 
@@ -263,6 +263,8 @@ async def get_dev_system(_user: dict = Depends(require_dev_user)):
         "bot_error": bot_error,
         "dev_mode": DEV_MODE,
         "session_ttl_hours": SESSION_TTL_HOURS,
+        "session_idle_hours": SESSION_IDLE_HOURS,
+        "session_absolute_hours": SESSION_ABSOLUTE_HOURS,
         "discord_configured": bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET),
         "vk_service_configured": bool(VK_SERVICE_TOKEN),
         "sled_secret_configured": bool(SLED_BOT_SECRET),
@@ -287,6 +289,8 @@ async def get_dev_portal(_user: dict = Depends(require_dev_user)):
         "staff_count": data["staff_count"],
         "dev_mode": data["dev_mode"],
         "session_ttl_hours": data["session_ttl_hours"],
+        "session_idle_hours": data["session_idle_hours"],
+        "session_absolute_hours": data["session_absolute_hours"],
         "settings": data["settings"],
     }
 

@@ -120,7 +120,7 @@ export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
     path: '/question-banks',
     portal: 'ПС (1+)',
     sphere: 'Назначенные; ЗГС/ГС сфер (+Гос); Гос./Нелег./Сервер — все операционные',
-    actions: 'Добавление — min_submit_level банка; модерация — min_approve_level',
+    actions: 'Просмотр — min_view_level; добавление — min_submit_level; модерация — min_approve_level',
   },
   {
     section: 'Команда',

@@ -22,6 +22,7 @@ from app.services.question_banks import (
     apply_item_updates,
     assert_can_manage,
     assert_can_submit,
+    assert_can_view,
     bank_counts,
     bank_counts_for_user,
     bank_permissions,
@@ -46,6 +47,7 @@ class BankBody(BaseModel):
     description: str = ""
     emoji: str = Field(default="", max_length=16)
     sphere: str | None = None
+    min_view_level: int = Field(default=1, ge=1, le=AccessLevel.DEVELOPER)
     min_submit_level: int = Field(default=1, ge=1, le=AccessLevel.DEVELOPER)
     min_approve_level: int = Field(default=ZGS_MIN_LEVEL, ge=1, le=AccessLevel.DEVELOPER)
     contributor_visibility: str = Field(default=CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW)
@@ -175,13 +177,21 @@ async def list_banks(
     banks = await qs.order_by("sort_order", "title")
     result = []
     for bank in banks:
+        bank_perms = bank_permissions(user, bank)
+        if not (
+            bank_perms["can_view"]
+            or bank_perms["can_submit"]
+            or bank_perms["can_review"]
+            or bank_perms["can_manage"]
+        ):
+            continue
         confirmed, pending = await bank_counts_for_user(user, bank)
         result.append(
             await serialize_bank(
                 bank,
                 question_count=confirmed,
                 pending_count=pending,
-                permissions=bank_permissions(user, bank),
+                permissions=bank_perms,
             )
         )
     return {"banks": result, "permissions": perms}
@@ -197,6 +207,7 @@ async def create_bank(body: BankBody, user: dict = Depends(require_ca_user)):
         title=body.title.strip(),
         description=body.description.strip(),
         emoji=body.emoji.strip(),
+        min_view_level=body.min_view_level,
         min_submit_level=body.min_submit_level,
         min_approve_level=body.min_approve_level,
         contributor_visibility=_normalize_contributor_visibility(body.contributor_visibility),
@@ -219,6 +230,7 @@ async def get_bank(
     perms = bank_permissions(user, bank)
     if not bank.is_active and not perms["can_manage"]:
         raise HTTPException(status_code=404, detail=messages.BANK_NOT_FOUND)
+    assert_can_view(user, bank)
 
     qs = QuestionBankItem.filter(bank_id=bank.id)
     filt = item_filter_for_user(user, bank)
@@ -264,6 +276,7 @@ async def update_bank(bank_id: int, body: BankBody, user: dict = Depends(require
     bank.title = body.title.strip()
     bank.description = body.description.strip()
     bank.emoji = body.emoji.strip()
+    bank.min_view_level = body.min_view_level
     bank.min_submit_level = body.min_submit_level
     bank.min_approve_level = body.min_approve_level
     bank.contributor_visibility = _normalize_contributor_visibility(body.contributor_visibility)

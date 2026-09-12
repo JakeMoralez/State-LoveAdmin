@@ -39,7 +39,59 @@ function formatApiDetail(detail: unknown): string {
   return String(detail)
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+const SESSION_ENDED_KEY = 'sled_session_ended'
+
+export function markSessionEnded(reason: 'session' = 'session') {
+  try {
+    sessionStorage.setItem(SESSION_ENDED_KEY, reason)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function consumeSessionEndedReason(): string | null {
+  try {
+    const v = sessionStorage.getItem(SESSION_ENDED_KEY)
+    if (v) sessionStorage.removeItem(SESSION_ENDED_KEY)
+    return v
+  } catch {
+    return null
+  }
+}
+
+let refreshInFlight: Promise<boolean> | null = null
+
+async function tryRefreshSession(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      return res.ok
+    } catch {
+      return false
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+  return refreshInFlight
+}
+
+function shouldAttemptSessionRefresh(path: string): boolean {
+  if (path.startsWith('/auth/refresh')) return false
+  if (path.startsWith('/auth/logout')) return false
+  if (path.startsWith('/auth/config')) return false
+  if (path.startsWith('/auth/dev-login')) return false
+  if (path.startsWith('/auth/vk/')) return false
+  if (path.startsWith('/auth/discord/')) return false
+  if (path.startsWith('/auth/bot/')) return false
+  return true
+}
+
+async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   let res: Response
   try {
     res = await fetch(`${API}${path}`, {
@@ -54,6 +106,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, 'Сервер не ответил. Запустите API или обновите страницу.')
   }
   if (!res.ok) {
+    if (res.status === 401 && !retried && shouldAttemptSessionRefresh(path)) {
+      const ok = await tryRefreshSession()
+      if (ok) return request<T>(path, init, true)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sled:session-ended'))
+      }
+    }
     let detail = res.statusText
     try {
       const body = await res.json()
@@ -83,6 +142,7 @@ export const api = {
       body: JSON.stringify(body),
     }),
   me: () => request<UserProfile>('/auth/me'),
+  refreshSession: () => request<{ ok: boolean; slid: boolean }>('/auth/refresh', { method: 'POST' }),
   updateProfile: (body: ProfileUpdateBody) =>
     request<UserProfile>('/profile', {
       method: 'PATCH',
@@ -1084,6 +1144,7 @@ export const KANBAN_COLUMN_LABELS: Record<string, string> = {
 
 export interface QuestionBankPermissions {
   can_manage: boolean
+  can_view?: boolean
   can_submit: boolean
   can_review: boolean
   can_direct_confirm: boolean
@@ -1105,10 +1166,12 @@ export interface QuestionBank {
   title: string
   description: string
   emoji?: string
+  min_view_level?: number
   min_submit_level: number
   min_approve_level: number
   contributor_visibility?: string
   contributor_visibility_label?: string
+  min_view_level_label?: string
   min_submit_level_label?: string
   min_approve_level_label?: string
   question_count: number
@@ -1126,6 +1189,7 @@ export interface QuestionBankBody {
   description?: string
   emoji?: string
   sphere?: string
+  min_view_level?: number
   min_submit_level?: number
   min_approve_level?: number
   contributor_visibility?: string
@@ -1316,6 +1380,8 @@ export interface DevPortalInfo {
   staff_count: number
   dev_mode: boolean
   session_ttl_hours: number
+  session_idle_hours?: number
+  session_absolute_hours?: number
   settings: PanelRuntimeSettings
 }
 

@@ -24,6 +24,7 @@ export interface BankFormValues {
   title: string
   description: string
   emoji: string
+  min_view_level: number
   min_submit_level: number
   min_approve_level: number
   contributor_visibility: string
@@ -50,6 +51,7 @@ export function BankForm({
   const [title, setTitle] = useState(initial?.title ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
   const [emoji, setEmoji] = useState(initial?.emoji?.trim() || DEFAULT_BANK_ICON)
+  const [minView, setMinView] = useState(String(initial?.min_view_level ?? 1))
   const [minSubmit, setMinSubmit] = useState(String(initial?.min_submit_level ?? 1))
   const [minApprove, setMinApprove] = useState(String(initial?.min_approve_level ?? 3))
   const [visibility, setVisibility] = useState(initial?.contributor_visibility ?? 'own_workflow')
@@ -60,6 +62,7 @@ export function BankForm({
     setTitle(initial?.title ?? '')
     setDescription(initial?.description ?? '')
     setEmoji(initial?.emoji?.trim() || DEFAULT_BANK_ICON)
+    setMinView(String(initial?.min_view_level ?? 1))
     setMinSubmit(String(initial?.min_submit_level ?? 1))
     setMinApprove(String(initial?.min_approve_level ?? 3))
     setVisibility(initial?.contributor_visibility ?? 'own_workflow')
@@ -80,6 +83,7 @@ export function BankForm({
         title: title.trim(),
         description: description.trim(),
         emoji: emoji.trim() || DEFAULT_BANK_ICON,
+        min_view_level: parseInt(minView, 10),
         min_submit_level: parseInt(minSubmit, 10),
         min_approve_level: parseInt(minApprove, 10),
         contributor_visibility: visibility,
@@ -107,6 +111,9 @@ export function BankForm({
         />
       </FormField>
       <div className="qb-bank-form-grid">
+        <FormField label="Кто может смотреть" hint="Открыть банк без права добавлять">
+          <Select value={minView} onChange={setMinView} options={ACCESS_LEVEL_OPTIONS} />
+        </FormField>
         <FormField label="Кто может добавлять" hint="Минимальный уровень доступа">
           <Select value={minSubmit} onChange={setMinSubmit} options={ACCESS_LEVEL_OPTIONS} />
         </FormField>
@@ -116,7 +123,7 @@ export function BankForm({
       </div>
       <FormField
         label="Видимость для добавляющих"
-        hint="Что видят пользователи без права проверки (ниже уровня подтверждения)"
+        hint="Что видят пользователи без права проверки. Для «только смотреть» нужен режим «Полный банк»"
       >
         <Select value={visibility} onChange={setVisibility} options={visibilitySelectOptions} />
       </FormField>

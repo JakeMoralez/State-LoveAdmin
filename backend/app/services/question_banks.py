@@ -99,16 +99,25 @@ def _contributor_visibility(bank: QuestionBank | None) -> str:
     return CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW
 
 
+def _min_view_level(bank: QuestionBank | None) -> int:
+    if not bank:
+        return 1
+    return int(getattr(bank, "min_view_level", None) or 1)
+
+
 def bank_permissions(user: dict, bank: QuestionBank | None = None) -> dict[str, bool]:
     level = _level(user)
+    min_view = _min_view_level(bank)
     min_submit = bank.min_submit_level if bank else 1
     min_approve = bank.min_approve_level if bank else ZGS_MIN_LEVEL
     can_manage = level >= ZGS_MIN_LEVEL
+    can_view = level >= min_view or can_manage
     can_submit = level >= min_submit
     can_review = level >= min_approve
     can_direct_confirm = level >= min_approve
     return {
         "can_manage": can_manage,
+        "can_view": can_view,
         "can_submit": can_submit,
         "can_review": can_review,
         "can_direct_confirm": can_direct_confirm,
@@ -118,6 +127,12 @@ def bank_permissions(user: dict, bank: QuestionBank | None = None) -> dict[str, 
 def assert_can_manage(user: dict) -> None:
     if not bank_permissions(user)["can_manage"]:
         raise HTTPException(status_code=403, detail="Управлять банками могут только ЗГС+")
+
+
+def assert_can_view(user: dict, bank: QuestionBank) -> None:
+    perms = bank_permissions(user, bank)
+    if not (perms["can_view"] or perms["can_submit"] or perms["can_review"]):
+        raise HTTPException(status_code=403, detail="Недостаточно прав для просмотра банка")
 
 
 def assert_can_submit(user: dict, bank: QuestionBank) -> None:
@@ -131,14 +146,22 @@ def assert_can_review(user: dict, bank: QuestionBank) -> None:
 
 
 def can_view_item(user: dict, item: QuestionBankItem, bank: QuestionBank | None = None) -> bool:
-    if bank and bank_permissions(user, bank)["can_review"]:
-        return True
+    can_submit = True
+    if bank:
+        perms = bank_permissions(user, bank)
+        if not (perms["can_view"] or perms["can_submit"] or perms["can_review"]):
+            return False
+        if perms["can_review"]:
+            return True
+        can_submit = perms["can_submit"]
     vk_id = user["vk_id"]
     mode = _contributor_visibility(bank)
     if mode == CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED:
         if item.status == "confirmed":
             return True
-        return item.created_by_vk_id == vk_id
+        return can_submit and item.created_by_vk_id == vk_id
+    if not can_submit:
+        return False
     if item.created_by_vk_id != vk_id:
         return False
     if mode == CONTRIBUTOR_VISIBILITY_OWN_WORKFLOW and item.status == "confirmed":
@@ -172,8 +195,14 @@ def item_filter_for_user(user: dict, bank: QuestionBank | None = None):
 
     vk_id = user["vk_id"]
     mode = _contributor_visibility(bank)
+    can_submit = bool(bank and bank_permissions(user, bank)["can_submit"])
     if mode == CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED:
-        return Q(status="confirmed") | Q(created_by_vk_id=vk_id)
+        if can_submit:
+            return Q(status="confirmed") | Q(created_by_vk_id=vk_id)
+        return Q(status="confirmed")
+    if not can_submit:
+        # View-only без режима «полный банк» — подтверждённые чужие не показываем
+        return Q(id=-1)
     if mode == CONTRIBUTOR_VISIBILITY_OWN_ALL:
         return Q(created_by_vk_id=vk_id)
     return Q(created_by_vk_id=vk_id) & ~Q(status="confirmed")
@@ -415,12 +444,14 @@ async def serialize_bank(
         "title": bank.title,
         "description": bank.description,
         "emoji": bank.emoji or "",
+        "min_view_level": _min_view_level(bank),
         "min_submit_level": bank.min_submit_level,
         "min_approve_level": bank.min_approve_level,
         "contributor_visibility": _contributor_visibility(bank),
         "contributor_visibility_label": CONTRIBUTOR_VISIBILITY_LABELS.get(
             _contributor_visibility(bank), _contributor_visibility(bank)
         ),
+        "min_view_level_label": AccessLevel.title(_min_view_level(bank)),
         "min_submit_level_label": AccessLevel.title(bank.min_submit_level),
         "min_approve_level_label": AccessLevel.title(bank.min_approve_level),
         "question_count": question_count,
@@ -442,12 +473,15 @@ async def bank_counts(bank_id: int) -> tuple[int, int]:
 
 async def bank_counts_for_user(user: dict, bank: QuestionBank) -> tuple[int, int]:
     """Счётчики на карточке банка с учётом режима видимости для не-проверяющих."""
-    if bank_permissions(user, bank)["can_review"]:
+    perms = bank_permissions(user, bank)
+    if perms["can_review"]:
         return await bank_counts(bank.id)
-    vk_id = user["vk_id"]
     mode = _contributor_visibility(bank)
     if mode == CONTRIBUTOR_VISIBILITY_ALL_CONFIRMED:
         return await bank_counts(bank.id)
+    if not perms["can_submit"]:
+        return 0, 0
+    vk_id = user["vk_id"]
     if mode == CONTRIBUTOR_VISIBILITY_OWN_ALL:
         confirmed = await QuestionBankItem.filter(
             bank_id=bank.id, created_by_vk_id=vk_id, status="confirmed"

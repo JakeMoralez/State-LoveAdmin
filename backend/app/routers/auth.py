@@ -7,7 +7,7 @@ import secrets
 import urllib.parse
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -41,6 +41,8 @@ from app.services.auth import (
     clear_session_cookie,
     require_ca_user,
     set_session_cookie,
+    touch_session,
+    get_session_payload,
 )
 
 logger = logging.getLogger(__name__)
@@ -286,13 +288,20 @@ async def logout(response: Response):
     return {"ok": True}
 
 
+@router.post("/refresh")
+async def refresh_session(request: Request, response: Response):
+    """Продлить sled_session при валидной сессии (idle sliding)."""
+    payload = await get_session_payload(request)
+    slid = touch_session(response, payload)
+    return {"ok": True, "slid": slid}
+
+
 def _can_manage_discord_links(user: dict, level: int) -> bool:
     return level >= 7 or user.get("panel_role") in ("owner", "lead")
 
 
 @router.get("/me")
-async def me(request: Request):
-    user = await require_ca_user(request)
+async def me(user: dict = Depends(require_ca_user)):
     photos = await resolve_vk_photos({user["vk_id"]})
     user["avatar_url"] = photos.get(user["vk_id"]) or "https://vk.com/images/camera_100.png"
     user["can_dev_panel"] = can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0))

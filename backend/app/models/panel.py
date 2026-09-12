@@ -279,6 +279,7 @@ class QuestionBank(Model):
     title = fields.CharField(max_length=256)
     description = fields.TextField(default="")
     emoji = fields.CharField(max_length=16, default="")
+    min_view_level = fields.IntField(default=1)
     min_submit_level = fields.IntField(default=1)
     min_approve_level = fields.IntField(default=3)
     contributor_visibility = fields.CharField(max_length=32, default="own_workflow")

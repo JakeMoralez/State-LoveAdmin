@@ -620,6 +620,12 @@ a.project-card:hover,
   }
 }
 
+@media (min-width: 720px) {
+  .qb-bank-form-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
 .qb-bank-form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -779,6 +785,11 @@ a.project-card:hover,
   margin-top: var(--space-1);
   font-size: 0.6875rem;
   color: var(--sl-text-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.65rem;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Staff / leaders registry — see registry.css */

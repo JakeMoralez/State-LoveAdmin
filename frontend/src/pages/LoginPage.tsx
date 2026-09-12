@@ -20,6 +20,10 @@ const LOGIN_ERRORS: Record<string, string> = {
   used: 'Ссылка уже использована. Запросите новую: /panel в ЛС бота.',
 }
 
+const LOGIN_REASONS: Record<string, string> = {
+  session: 'Сессия истекла — войдите снова.',
+}
+
 function formatAuthError(message: string): string {
   const m = message.toLowerCase()
   if (m.includes('bad gateway') || m.includes('502')) {
@@ -57,6 +61,11 @@ export function LoginPage() {
     const oauthError = searchParams.get('error')
     if (oauthError && LOGIN_ERRORS[oauthError]) {
       setLocalError(LOGIN_ERRORS[oauthError])
+      return
+    }
+    const reason = searchParams.get('reason')
+    if (reason && LOGIN_REASONS[reason]) {
+      setLocalError(LOGIN_REASONS[reason])
     }
   }, [searchParams])
 

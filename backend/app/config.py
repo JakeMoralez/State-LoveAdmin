@@ -59,8 +59,15 @@ DISCORD_REDIRECT_URI: str = os.getenv(
 )
 
 SESSION_SECRET: str = os.getenv("SESSION_SECRET", "change-me-in-production")
-SESSION_TTL_HOURS: int = int(os.getenv("SESSION_TTL_HOURS", "24"))
+# Idle (sliding): продлевается при активности. Absolute: потолок с момента входа (iat).
+# SESSION_TTL_HOURS — устаревший alias для idle (совместимость со старыми .env).
+_session_idle_raw = os.getenv("SESSION_IDLE_HOURS") or os.getenv("SESSION_TTL_HOURS") or "168"
+SESSION_IDLE_HOURS: int = int(_session_idle_raw)
+SESSION_ABSOLUTE_HOURS: int = int(os.getenv("SESSION_ABSOLUTE_HOURS", "720"))
+SESSION_TTL_HOURS: int = SESSION_IDLE_HOURS  # deprecated alias
 SESSION_COOKIE_NAME: str = "sled_session"
+SESSION_COOKIE_PATH: str = "/"
+SESSION_SLIDE_THRESHOLD: float = 0.25  # продлить, если осталось < 25% idle
 
 SLED_BOT_SECRET: str = os.getenv("SLED_BOT_SECRET", "")
 SLED_INTERNAL_URL: str = os.getenv("SLED_INTERNAL_URL", "http://127.0.0.1:8081")

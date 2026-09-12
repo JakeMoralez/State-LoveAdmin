@@ -260,7 +260,7 @@ export function QuestionBankDetailPage() {
         onClose={() => setItemModalOpen(false)}
         item={activeItem}
         meta={meta}
-        permissions={permissions ?? { can_manage: false, can_submit: false, can_review: false, can_direct_confirm: false }}
+        permissions={permissions ?? { can_manage: false, can_view: false, can_submit: false, can_review: false, can_direct_confirm: false }}
         onSaveDraft={(body) => saveItem(body)}
         onSubmit={(body) => saveItem(body, { submit: true })}
         onDirectPublish={permissions?.can_direct_confirm ? (body) => saveItem(body, { direct: true }) : undefined}
@@ -300,6 +300,7 @@ export function QuestionBankDetailPage() {
                 title: bank.title,
                 description: bank.description,
                 emoji: bank.emoji,
+                min_view_level: bank.min_view_level ?? 1,
                 min_submit_level: bank.min_submit_level,
                 min_approve_level: bank.min_approve_level,
                 contributor_visibility: bank.contributor_visibility ?? 'own_workflow',

@@ -558,22 +558,30 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
+  overflow: hidden;
 }
 
 .qb-bank-card-body {
   min-width: 0;
   flex: 1;
+  max-width: 100%;
 }
 
 .qb-bank-card-title,
-.qb-bank-card-desc,
-.qb-bank-card-foot {
+.qb-bank-card-desc {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .qb-bank-card-foot {
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.65rem;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* ── Checklist control ── */

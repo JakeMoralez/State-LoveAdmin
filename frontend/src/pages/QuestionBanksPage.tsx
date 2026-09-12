@@ -149,8 +149,9 @@ export function QuestionBanksPage() {
                       )}
                     </div>
                     <div className="qb-bank-card-foot">
-                      Добавлять: {bank.min_submit_level_label ?? `ур. ${bank.min_submit_level}`} · Подтверждать:{' '}
-                      {bank.min_approve_level_label ?? `ур. ${bank.min_approve_level}`}
+                      <span>Смотреть: {bank.min_view_level_label ?? `ур. ${bank.min_view_level ?? 1}`}</span>
+                      <span>Добавлять: {bank.min_submit_level_label ?? `ур. ${bank.min_submit_level}`}</span>
+                      <span>Подтверждать: {bank.min_approve_level_label ?? `ур. ${bank.min_approve_level}`}</span>
                     </div>
                   </div>
                 </Link>

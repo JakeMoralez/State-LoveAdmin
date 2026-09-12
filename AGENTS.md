@@ -160,8 +160,12 @@ State-LoveAdmin/
 ## 7. Auth-поток
 
 1. Frontend: `@vkid/sdk` → редирект на VK → `/api/auth/vk/callback`.
-2. Backend выдаёт JWT в cookie **`sled_session`** (TTL `SESSION_TTL_HOURS`);
-   одноразовые токены входа с бота — `PanelLoginToken`.
+2. Backend выдаёт JWT в cookie **`sled_session`**: idle sliding
+   (`SESSION_IDLE_HOURS`, default 168) + абсолютный потолок с `iat`
+   (`SESSION_ABSOLUTE_HOURS`, default 720). Cookie продлевается при
+   валидных запросах (порог ~25% idle) и через `POST /api/auth/refresh`.
+   `SESSION_TTL_HOURS` — deprecated alias для idle. Одноразовые токены
+   входа с бота — `PanelLoginToken`.
 3. Frontend хранит состояние в `context/AuthContext.tsx`; защита маршрутов —
    `RequireAuth` в `App.tsx`.
 4. **Dev-режим:** `DEV_MODE=true` + `DEV_VK_ID` — вход без VK OAuth (см. `config.py`,

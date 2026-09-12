@@ -290,8 +290,12 @@ export function PortalSettingsTab() {
             <dd>{data.dev_mode ? 'вкл' : 'выкл'}</dd>
           </div>
           <div>
-            <dt>TTL сессии</dt>
-            <dd>{data.session_ttl_hours} ч</dd>
+            <dt>Idle сессии</dt>
+            <dd>{data.session_idle_hours ?? data.session_ttl_hours} ч</dd>
+          </div>
+          <div>
+            <dt>Absolute сессии</dt>
+            <dd>{data.session_absolute_hours ?? '—'} ч</dd>
           </div>
           <div>
             <dt>База бота</dt>
