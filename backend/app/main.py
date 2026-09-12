@@ -76,6 +76,12 @@ async def _task_reminder_loop() -> None:
     await asyncio.sleep(30)
     while True:
         try:
+            from app.services.task_recurrence import spawn_due_recurrences
+
+            await spawn_due_recurrences()
+        except Exception as exc:
+            logger.warning("task recurrence spawn: %s", exc)
+        try:
             if await get_task_reminders_enabled():
                 await run_task_reminders()
         except Exception as exc:

@@ -19,10 +19,16 @@ import { SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
 import { TaskCard, TaskCardPreview, TaskListRow } from '../components/tasks/TaskCard'
 import { TaskCreateModal, type TaskCreatePayload } from '../components/tasks/TaskCreateModal'
 import { TaskDrawer } from '../components/tasks/TaskDrawer'
+import { TaskRecurrencePanel } from '../components/tasks/TaskRecurrencePanel'
 import { TasksToolbar, type TaskFilters } from '../components/tasks/TasksToolbar'
 import { useAuth } from '../context/AuthContext'
 import { COMPACT_QUERY, matchesMediaQuery } from '../hooks/useMediaQuery'
 import { TasksLoadingSkeleton } from '../components/ui/LoadingState'
+import {
+  GOV_STRUCTURES_SPHERE,
+  TASK_AUDIENCE_OPTIONS,
+  type TaskAudience,
+} from '../lib/taskAudiences'
 import { cn, isOverdue } from '../lib/utils'
 
 const KANBAN_STATUSES = ['todo', 'in_progress', 'done']
@@ -89,8 +95,15 @@ export function TasksWorkspace({
   const [activeId, setActiveId] = useState<number | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
+  const [audience, setAudience] = useState<string>('')
+  const [audienceTabs, setAudienceTabs] = useState<{ id: string; label: string }[]>([])
+  const [canManageGov, setCanManageGov] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  const showGovAudiences = Boolean(
+    spheres?.length === 1 && spheres[0] === GOV_STRUCTURES_SPHERE,
+  )
 
   const apiParams = useMemo(() => {
     const p: Parameters<typeof api.tasks>[0] = { view: filters.view }
@@ -102,8 +115,9 @@ export function TasksWorkspace({
     }
     if (filters.priority) p.priority = filters.priority
     if (apiSpheres?.length) p.spheres = apiSpheres
+    if (showGovAudiences && audience) p.audience = audience
     return p
-  }, [filters, projectId, apiSpheres])
+  }, [filters, projectId, apiSpheres, showGovAudiences, audience])
 
   const filterTasks = useCallback((items: TaskDetail[]) => {
     let next = items
@@ -160,6 +174,30 @@ export function TasksWorkspace({
     api.staff().then((r) => setStaff(r.members))
     api.projects(apiSpheres).then((r) => setProjects(r.projects))
   }, [apiSpheres, spheres, workSpheres])
+
+  useEffect(() => {
+    if (!showGovAudiences) {
+      setAudienceTabs([])
+      setAudience('')
+      setCanManageGov(false)
+      return
+    }
+    void api
+      .taskAudiences()
+      .then((r) => {
+        setAudienceTabs(r.audiences.length ? r.audiences : TASK_AUDIENCE_OPTIONS)
+        setCanManageGov(r.can_manage)
+        setAudience((prev) => {
+          if (prev && r.audiences.some((a) => a.id === prev)) return prev
+          if (r.can_manage) return r.audiences[0]?.id || ''
+          return r.own_audience || r.audiences[0]?.id || ''
+        })
+      })
+      .catch(() => {
+        setAudienceTabs(TASK_AUDIENCE_OPTIONS)
+        setCanManageGov(false)
+      })
+  }, [showGovAudiences])
 
   const allTasks = useMemo(() => {
     if (filters.view === 'list') return listTasks
@@ -235,13 +273,37 @@ export function TasksWorkspace({
   const activeTask = activeId ? allTasks.find((t) => t.id === activeId) : null
 
   const createTask = async (payload: TaskCreatePayload) => {
-    await api.createTask(
-      {
-        ...payload,
-        project_id: payload.project_id ?? projectId ?? null,
-      },
-      createSphere,
-    )
+    const sphere = createSphere
+    if (payload.recurrence) {
+      await api.createTaskRecurrence(
+        {
+          title: payload.title,
+          description: payload.description,
+          priority: payload.priority,
+          labels: payload.labels,
+          project_id: payload.project_id ?? projectId ?? null,
+          audience: payload.audience,
+          assignee_mode: sphere === GOV_STRUCTURES_SPHERE ? 'cohort' : 'explicit',
+          assignee_vk_ids: payload.assignee_vk_ids || [],
+          freq: payload.recurrence.freq,
+          by_weekday: payload.recurrence.by_weekday,
+          by_monthday: payload.recurrence.by_monthday,
+          specific_dates: payload.recurrence.specific_dates,
+          due_offset_days: payload.recurrence.due_offset_days,
+          ends_on: payload.recurrence.ends_on,
+          spawn_now: payload.recurrence.spawn_now ?? true,
+        },
+        sphere,
+      )
+    } else {
+      await api.createTask(
+        {
+          ...payload,
+          project_id: payload.project_id ?? projectId ?? null,
+        },
+        sphere,
+      )
+    }
     load()
   }
 
@@ -270,6 +332,32 @@ export function TasksWorkspace({
         />
       )}
 
+      {showGovAudiences && audienceTabs.length > 0 && (
+        <div className="sphere-tabs shrink-0" role="tablist" aria-label="Категории госструктур">
+          {canManageGov && (
+            <button
+              type="button"
+              role="tab"
+              className={cn('sphere-tab', !audience && 'sphere-tab--active')}
+              onClick={() => setAudience('')}
+            >
+              Все
+            </button>
+          )}
+          {audienceTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              className={cn('sphere-tab', audience === tab.id && 'sphere-tab--active')}
+              onClick={() => setAudience(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <TasksToolbar
         filters={filters}
         onChange={(patch) => {
@@ -286,6 +374,10 @@ export function TasksWorkspace({
         hideProjectFilter={projectId != null}
         onCreate={() => setCreateOpen(true)}
       />
+
+      {showGovAudiences && canManageGov && createSphere === GOV_STRUCTURES_SPHERE && (
+        <TaskRecurrencePanel sphere={GOV_STRUCTURES_SPHERE} canManage={canManageGov} onChanged={load} />
+      )}
 
       {selectedIds.size > 0 && filters.view === 'kanban' && (
         <div className="bulk-bar shrink-0">
@@ -351,6 +443,8 @@ export function TasksWorkspace({
         createSphereIds={spheres ?? []}
         createSphere={createSphere}
         onCreateSphereChange={onCreateSphereChange}
+        canManageGovAudiences={canManageGov}
+        defaultAudience={(audience as TaskAudience) || null}
       />
 
       {drawerId != null && !Number.isNaN(drawerId) && (

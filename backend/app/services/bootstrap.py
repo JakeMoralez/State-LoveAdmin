@@ -39,6 +39,15 @@ async def ensure_defaults() -> None:
     if not await _column_exists("tasks", "assignee_vk_ids"):
         conn = Tortoise.get_connection("default")
         await conn.execute_query("ALTER TABLE tasks ADD COLUMN assignee_vk_ids JSON DEFAULT '[]'")
+    if not await _column_exists("tasks", "audience"):
+        conn = Tortoise.get_connection("default")
+        await conn.execute_query("ALTER TABLE tasks ADD COLUMN audience VARCHAR(32) NULL")
+    if not await _column_exists("tasks", "recurrence_id"):
+        conn = Tortoise.get_connection("default")
+        await conn.execute_query("ALTER TABLE tasks ADD COLUMN recurrence_id INT NULL")
+    if not await _column_exists("tasks", "occurrence_date"):
+        conn = Tortoise.get_connection("default")
+        await conn.execute_query("ALTER TABLE tasks ADD COLUMN occurrence_date DATE NULL")
     if not await _column_exists("checklist_cells", "proof_urls"):
         conn = Tortoise.get_connection("default")
         await conn.execute_query("ALTER TABLE checklist_cells ADD COLUMN proof_urls JSON DEFAULT '[]'")

@@ -99,6 +99,40 @@ class ProjectMember(Model):
         unique_together = (("project_id", "vk_id"),)
 
 
+class TaskRecurrence(Model):
+    """Шаблон повторяющейся задачи (инстансы — обычные Task)."""
+
+    id = fields.IntField(pk=True)
+    title = fields.CharField(max_length=512)
+    description = fields.TextField(default="")
+    priority = fields.CharField(max_length=16, default="medium")
+    task_type = fields.CharField(max_length=32, default="assignment")
+    labels = fields.JSONField(default=list)
+    project_id = fields.IntField(null=True, index=True)
+    server_id = fields.IntField(index=True)
+    sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
+    audience = fields.CharField(max_length=32, null=True, index=True)
+    assignee_mode = fields.CharField(max_length=16, default="explicit")  # explicit | cohort
+    assignee_vk_ids = fields.JSONField(default=list)
+    freq = fields.CharField(max_length=16, default="weekly")  # daily|weekly|monthly|dates
+    interval = fields.IntField(default=1)
+    by_weekday = fields.JSONField(default=list)  # 0=Mon .. 6=Sun
+    by_monthday = fields.JSONField(default=list)  # 1..31
+    specific_dates = fields.JSONField(default=list)  # ["YYYY-MM-DD", ...]
+    due_time = fields.CharField(max_length=5, null=True)
+    due_offset_days = fields.IntField(default=0)
+    active = fields.BooleanField(default=True, index=True)
+    created_by_vk_id = fields.BigIntField()
+    next_run_at = fields.DatetimeField(null=True, index=True)
+    last_spawned_at = fields.DatetimeField(null=True)
+    ends_on = fields.DateField(null=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "task_recurrences"
+
+
 class Task(Model):
     id = fields.IntField(pk=True)
     title = fields.CharField(max_length=512)
@@ -112,6 +146,9 @@ class Task(Model):
     project_id = fields.IntField(null=True, index=True)
     server_id = fields.IntField()
     sphere = fields.CharField(max_length=64, default="central_apparatus", index=True)
+    audience = fields.CharField(max_length=32, null=True, index=True)
+    recurrence_id = fields.IntField(null=True, index=True)
+    occurrence_date = fields.DateField(null=True)
     due_date = fields.DateField(null=True)
     due_time = fields.CharField(max_length=5, null=True)
     labels = fields.JSONField(default=list)

@@ -1,7 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
-import { PRIORITY_LABELS, STATUS_LABELS, TASK_FORM_STATUSES, type Project, type StaffMember, type WorkSphere } from '../../api'
+import {
+  PRIORITY_LABELS,
+  STATUS_LABELS,
+  TASK_FORM_STATUSES,
+  type Project,
+  type StaffMember,
+  type WorkSphere,
+} from '../../api'
 import type { TaskLabel } from '../../lib/labels'
+import {
+  GOV_STRUCTURES_SPHERE,
+  RECURRENCE_FREQ_OPTIONS,
+  TASK_AUDIENCE_OPTIONS,
+  WEEKDAY_OPTIONS,
+} from '../../lib/taskAudiences'
 import { cn, statusBadgeClass } from '../../lib/utils'
 import { CreateSphereField } from '../CreateSphereField'
 import { DatePicker } from '../ui/DatePicker'
@@ -22,6 +35,18 @@ export interface TaskCreatePayload {
   project_id?: number | null
   due_date?: string | null
   labels?: TaskLabel[]
+  audience?: string | null
+  expand_cohort?: boolean
+  recurrence?: {
+    freq: string
+    interval?: number
+    by_weekday?: number[]
+    by_monthday?: number[]
+    specific_dates?: string[]
+    due_offset_days?: number
+    ends_on?: string | null
+    spawn_now?: boolean
+  } | null
 }
 
 interface TaskCreateModalProps {
@@ -36,6 +61,8 @@ interface TaskCreateModalProps {
   createSphereIds?: string[]
   createSphere?: string
   onCreateSphereChange?: (id: string) => void
+  canManageGovAudiences?: boolean
+  defaultAudience?: string | null
 }
 
 export function TaskCreateModal({
@@ -50,6 +77,8 @@ export function TaskCreateModal({
   createSphereIds = [],
   createSphere = '',
   onCreateSphereChange,
+  canManageGovAudiences = false,
+  defaultAudience = null,
 }: TaskCreateModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -59,23 +88,60 @@ export function TaskCreateModal({
   const [projectId, setProjectId] = useState('')
   const [dueDate, setDueDate] = useState<string | null>(null)
   const [labels, setLabels] = useState<TaskLabel[]>([])
+  const [audience, setAudience] = useState<string>(defaultAudience || 'supervisors')
+  const [repeat, setRepeat] = useState(false)
+  const [freq, setFreq] = useState('weekly')
+  const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4])
+  const [monthdays, setMonthdays] = useState<string>('1,15')
+  const [specificDates, setSpecificDates] = useState('')
+  const [endsOn, setEndsOn] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const isGov = createSphere === GOV_STRUCTURES_SPHERE
+
+  const audienceOptions = useMemo(
+    () => TASK_AUDIENCE_OPTIONS.map((o) => ({ value: o.id, label: o.label })),
+    [],
+  )
 
   useEffect(() => {
     if (!open) return
     setStatus(defaultStatus)
     setProjectId(defaultProjectId ? String(defaultProjectId) : '')
+    setAudience(defaultAudience || 'supervisors')
+    setRepeat(false)
     setError('')
-  }, [open, defaultProjectId, defaultStatus, createSphere])
+  }, [open, defaultProjectId, defaultStatus, createSphere, defaultAudience])
 
   if (!open) return null
 
+  const toggleWeekday = (day: number) => {
+    setWeekdays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()))
+  }
+
   const submit = async () => {
     if (!title.trim()) return
+    if (isGov && !audience) {
+      setError('Выберите категорию')
+      return
+    }
+    if (isGov && !canManageGovAudiences) {
+      setError('Категорийные задачи создаёт ЗГС+')
+      return
+    }
     setSaving(true)
     setError('')
     try {
+      const monthdayNums = monthdays
+        .split(/[,;\s]+/)
+        .map((s) => parseInt(s, 10))
+        .filter((n) => n >= 1 && n <= 31)
+      const dates = specificDates
+        .split(/[,;\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+
       await onCreate({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -86,6 +152,18 @@ export function TaskCreateModal({
         project_id: projectId ? parseInt(projectId, 10) : null,
         due_date: dueDate,
         labels: labels.length ? labels : undefined,
+        audience: isGov ? audience : null,
+        expand_cohort: isGov,
+        recurrence: repeat
+          ? {
+              freq,
+              by_weekday: freq === 'weekly' ? weekdays : [],
+              by_monthday: freq === 'monthly' ? monthdayNums : [],
+              specific_dates: freq === 'dates' ? dates : [],
+              ends_on: endsOn,
+              spawn_now: true,
+            }
+          : null,
       })
       setTitle('')
       setDescription('')
@@ -93,6 +171,7 @@ export function TaskCreateModal({
       setAssigneeVkIds([])
       setDueDate(null)
       setLabels([])
+      setRepeat(false)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Не удалось создать задачу')
@@ -125,6 +204,20 @@ export function TaskCreateModal({
               onChange={onCreateSphereChange}
             />
           )}
+
+          {isGov && (
+            <div>
+              <label className="text-caption mb-1.5 block">
+                Категория
+                <FieldReq />
+              </label>
+              <Select value={audience} onChange={setAudience} options={audienceOptions} />
+              <p className="mt-1 text-xs text-white/40">
+                Исполнители подставятся из когорты (можно дополнить вручную ниже).
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="text-caption mb-1.5 block">
               Название
@@ -192,7 +285,9 @@ export function TaskCreateModal({
           </div>
 
           <div>
-            <label className="text-caption mb-1.5 block">Исполнители</label>
+            <label className="text-caption mb-1.5 block">
+              {isGov ? 'Доп. исполнители' : 'Исполнители'}
+            </label>
             <MultiAssigneePicker value={assigneeVkIds} onChange={setAssigneeVkIds} staff={staff} />
           </div>
 
@@ -206,6 +301,64 @@ export function TaskCreateModal({
             <LabelInput value={labels} onChange={setLabels} placeholder="Своя метка…" />
           </div>
 
+          {(isGov ? canManageGovAudiences : true) && (
+            <div className="space-y-3 rounded-lg border border-white/10 p-3">
+              <label className="flex items-center gap-2 text-sm text-white/80">
+                <input type="checkbox" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} />
+                Повторять задачу
+              </label>
+              {repeat && (
+                <>
+                  <Select
+                    value={freq}
+                    onChange={setFreq}
+                    options={RECURRENCE_FREQ_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                  />
+                  {freq === 'weekly' && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {WEEKDAY_OPTIONS.map((d) => (
+                        <button
+                          key={d.value}
+                          type="button"
+                          className={cn('status-chip', weekdays.includes(d.value) && 'status-chip--active')}
+                          onClick={() => toggleWeekday(d.value)}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {freq === 'monthly' && (
+                    <div>
+                      <label className="text-caption mb-1.5 block">Числа месяца (через запятую)</label>
+                      <input
+                        className="control"
+                        value={monthdays}
+                        onChange={(e) => setMonthdays(e.target.value)}
+                        placeholder="1,15"
+                      />
+                    </div>
+                  )}
+                  {freq === 'dates' && (
+                    <div>
+                      <label className="text-caption mb-1.5 block">Даты YYYY-MM-DD</label>
+                      <input
+                        className="control"
+                        value={specificDates}
+                        onChange={(e) => setSpecificDates(e.target.value)}
+                        placeholder="2026-09-20, 2026-10-01"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-caption mb-1.5 block">До даты (опц.)</label>
+                    <DatePicker value={endsOn} onChange={setEndsOn} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {error && <Alert>{error}</Alert>}
         </div>
 
@@ -214,7 +367,7 @@ export function TaskCreateModal({
             Отмена
           </button>
           <button type="button" onClick={submit} disabled={saving || !title.trim()} className="btn btn-gold">
-            {saving ? 'Создание…' : 'Создать'}
+            {saving ? 'Создание…' : repeat ? 'Создать повтор' : 'Создать'}
           </button>
         </div>
       </div>

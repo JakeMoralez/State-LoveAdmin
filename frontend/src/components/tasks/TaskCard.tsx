@@ -76,6 +76,14 @@ function TaskCardContent({ task }: { task: Task }) {
             <span className="truncate">{task.project_title}</span>
           </span>
         )}
+        {task.audience_label && (
+          <span className="badge-pill text-[10px] max-w-full truncate bg-sky-500/20 text-sky-100">
+            {task.audience_label}
+          </span>
+        )}
+        {task.recurrence_id ? (
+          <span className="badge-pill text-[10px] shrink-0 bg-violet-500/20 text-violet-100">↻ повтор</span>
+        ) : null}
         {labels.slice(0, 3).map((label) => (
           <span
             key={label.name}

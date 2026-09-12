@@ -91,7 +91,8 @@ State-LoveAdmin/
 
 ### Таблицы `panel.py` (владеет панель)
 Сессии JWT (`sled_session` cookie) + `PanelLoginToken`, `PanelAuditLog`, `DiscordLink`, `StaffNote`, `DevErrorLog`,
-`Project`/`ProjectMember`, `Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`,
+`Project`/`ProjectMember`, `Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`/
+`TaskRecurrence`,
 чек-лист (`Checklist*`), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`),
 академия (`AcademyCadet`, `AcademyEvent`, `AcademyWarning`, `AcademyAssignment*`,
 `AcademyReport`, `AcademySession`, `AcademyAttendance`), `PanelSettings`.
@@ -124,8 +125,13 @@ State-LoveAdmin/
 Сквозные сервисы: `bootstrap` (`ensure_defaults` на старте), `display_names` /
 `vk_resolve` (имена VK), `error_log`, `audit`, `activity_log`.
 
-Фоновая задача: `_task_reminder_loop` в `main.py` → `task_notifications.run_task_reminders`
-(напоминания по задачам, интервал `TASK_REMINDER_INTERVAL_SEC`).
+Фоновая задача: `_task_reminder_loop` в `main.py` → spawn `TaskRecurrence`
++ `task_notifications.run_task_reminders` (напоминания; интервал из `PanelSettings`
+/ `TASK_REMINDER_INTERVAL_SEC`).
+
+**Задачи / Госструктуры:** внутри `gov_structures` категории `audience`
+(`supervisors` · `gs_zgs` · `structure_managers`); повтор — таблица `task_recurrences`
+(сервисы `task_audience.py`, `task_recurrence.py`).
 
 ## 6. Модель доступа (ядро домена)
 

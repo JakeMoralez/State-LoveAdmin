@@ -302,6 +302,7 @@ export const api = {
     status?: string
     sphere?: string
     spheres?: string[]
+    audience?: string
   }) => {
     const q = new URLSearchParams()
     if (params?.view) q.set('view', params.view)
@@ -310,6 +311,7 @@ export const api = {
     if (params?.assignee_vk_id != null) q.set('assignee_vk_id', String(params.assignee_vk_id))
     if (params?.priority) q.set('priority', params.priority)
     if (params?.status) q.set('status', params.status)
+    if (params?.audience) q.set('audience', params.audience)
     if (params?.spheres?.length) {
       for (const s of params.spheres) q.append('sphere', s)
     } else if (params?.sphere) {
@@ -318,6 +320,26 @@ export const api = {
     const s = q.toString()
     return request<TaskListResponse>(`/tasks${s ? `?${s}` : ''}`)
   },
+  taskAudiences: () =>
+    request<{
+      audiences: { id: string; label: string }[]
+      can_manage: boolean
+      own_audience: string | null
+    }>('/tasks/audiences'),
+  taskRecurrences: (sphere?: string) =>
+    request<{ recurrences: TaskRecurrence[] }>(withSphere('/tasks/recurrences', sphere)),
+  createTaskRecurrence: (data: TaskRecurrenceCreate, sphere?: string) =>
+    request<TaskRecurrence & { spawned_task?: Task }>(withSphere('/tasks/recurrences', sphere), {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateTaskRecurrence: (id: number, data: Partial<TaskRecurrenceCreate> & { active?: boolean }) =>
+    request<TaskRecurrence>(`/tasks/recurrences/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteTaskRecurrence: (id: number) =>
+    request<{ ok: boolean }>(`/tasks/recurrences/${id}`, { method: 'DELETE' }),
   task: (id: number) => request<TaskDetail>(`/tasks/${id}`),
   createTask: (data: Partial<Task>, sphere?: string) =>
     request<Task>(withSphere('/tasks', sphere), { method: 'POST', body: JSON.stringify(data) }),
@@ -849,6 +871,10 @@ export interface Task {
   project_id?: number | null
   project_title?: string | null
   sphere?: string
+  audience?: string | null
+  audience_label?: string | null
+  recurrence_id?: number | null
+  occurrence_date?: string | null
   assignee_name?: string | null
   reporter_name?: string | null
   due_date?: string | null
@@ -860,6 +886,57 @@ export interface Task {
   last_comment_author_avatar_url?: string | null
   created_at?: string
   updated_at?: string
+}
+
+export interface TaskRecurrence {
+  id: number
+  title: string
+  description?: string
+  priority?: string
+  task_type?: string
+  labels?: TaskLabel[]
+  project_id?: number | null
+  server_id?: number
+  sphere: string
+  audience?: string | null
+  assignee_mode?: string
+  assignee_vk_ids?: number[]
+  freq: string
+  interval?: number
+  by_weekday?: number[]
+  by_monthday?: number[]
+  specific_dates?: string[]
+  due_time?: string | null
+  due_offset_days?: number
+  active: boolean
+  created_by_vk_id?: number
+  next_run_at?: string | null
+  last_spawned_at?: string | null
+  ends_on?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface TaskRecurrenceCreate {
+  title: string
+  description?: string
+  priority?: string
+  task_type?: string
+  labels?: TaskLabel[]
+  project_id?: number | null
+  audience?: string | null
+  assignee_mode?: string
+  assignee_vk_ids?: number[]
+  freq: string
+  interval?: number
+  by_weekday?: number[]
+  by_monthday?: number[]
+  specific_dates?: string[]
+  due_time?: string | null
+  due_offset_days?: number
+  ends_on?: string | null
+  active?: boolean
+  spawn_now?: boolean
 }
 
 export interface TaskDetail extends Task {

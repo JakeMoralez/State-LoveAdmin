@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import DEFAULT_SERVER_ID
-from app.models.panel import Project, Task, TaskAttachment, TaskComment
+from app.models.panel import Project, Task, TaskAttachment, TaskComment, TaskRecurrence
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
 from app.services import messages
@@ -17,10 +17,27 @@ from tortoise.expressions import Q
 
 from app.services.sphere_work import (
     DEFAULT_WORK_SPHERE,
-    db_sphere_filter_values,
     resolve_work_sphere,
     resolve_work_spheres,
+    visible_work_spheres,
     work_item_sphere_filter,
+)
+from app.services.staff_spheres import GOV_STRUCTURES
+from app.services.task_audience import (
+    AUDIENCE_LABELS,
+    can_manage_gov_audiences,
+    normalize_audience,
+    resolve_cohort,
+    user_own_audience,
+    visible_audiences_for_user,
+    audiences_payload,
+)
+from app.services.task_recurrence import (
+    next_occurrence_on_or_after,
+    serialize_recurrence,
+    spawn_due_recurrences,
+    validate_recurrence_payload,
+    _combine_next_run,
 )
 from app.services.display_names import resolve_display_name, resolve_display_names, resolve_vk_photos
 from app.services.task_helpers import (
@@ -76,6 +93,53 @@ def _can_edit_task(user: dict, task: Task) -> bool:
         return True
     ids = _assignee_ids(task)
     return user["vk_id"] in ids or task.reporter_vk_id == user["vk_id"]
+
+
+def _task_sphere(task: Task) -> str:
+    return getattr(task, "sphere", None) or DEFAULT_WORK_SPHERE
+
+
+def _user_can_view_task(user: dict, task: Task) -> bool:
+    sphere = _task_sphere(task)
+    visible = visible_work_spheres(user)
+    if sphere not in visible:
+        # still allow if assignee/reporter
+        uid = user["vk_id"]
+        if uid in _assignee_ids(task) or task.reporter_vk_id == uid:
+            return True
+        return False
+    if sphere != GOV_STRUCTURES:
+        return True
+    allowed = visible_audiences_for_user(user)
+    if allowed is None:
+        return True
+    aud = getattr(task, "audience", None) or None
+    if not aud:
+        return True
+    uid = user["vk_id"]
+    if aud in allowed:
+        return True
+    return uid in _assignee_ids(task) or task.reporter_vk_id == uid
+
+
+def _filter_gov_audience_tasks(user: dict, tasks: list[Task], audience_filter: str | None) -> list[Task]:
+    allowed = visible_audiences_for_user(user)
+    out: list[Task] = []
+    for t in tasks:
+        if _task_sphere(t) != GOV_STRUCTURES:
+            out.append(t)
+            continue
+        aud = getattr(t, "audience", None) or None
+        if audience_filter and aud != audience_filter:
+            # Non-managers can still see if assigned when filtering another tab? No — respect tab.
+            continue
+        if allowed is None:
+            out.append(t)
+            continue
+        uid = user["vk_id"]
+        if not aud or aud in allowed or uid in _assignee_ids(t) or t.reporter_vk_id == uid:
+            out.append(t)
+    return out
 
 
 def _sync_assignees(task: Task, ids: list[int] | None) -> None:
@@ -169,6 +233,8 @@ class TaskCreate(BaseModel):
     due_date: str | date | None = None
     labels: list = []
     sphere: str | None = None
+    audience: str | None = None
+    expand_cohort: bool = True
 
     @field_validator("due_date", mode="before")
     @classmethod
@@ -189,6 +255,7 @@ class TaskUpdate(BaseModel):
     project_id: int | None = None
     due_date: str | date | None = None
     labels: list | None = None
+    audience: str | None = None
 
     @field_validator("due_date", mode="before")
     @classmethod
@@ -196,6 +263,50 @@ class TaskUpdate(BaseModel):
         if v is None or v == "":
             return None
         return v
+
+
+class RecurrenceCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=512)
+    description: str = ""
+    priority: str = "medium"
+    task_type: str = "assignment"
+    labels: list = []
+    project_id: int | None = None
+    sphere: str | None = None
+    audience: str | None = None
+    assignee_mode: str = "cohort"
+    assignee_vk_ids: list[int] = Field(default_factory=list)
+    freq: str = "weekly"
+    interval: int = 1
+    by_weekday: list[int] = Field(default_factory=list)
+    by_monthday: list[int] = Field(default_factory=list)
+    specific_dates: list[str] = Field(default_factory=list)
+    due_time: str | None = None
+    due_offset_days: int = 0
+    ends_on: str | date | None = None
+    active: bool = True
+    spawn_now: bool = True
+
+
+class RecurrenceUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    priority: str | None = None
+    task_type: str | None = None
+    labels: list | None = None
+    project_id: int | None = None
+    audience: str | None = None
+    assignee_mode: str | None = None
+    assignee_vk_ids: list[int] | None = None
+    freq: str | None = None
+    interval: int | None = None
+    by_weekday: list[int] | None = None
+    by_monthday: list[int] | None = None
+    specific_dates: list[str] | None = None
+    due_time: str | None = None
+    due_offset_days: int | None = None
+    ends_on: str | date | None = None
+    active: bool | None = None
 
 
 class CommentCreate(BaseModel):
@@ -266,6 +377,7 @@ async def _notify_assignees(
 
 def _serialize_task(t: Task) -> dict:
     ids = _assignee_ids(t)
+    aud = getattr(t, "audience", None) or None
     return {
         "id": t.id,
         "title": t.title,
@@ -279,10 +391,27 @@ def _serialize_task(t: Task) -> dict:
         "project_id": t.project_id,
         "server_id": t.server_id,
         "sphere": getattr(t, "sphere", None) or DEFAULT_WORK_SPHERE,
+        "audience": aud,
+        "audience_label": AUDIENCE_LABELS.get(aud) if aud else None,
+        "recurrence_id": getattr(t, "recurrence_id", None),
+        "occurrence_date": t.occurrence_date.isoformat() if getattr(t, "occurrence_date", None) else None,
         "due_date": _serialize_due(t),
         "labels": _normalize_labels(t.labels),
         "created_at": t.created_at.isoformat(),
         "updated_at": t.updated_at.isoformat(),
+    }
+
+
+@router.get("/audiences")
+async def list_task_audiences(user: dict = Depends(require_ca_user)):
+    allowed = visible_audiences_for_user(user)
+    items = audiences_payload()
+    if allowed is not None:
+        items = [i for i in items if i["id"] in allowed]
+    return {
+        "audiences": items,
+        "can_manage": can_manage_gov_audiences(user),
+        "own_audience": user_own_audience(int(user.get("access_level") or 0)),
     }
 
 
@@ -296,6 +425,7 @@ async def list_tasks(
     priority: str | None = None,
     mine: bool = False,
     sphere: list[str] | None = Query(default=None),
+    audience: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
     await migrate_legacy_task_statuses()
@@ -313,7 +443,9 @@ async def list_tasks(
         qs = qs.filter(status=normalize_task_status(status))
     if priority:
         qs = qs.filter(priority=priority)
+    audience_filter = normalize_audience(audience) if audience else None
     tasks = await qs.order_by("-updated_at")
+    tasks = _filter_gov_audience_tasks(user, tasks, audience_filter)
     if mine:
         uid = user["vk_id"]
         tasks = [t for t in tasks if uid in _assignee_ids(t)]
@@ -361,11 +493,30 @@ async def create_task(
     sphere: str | None = None,
     user: dict = Depends(require_ca_user),
 ):
-    sphere = resolve_work_sphere(user, sphere)
+    sphere = resolve_work_sphere(user, body.sphere or sphere)
     if body.status not in ACCEPT_STATUSES:
         raise HTTPException(status_code=400, detail=messages.TASK_BAD_STATUS)
+
+    audience = normalize_audience(body.audience)
+    if sphere == GOV_STRUCTURES:
+        if not audience:
+            raise HTTPException(status_code=400, detail="Выберите категорию для госструктур")
+        if not can_manage_gov_audiences(user):
+            raise HTTPException(status_code=403, detail="Категорийные задачи создаёт ЗГС+")
+    elif audience:
+        raise HTTPException(status_code=400, detail="Категории только для госструктур")
+
     due_d, due_t = _parse_due(body.due_date)
     assignee_ids = body.assignee_vk_ids or ([body.assignee_vk_id] if body.assignee_vk_id else [])
+    if audience and body.expand_cohort:
+        cohort = await resolve_cohort(server_id, audience)
+        # merge unique: cohort + explicit
+        merged: list[int] = []
+        for vid in cohort + list(assignee_ids):
+            if vid not in merged:
+                merged.append(vid)
+        assignee_ids = merged
+
     task = await Task.create(
         title=body.title,
         description=body.description,
@@ -378,6 +529,7 @@ async def create_task(
         project_id=body.project_id,
         server_id=server_id,
         sphere=sphere,
+        audience=audience,
         due_date=due_d,
         due_time=due_t,
         labels=_normalize_labels(body.labels),
@@ -392,8 +544,198 @@ async def create_task(
             f"📋 Создана задача ({actor_name})",
             [format_status_line(task.status), format_priority_line(task.priority)],
         )
-    await log_audit(user["vk_id"], "task_create", "task", task.id, {"title": task.title})
+    await log_audit(
+        user["vk_id"],
+        "task_create",
+        "task",
+        task.id,
+        {"title": task.title, "audience": audience, "sphere": sphere},
+    )
     return _serialize_task(task)
+
+
+@router.get("/recurrences")
+async def list_recurrences(
+    server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
+    user: dict = Depends(require_ca_user),
+):
+    if not can_manage_gov_audiences(user) and int(user.get("access_level") or 0) < ZGS_MIN_LEVEL:
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+    spheres = resolve_work_spheres(user, [sphere] if sphere else None)
+    rows = await TaskRecurrence.filter(server_id=server_id, sphere__in=spheres).order_by("-updated_at")
+    return {"recurrences": [serialize_recurrence(r) for r in rows]}
+
+
+@router.post("/recurrences")
+async def create_recurrence(
+    body: RecurrenceCreate,
+    server_id: int = DEFAULT_SERVER_ID,
+    sphere: str | None = None,
+    user: dict = Depends(require_ca_user),
+):
+    sphere = resolve_work_sphere(user, body.sphere or sphere)
+    if sphere == GOV_STRUCTURES:
+        if not can_manage_gov_audiences(user):
+            raise HTTPException(status_code=403, detail="Повтор в госструктурах — ЗГС+")
+    elif int(user.get("access_level") or 0) < ZGS_MIN_LEVEL and user["panel_role"] not in (
+        "owner",
+        "lead",
+    ):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+
+    try:
+        freq, weekdays, monthdays, dates, aud, mode = validate_recurrence_payload(
+            freq=body.freq,
+            by_weekday=body.by_weekday,
+            by_monthday=body.by_monthday,
+            specific_dates=body.specific_dates,
+            sphere=sphere,
+            audience=body.audience,
+            assignee_mode=body.assignee_mode if sphere == GOV_STRUCTURES else "explicit",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ends_on = None
+    if body.ends_on:
+        ends_on, _ = _parse_due(body.ends_on)
+        ends_on = ends_on  # date only
+
+    from datetime import datetime
+
+    rec = await TaskRecurrence.create(
+        title=body.title,
+        description=body.description or "",
+        priority=body.priority,
+        task_type=body.task_type,
+        labels=_normalize_labels(body.labels),
+        project_id=body.project_id,
+        server_id=server_id,
+        sphere=sphere,
+        audience=aud,
+        assignee_mode=mode if sphere == GOV_STRUCTURES else "explicit",
+        assignee_vk_ids=body.assignee_vk_ids,
+        freq=freq,
+        interval=max(1, int(body.interval or 1)),
+        by_weekday=weekdays,
+        by_monthday=monthdays,
+        specific_dates=dates,
+        due_time=body.due_time,
+        due_offset_days=max(0, int(body.due_offset_days or 0)),
+        active=body.active,
+        created_by_vk_id=user["vk_id"],
+        ends_on=ends_on,
+    )
+    # set next_run
+    nxt = next_occurrence_on_or_after(rec, datetime.now().date())
+    rec.next_run_at = _combine_next_run(nxt, rec.due_time) if nxt else None
+    if not nxt:
+        rec.active = False
+    await rec.save()
+
+    spawned = None
+    if body.spawn_now and rec.active and nxt and nxt <= datetime.now().date():
+        from app.services.task_recurrence import spawn_occurrence, advance_recurrence
+
+        spawned = await spawn_occurrence(rec, nxt)
+        await advance_recurrence(rec, nxt)
+
+    await log_audit(user["vk_id"], "task_recurrence_create", "task_recurrence", rec.id, {"title": rec.title})
+    payload = serialize_recurrence(rec)
+    if spawned:
+        payload["spawned_task"] = _serialize_task(spawned)
+    return payload
+
+
+@router.post("/recurrences/run-due")
+async def run_due_recurrences(user: dict = Depends(require_ca_user)):
+    if user["panel_role"] not in ("owner", "lead") and int(user.get("access_level") or 0) < 8:
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+    n = await spawn_due_recurrences()
+    return {"spawned": n}
+
+
+@router.patch("/recurrences/{recurrence_id}")
+async def update_recurrence(
+    recurrence_id: int,
+    body: RecurrenceUpdate,
+    user: dict = Depends(require_ca_user),
+):
+    rec = await TaskRecurrence.get_or_none(id=recurrence_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Шаблон не найден")
+    if rec.sphere == GOV_STRUCTURES and not can_manage_gov_audiences(user):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+    if int(user.get("access_level") or 0) < ZGS_MIN_LEVEL and user["panel_role"] not in (
+        "owner",
+        "lead",
+    ):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+
+    data = body.model_dump(exclude_unset=True)
+    if "labels" in data and data["labels"] is not None:
+        data["labels"] = _normalize_labels(data["labels"])
+    if "ends_on" in data:
+        ends, _ = _parse_due(data["ends_on"])
+        data["ends_on"] = ends
+
+    freq = data.get("freq", rec.freq)
+    weekdays = data.get("by_weekday", rec.by_weekday)
+    monthdays = data.get("by_monthday", rec.by_monthday)
+    dates = data.get("specific_dates", rec.specific_dates)
+    aud = data.get("audience", rec.audience)
+    mode = data.get("assignee_mode", rec.assignee_mode)
+    try:
+        freq, weekdays, monthdays, dates, aud, mode = validate_recurrence_payload(
+            freq=freq,
+            by_weekday=weekdays,
+            by_monthday=monthdays,
+            specific_dates=dates,
+            sphere=rec.sphere,
+            audience=aud,
+            assignee_mode=mode if rec.sphere == GOV_STRUCTURES else "explicit",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    for key, value in data.items():
+        if key in ("freq", "by_weekday", "by_monthday", "specific_dates", "audience", "assignee_mode"):
+            continue
+        setattr(rec, key, value)
+    rec.freq = freq
+    rec.by_weekday = weekdays
+    rec.by_monthday = monthdays
+    rec.specific_dates = dates
+    rec.audience = aud
+    rec.assignee_mode = mode if rec.sphere == GOV_STRUCTURES else "explicit"
+
+    from datetime import datetime
+
+    nxt = next_occurrence_on_or_after(rec, datetime.now().date())
+    rec.next_run_at = _combine_next_run(nxt, rec.due_time) if nxt else None
+    if not nxt and rec.active:
+        rec.active = False
+    await rec.save()
+    await log_audit(user["vk_id"], "task_recurrence_update", "task_recurrence", rec.id, {})
+    return serialize_recurrence(rec)
+
+
+@router.delete("/recurrences/{recurrence_id}")
+async def delete_recurrence(recurrence_id: int, user: dict = Depends(require_ca_user)):
+    rec = await TaskRecurrence.get_or_none(id=recurrence_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Шаблон не найден")
+    if rec.sphere == GOV_STRUCTURES and not can_manage_gov_audiences(user):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+    if int(user.get("access_level") or 0) < ZGS_MIN_LEVEL and user["panel_role"] not in (
+        "owner",
+        "lead",
+    ):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+    await rec.delete()
+    await log_audit(user["vk_id"], "task_recurrence_delete", "task_recurrence", recurrence_id, {})
+    return {"ok": True}
 
 
 @router.get("/{task_id}")
@@ -401,6 +743,8 @@ async def get_task(task_id: int, user: dict = Depends(require_ca_user)):
     task = await Task.get_or_none(id=task_id)
     if not task:
         raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
+    if not _user_can_view_task(user, task):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     comments = await TaskComment.filter(task_id=task_id).order_by("created_at")
     attachments = await TaskAttachment.filter(task_id=task_id)
     project_title = None
@@ -490,6 +834,12 @@ async def update_task(
         task.due_time = due_t
     if body.labels is not None:
         task.labels = _normalize_labels(body.labels)
+    if body.audience is not None:
+        if _task_sphere(task) != GOV_STRUCTURES:
+            raise HTTPException(status_code=400, detail="Категории только для госструктур")
+        if not can_manage_gov_audiences(user):
+            raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
+        task.audience = normalize_audience(body.audience)
     await task.save()
 
     new_assignees = set(_assignee_ids(task))
@@ -588,6 +938,8 @@ async def add_comment(
     task = await Task.get_or_none(id=task_id)
     if not task:
         raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
+    if not _user_can_view_task(user, task):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     comment = await TaskComment.create(
         task=task, author_vk_id=user["vk_id"], body=body.body
     )
@@ -623,6 +975,8 @@ async def add_attachment(
     task = await Task.get_or_none(id=task_id)
     if not task:
         raise HTTPException(status_code=404, detail=messages.TASK_NOT_FOUND)
+    if not _user_can_view_task(user, task):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     att = await TaskAttachment.create(task=task, url=body.url, title=body.title)
     watchers = task_watchers(task, exclude=user["vk_id"])
     if watchers:
