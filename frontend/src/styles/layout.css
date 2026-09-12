@@ -378,3 +378,85 @@ body {
   border-color: rgb(201 162 39 / 0.45);
   background: rgb(201 162 39 / 0.12);
 }
+
+/* Категории задач (только госструктуры) */
+.task-audience-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgb(201 162 39 / 0.18);
+  background:
+    linear-gradient(135deg, rgb(201 162 39 / 0.08), transparent 42%),
+    rgb(255 255 255 / 0.03);
+}
+
+.task-audience-bar__label {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(201 162 39 / 0.75);
+}
+
+.task-audience-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.28);
+  border: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.task-audience-tab {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: rgb(255 255 255 / 0.5);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.task-audience-tab:hover {
+  color: rgb(255 255 255 / 0.82);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.task-audience-tab--active {
+  color: #12100a;
+  background: linear-gradient(180deg, #e0c35a 0%, #c9a227 100%);
+  box-shadow:
+    0 0 0 1px rgb(201 162 39 / 0.35),
+    0 6px 16px rgb(201 162 39 / 0.18);
+  font-weight: 650;
+}
+
+.task-audience-tab--active:hover {
+  color: #12100a;
+  background: linear-gradient(180deg, #e8cd6a 0%, #d4ad35 100%);
+}
+
+@media (max-width: 640px) {
+  .task-audience-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .task-audience-tabs {
+    width: 100%;
+  }
+
+  .task-audience-tab {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

@@ -333,28 +333,37 @@ export function TasksWorkspace({
       )}
 
       {showGovAudiences && audienceTabs.length > 0 && (
-        <div className="sphere-tabs shrink-0" role="tablist" aria-label="Категории госструктур">
-          {canManageGov && (
-            <button
-              type="button"
-              role="tab"
-              className={cn('sphere-tab', !audience && 'sphere-tab--active')}
-              onClick={() => setAudience('')}
-            >
-              Все
-            </button>
-          )}
-          {audienceTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              className={cn('sphere-tab', audience === tab.id && 'sphere-tab--active')}
-              onClick={() => setAudience(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="task-audience-bar shrink-0" role="tablist" aria-label="Категории госструктур">
+          <span className="task-audience-bar__label">Категория</span>
+          <div className="task-audience-tabs">
+            {canManageGov && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!audience}
+                className={cn('task-audience-tab', !audience && 'task-audience-tab--active')}
+                onClick={() => setAudience('')}
+              >
+                Все
+              </button>
+            )}
+            {audienceTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={audience === tab.id}
+                className={cn(
+                  'task-audience-tab',
+                  `task-audience-tab--${tab.id}`,
+                  audience === tab.id && 'task-audience-tab--active',
+                )}
+                onClick={() => setAudience(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

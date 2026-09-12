@@ -9,7 +9,7 @@
 | 4 | Спринты | Статусы + `due_date`, без спринтов |
 | 5 | Создание проектов | Lead+ (ур. 7+) и Owner |
 | 6 | Типы задач | `task_type`: assignment, check, report, bug |
-| 6a | Госструктуры — категории | `audience`: supervisors (1–2), gs_zgs (3–4), structure_managers (5+); снимок исполнителей |
+| 6a | Госструктуры — категории | `audience`: Следящие (1–2), Главные следящие (3–4), Управляющие (5+); снимок исполнителей |
 | 6b | Повтор задач | `TaskRecurrence`: daily / weekly(+дни) / monthly(+числа) / specific dates; инстанс = обычный Task |
 | 7 | Связи задач | Не в MVP |
 | 9 | VK уведомления | При назначении и смене статуса на review/done |

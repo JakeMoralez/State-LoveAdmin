@@ -2,21 +2,76 @@
 
 from __future__ import annotations
 
+import logging
+
 from tortoise import Tortoise
+
+logger = logging.getLogger(__name__)
 
 
 async def _column_exists(table: str, column: str) -> bool:
     conn = Tortoise.get_connection("default")
-    rows = await conn.execute_query_dict(f"PRAGMA table_info({table})")
-    return any(r.get("name") == column for r in rows)
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if is_sqlite_url(PANEL_DATABASE_URL):
+        rows = await conn.execute_query_dict(f"PRAGMA table_info({table})")
+        return any(r.get("name") == column for r in rows)
+    if is_postgres_url(PANEL_DATABASE_URL):
+        rows = await conn.execute_query_dict(
+            "SELECT column_name AS name FROM information_schema.columns "
+            f"WHERE table_name = '{table}' AND column_name = '{column}'"
+        )
+        return bool(rows)
+    return False
 
 
 async def _table_exists(table: str) -> bool:
     conn = Tortoise.get_connection("default")
-    rows = await conn.execute_query_dict(
-        f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'"
-    )
-    return bool(rows)
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if is_sqlite_url(PANEL_DATABASE_URL):
+        rows = await conn.execute_query_dict(
+            f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'"
+        )
+        return bool(rows)
+    if is_postgres_url(PANEL_DATABASE_URL):
+        rows = await conn.execute_query_dict(
+            "SELECT 1 AS ok FROM information_schema.tables "
+            f"WHERE table_name = '{table}'"
+        )
+        return bool(rows)
+    return False
+
+
+async def ensure_task_audience_schema() -> None:
+    """Add Task.audience / recurrence columns before Tortoise generate_schemas.
+
+    Postgres: generate_schemas(safe=True) creates indexes for new Model fields but
+    does not ALTER existing tables — without this patch startup fails with
+    ``column "audience" does not exist``.
+    """
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if not (is_sqlite_url(PANEL_DATABASE_URL) or is_postgres_url(PANEL_DATABASE_URL)):
+        return
+
+    if not await _table_exists("tasks"):
+        return
+
+    conn = Tortoise.get_connection("default")
+    patches: list[tuple[str, str]] = [
+        ("audience", "ALTER TABLE tasks ADD COLUMN audience VARCHAR(32) NULL"),
+        ("recurrence_id", "ALTER TABLE tasks ADD COLUMN recurrence_id INT NULL"),
+        ("occurrence_date", "ALTER TABLE tasks ADD COLUMN occurrence_date DATE NULL"),
+    ]
+    for col, ddl in patches:
+        if await _column_exists("tasks", col):
+            continue
+        try:
+            await conn.execute_query(ddl)
+            logger.info("tasks: added column %s", col)
+        except Exception as exc:
+            logger.warning("tasks: could not add column %s: %s", col, exc)
 
 
 async def ensure_defaults() -> None:

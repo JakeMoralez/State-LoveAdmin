@@ -26,9 +26,9 @@ TASK_AUDIENCES: tuple[str, ...] = (
 )
 
 AUDIENCE_LABELS: dict[str, str] = {
-    AUDIENCE_SUPERVISORS: "Следящие / ПС–ПГС",
-    AUDIENCE_GS_ZGS: "ЗГС / ГС",
-    AUDIENCE_STRUCTURE_MANAGERS: "Управляющие (структуры+)",
+    AUDIENCE_SUPERVISORS: "Следящие",
+    AUDIENCE_GS_ZGS: "Главные следящие",
+    AUDIENCE_STRUCTURE_MANAGERS: "Управляющие",
 }
 
 _GOV_RELATED = frozenset(MINISTRY_SPHERE_KEYS) | {GOV_STRUCTURES, ILLEGAL_STRUCTURES, SERVER}

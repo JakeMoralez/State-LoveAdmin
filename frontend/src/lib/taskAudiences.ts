@@ -3,9 +3,9 @@ export const GOV_STRUCTURES_SPHERE = 'gov_structures'
 export type TaskAudience = 'supervisors' | 'gs_zgs' | 'structure_managers'
 
 export const TASK_AUDIENCE_OPTIONS: { id: TaskAudience; label: string }[] = [
-  { id: 'supervisors', label: 'Следящие / ПС–ПГС' },
-  { id: 'gs_zgs', label: 'ЗГС / ГС' },
-  { id: 'structure_managers', label: 'Управляющие (структуры+)' },
+  { id: 'supervisors', label: 'Следящие' },
+  { id: 'gs_zgs', label: 'Главные следящие' },
+  { id: 'structure_managers', label: 'Управляющие' },
 ]
 
 export const TASK_AUDIENCE_LABELS: Record<TaskAudience, string> = Object.fromEntries(
