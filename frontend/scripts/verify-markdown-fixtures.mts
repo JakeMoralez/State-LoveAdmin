@@ -1,25 +1,19 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import ReactMarkdown from 'react-markdown'
-import remarkBreaks from 'remark-breaks'
-import remarkGfm from 'remark-gfm'
+import { MarkdownView, isSafeMarkdownHref } from '../src/components/knowledge/MarkdownView.tsx'
 import {
+  FIXTURE_ALERT_THEN_REG,
+  FIXTURE_ALERTS,
   FIXTURE_LIST_THEN_REG,
   FIXTURE_NESTED_LISTS,
   FIXTURE_REGULAMENT,
   FIXTURE_TABLE,
   FIXTURE_TASKS,
 } from '../src/components/knowledge/markdownFixtures.ts'
-import { isSafeMarkdownHref } from '../src/components/knowledge/MarkdownView.tsx'
 import { normalizeKnowledgeMarkdown } from '../src/components/knowledge/normalizeKnowledgeMarkdown.ts'
 
 function render(md: string): string {
-  return renderToStaticMarkup(
-    createElement(ReactMarkdown, {
-      remarkPlugins: [remarkGfm, remarkBreaks],
-      children: normalizeKnowledgeMarkdown(md),
-    }),
-  )
+  return renderToStaticMarkup(createElement(MarkdownView, { source: md }))
 }
 
 const checks: { name: string; ok: boolean; detail?: string }[] = []
@@ -65,6 +59,26 @@ assert(
 assert(
   'normalize inserts blank before reg',
   normalizeKnowledgeMarkdown(FIXTURE_LIST_THEN_REG).includes('RP-ситуациями.\n\n2.4.2'),
+)
+
+const alerts = render(FIXTURE_ALERTS)
+assert('alert note', alerts.includes('kb-md-alert--note'), alerts.slice(0, 400))
+assert('alert warning', alerts.includes('kb-md-alert--warning'))
+assert('alert danger', alerts.includes('kb-md-alert--danger'))
+assert('alert count', (alerts.match(/kb-md-alert/g) || []).length >= 3)
+
+const alertThenReg = render(FIXTURE_ALERT_THEN_REG)
+assert(
+  'alert then reg: 1.1 outside alert',
+  /kb-md-alert[\s\S]*Короткая заметка[\s\S]*<\/aside>\s*<p>1\.1\./.test(alertThenReg) ||
+    (/kb-md-alert[\s\S]*<\/aside>/.test(alertThenReg) &&
+      alertThenReg.includes('1.1.') &&
+      !/kb-md-alert[\s\S]*1\.1\.[\s\S]*<\/aside>/.test(alertThenReg)),
+  alertThenReg.slice(0, 600),
+)
+assert(
+  'normalize blanks after alert',
+  normalizeKnowledgeMarkdown(FIXTURE_ALERT_THEN_REG).includes('заметка.\n\n1.1.'),
 )
 
 const failed = checks.filter((c) => !c.ok)

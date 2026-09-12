@@ -1,8 +1,10 @@
+import React from 'react'
 import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import { cn } from '../../lib/utils'
+import { parseGithubAlert } from './markdownAlerts'
 import { normalizeKnowledgeMarkdown } from './normalizeKnowledgeMarkdown'
 
 const SAFE_HREF = /^(https?:|mailto:|#|\/)/i
@@ -52,6 +54,30 @@ const components: Components = {
         {children}
       </li>
     )
+  },
+  blockquote({ children, ...props }) {
+    const alert = parseGithubAlert(children)
+    if (alert) {
+      const { def, lead, body } = alert
+      const Icon = def.Icon
+      return (
+        <aside
+          className={cn('kb-md-alert', `kb-md-alert--${def.variant}`)}
+          role="note"
+          aria-label={def.label}
+        >
+          <div className="kb-md-alert-title">
+            <Icon size={15} strokeWidth={2} aria-hidden />
+            <span>{def.label}</span>
+          </div>
+          <div className="kb-md-alert-body">
+            {lead ? <p>{lead}</p> : null}
+            {body}
+          </div>
+        </aside>
+      )
+    }
+    return <blockquote {...props}>{children}</blockquote>
   },
   table({ children, ...props }) {
     return (

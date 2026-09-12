@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import {
+  AlertTriangle,
   Bold,
   BookOpen,
   CheckSquare,
@@ -18,6 +19,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, api, type KnowledgeArticleDetail } from '../api'
 import { CreateSphereField } from '../components/CreateSphereField'
 import { MarkdownView } from '../components/knowledge/MarkdownView'
+import { alertSnippet } from '../components/knowledge/markdownAlerts'
 import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import { Alert } from '../components/ui/Alert'
@@ -568,6 +570,14 @@ export function KnowledgeArticlePage() {
                   <button
                     type="button"
                     className="kb-md-tool"
+                    title="Warning"
+                    onClick={() => insertSnippet(alertSnippet('WARNING'), 'Текст предупреждения…')}
+                  >
+                    <AlertTriangle size={14} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    className="kb-md-tool"
                     title="Таблица"
                     onClick={() =>
                       insertSnippet('| Колонка | Значение |\n| --- | --- |\n| A | 1 |', 'Колонка')
@@ -607,6 +617,10 @@ export function KnowledgeArticlePage() {
                     Заголовок главы — <code>## Глава 1</code>
                   </li>
                   <li>Таблица — кнопка «Таблица» или синтаксис GFM</li>
+                  <li>
+                    Внимание — каждая строка с <code>{'>'}</code>: <code>{'>'} [!WARNING]</code> /{' '}
+                    <code>{'>'} [!DANGER]</code> / <code>{'>'} [!NOTE]</code>, затем пустая строка
+                  </li>
                 </ul>
               </details>
             ) : null}
