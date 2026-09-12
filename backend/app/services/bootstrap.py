@@ -74,11 +74,46 @@ async def ensure_task_audience_schema() -> None:
             logger.warning("tasks: could not add column %s: %s", col, exc)
 
 
+async def ensure_question_banks_schema() -> None:
+    """ALTER question_banks for new fields (SQLite + Postgres).
+
+    Tortoise generate_schemas(safe=True) does not add columns to existing tables.
+    """
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if not (is_sqlite_url(PANEL_DATABASE_URL) or is_postgres_url(PANEL_DATABASE_URL)):
+        return
+    if not await _table_exists("question_banks"):
+        return
+
+    conn = Tortoise.get_connection("default")
+    patches: list[tuple[str, str]] = [
+        ("min_view_level", "ALTER TABLE question_banks ADD COLUMN min_view_level INTEGER NOT NULL DEFAULT 1"),
+        ("min_submit_level", "ALTER TABLE question_banks ADD COLUMN min_submit_level INTEGER NOT NULL DEFAULT 1"),
+        ("min_approve_level", "ALTER TABLE question_banks ADD COLUMN min_approve_level INTEGER NOT NULL DEFAULT 3"),
+        ("emoji", "ALTER TABLE question_banks ADD COLUMN emoji VARCHAR(16) NOT NULL DEFAULT ''"),
+        (
+            "contributor_visibility",
+            "ALTER TABLE question_banks ADD COLUMN contributor_visibility VARCHAR(32) NOT NULL DEFAULT 'own_workflow'",
+        ),
+    ]
+    for col, ddl in patches:
+        if await _column_exists("question_banks", col):
+            continue
+        try:
+            await conn.execute_query(ddl)
+            logger.info("question_banks: added column %s", col)
+        except Exception as exc:
+            logger.warning("question_banks: could not add column %s: %s", col, exc)
+
+
 async def ensure_defaults() -> None:
     from app.config import PANEL_DATABASE_URL, is_sqlite_url
     from app.services.bot_users import ensure_user_server_access_senior_columns
 
     await ensure_user_server_access_senior_columns()
+    # Postgres тоже: колонки банков (ensure_defaults раньше выходил раньше ALTER)
+    await ensure_question_banks_schema()
 
     if not is_sqlite_url(PANEL_DATABASE_URL):
         return
@@ -125,20 +160,6 @@ async def ensure_defaults() -> None:
             "ALTER TABLE staff_notes ADD COLUMN spheres JSON DEFAULT '[]'"
         )
 
-    if await _table_exists("question_banks"):
-        conn = Tortoise.get_connection("default")
-        for col, ddl in (
-            ("min_view_level", "ALTER TABLE question_banks ADD COLUMN min_view_level INTEGER NOT NULL DEFAULT 1"),
-            ("min_submit_level", "ALTER TABLE question_banks ADD COLUMN min_submit_level INTEGER NOT NULL DEFAULT 1"),
-            ("min_approve_level", "ALTER TABLE question_banks ADD COLUMN min_approve_level INTEGER NOT NULL DEFAULT 3"),
-            ("emoji", "ALTER TABLE question_banks ADD COLUMN emoji VARCHAR(16) NOT NULL DEFAULT ''"),
-            (
-                "contributor_visibility",
-                "ALTER TABLE question_banks ADD COLUMN contributor_visibility VARCHAR(32) NOT NULL DEFAULT 'own_workflow'",
-            ),
-        ):
-            if not await _column_exists("question_banks", col):
-                await conn.execute_query(ddl)
     if await _table_exists("question_bank_items"):
         conn = Tortoise.get_connection("default")
         for col, ddl in (

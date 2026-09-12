@@ -48,7 +48,7 @@ from app.routers import (
     tasks,
     uploads,
 )
-from app.services.bootstrap import ensure_defaults, ensure_task_audience_schema
+from app.services.bootstrap import ensure_defaults, ensure_question_banks_schema, ensure_task_audience_schema
 from app.services.task_helpers import migrate_legacy_task_statuses
 from app.services.error_log import record_server_exception
 from app.services import messages
@@ -71,6 +71,7 @@ async def _ensure_panel_schemas() -> None:
 
     # Колонки на существующих таблицах — до generate_schemas (иначе PG падает на индексах).
     await ensure_task_audience_schema()
+    await ensure_question_banks_schema()
 
     conn = Tortoise.get_connection("default")
     await generate_schema_for_client(conn, safe=True)
