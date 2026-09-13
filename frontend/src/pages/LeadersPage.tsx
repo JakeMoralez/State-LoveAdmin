@@ -8,7 +8,6 @@ export function LeadersPage() {
       title="Руководители"
       icon={Shield}
       badge="🛡"
-      profilePath="/leaders"
       assignType="leader"
       list={api.leaders}
       loadOne={api.leaderMember}

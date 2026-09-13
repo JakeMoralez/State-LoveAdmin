@@ -177,11 +177,15 @@ State-LoveAdmin/
 Определены в `frontend/src/App.tsx`. Все под `RequireAuth` + `Layout`, кроме
 `/login` и `/congress`.
 
-`/dashboard` · `/access` · `/staff` (+ `/staff/:vkId`) · `/leaders` (+ `:vkId`) ·
+`/dashboard` · `/access` · `/staff` · `/leaders` · `/profile` (+ `/profile/:vkId`) ·
 `/tasks` (+ `:taskId`) · `/academy` (+ `/:vkId`) · `/checklist` · `/question-banks` (+ `/review`, `/:id`) ·
 `/assign` · `/activity` · `/forum/judge-list` · `/forum/formatting` ·
-`/projects` (+ `/:id`, `/:id/tasks/:taskId`) · `/profile` ·
+`/projects` (+ `/:id`, `/:id/tasks/:taskId`) ·
 `/dev` · `/dev/leadership` (bulk `is_leader` only) · `/dev/cases` (+ `/:id`, `/:id/spin`).
+
+Карточка человека: канон **`/profile/{public_id}`** (не vk_id; старые `/staff/:vkId`,
+`/leaders/:vkId` и числовой `/profile/{vkId}` резолвятся в публичный ID).
+`/profile` без id — личный кабинет.
 
 Руководство: реестр `/leaders`, создание `/assign`, флаги только `/dev/leadership`.
 

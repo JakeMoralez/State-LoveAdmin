@@ -81,8 +81,17 @@ def _normalize_category(raw: str | None) -> str:
     return key if key in CATEGORIES else "other"
 
 
+def _can_view_article(user: dict, row: KnowledgeArticle, *, can_edit: bool) -> bool:
+    """Редактор сферы видит всегда; иначе нужен уровень ≥ min_view_level."""
+    if can_edit:
+        return True
+    min_view = int(getattr(row, "min_view_level", None) or 1)
+    return _level(user) >= min_view
+
+
 def _serialize(row: KnowledgeArticle, *, can_edit: bool | None = None) -> dict:
     sphere = normalize_stored_work_sphere(getattr(row, "sphere", None))
+    min_view = int(getattr(row, "min_view_level", None) or 1)
     return {
         "id": row.id,
         "server_id": row.server_id,
@@ -94,6 +103,8 @@ def _serialize(row: KnowledgeArticle, *, can_edit: bool | None = None) -> dict:
         "body_md": row.body_md or "",
         "sort_order": row.sort_order,
         "published": bool(row.published),
+        "min_view_level": min_view,
+        "min_view_level_label": AccessLevel.title(min_view),
         "created_by_vk_id": row.created_by_vk_id,
         "updated_by_vk_id": row.updated_by_vk_id,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -110,6 +121,10 @@ def _permissions_payload(user: dict) -> dict:
         "can_edit_all_spheres": _level(user) >= AccessLevel.STRUCTURE_SUPERVISOR
         or user.get("panel_role") in ("owner", "lead")
         or _level(user) >= AccessLevel.DEVELOPER,
+        "access_levels": [
+            {"value": level, "label": AccessLevel.title(level)}
+            for level in sorted(AccessLevel.NAMES.keys())
+        ],
     }
 
 
@@ -120,6 +135,7 @@ class ArticleCreate(BaseModel):
     sort_order: int = 0
     published: bool = True
     sphere: str | None = None
+    min_view_level: int = Field(default=1, ge=1, le=AccessLevel.DEVELOPER)
 
 
 class ArticleUpdate(BaseModel):
@@ -129,6 +145,7 @@ class ArticleUpdate(BaseModel):
     sort_order: int | None = None
     published: bool | None = None
     sphere: str | None = None
+    min_view_level: int | None = Field(default=None, ge=1, le=AccessLevel.DEVELOPER)
 
 
 @router.get("/meta")
@@ -223,7 +240,10 @@ async def list_articles(
     items = []
     for r in rows:
         sphere_key = normalize_stored_work_sphere(getattr(r, "sphere", None))
-        data = _serialize(r, can_edit=sphere_key in editable)
+        can_edit = sphere_key in editable
+        if not _can_view_article(user, r, can_edit=can_edit):
+            continue
+        data = _serialize(r, can_edit=can_edit)
         data.pop("body_md", None)
         data["excerpt"] = _plain_excerpt(r.body_md or "")
         items.append(data)
@@ -248,11 +268,13 @@ async def get_article(
     can_edit = _can_edit_sphere(user, sphere_key)
     if not row.published and not can_edit:
         raise HTTPException(status_code=404, detail="Статья не найдена")
+    if not _can_view_article(user, row, can_edit=can_edit):
+        raise HTTPException(status_code=403, detail="Недостаточно прав для просмотра статьи")
     return {
         **_serialize(row, can_edit=can_edit),
         "permissions": {
+            **_permissions_payload(user),
             "can_edit": can_edit,
-            "editable_spheres": _editable_spheres(user),
         },
     }
 
@@ -273,6 +295,7 @@ async def create_article(
         body_md=body.body_md or "",
         sort_order=int(body.sort_order or 0),
         published=bool(body.published),
+        min_view_level=int(body.min_view_level or 1),
         created_by_vk_id=user["vk_id"],
         updated_by_vk_id=user["vk_id"],
     )
@@ -313,6 +336,8 @@ async def update_article(
         row.sort_order = int(data["sort_order"])
     if "published" in data and data["published"] is not None:
         row.published = bool(data["published"])
+    if "min_view_level" in data and data["min_view_level"] is not None:
+        row.min_view_level = int(data["min_view_level"])
     row.updated_by_vk_id = user["vk_id"]
     await row.save()
     await log_audit(user["vk_id"], "knowledge_update", "knowledge", row.id, {"title": row.title})

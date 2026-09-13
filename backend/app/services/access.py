@@ -105,8 +105,13 @@ async def get_user_profile(
         else sorted(effective_grantable_sphere_keys(level, spheres))
     )
 
+    from app.services.profile_ids import ensure_public_id
+
+    public_id = await ensure_public_id(vk_id)
+
     return {
         "vk_id": vk_id,
+        "public_id": public_id,
         "username": user.username if user else None,
         "nickname": nickname,
         "bot_nickname": nickname,

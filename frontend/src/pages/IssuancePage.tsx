@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { createPortal } from 'react-dom'
 import { Check, Copy, ExternalLink, Gift, MoreHorizontal, Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
-import { ApiError, api, type IssuanceBody, type IssuanceItem, type IssuanceKind } from '../api'
+import { ApiError, api, type IssuanceBody, type IssuanceItem, type IssuanceKind, type IssuanceLineItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { FieldReq } from '../components/ui/FormField'
 import { Alert } from '../components/ui/Alert'
@@ -46,13 +46,15 @@ export function IssuancePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<IssuanceItem | null>(null)
+  const [editingLine, setEditingLine] = useState<{ bag: IssuanceItem; line: IssuanceLineItem } | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [menuId, setMenuId] = useState<number | null>(null)
+  const [lineMenuId, setLineMenuId] = useState<number | null>(null)
   const [copied, setCopied] = useState<'all' | number | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const copyTimer = useRef<number | null>(null)
 
   const pendingVirts = kind === 'virts' ? items.filter((row) => row.status === 'pending') : []
@@ -74,7 +76,9 @@ export function IssuancePage() {
 
   const setKind = (next: IssuanceKind) => {
     setMenuId(null)
+    setLineMenuId(null)
     setCopied(null)
+    setNotice(null)
     setSearchParams(next === 'virts' ? {} : { kind: next }, { replace: true })
   }
 
@@ -109,20 +113,20 @@ export function IssuancePage() {
   }, [])
 
   const openCreate = () => {
-    setEditing(null)
+    setEditingLine(null)
     setForm(EMPTY_FORM)
     setFormError(null)
     setModalOpen(true)
   }
 
-  const openEdit = (row: IssuanceItem) => {
-    setEditing(row)
+  const openEditLine = (bag: IssuanceItem, line: IssuanceLineItem) => {
+    setEditingLine({ bag, line })
     setForm({
-      role_title: row.role_title,
-      nickname: row.nickname,
-      amount: String(row.amount),
-      reason: row.reason,
-      proof_url: row.proof_url,
+      role_title: line.role_title,
+      nickname: bag.nickname,
+      amount: String(line.amount),
+      reason: line.reason,
+      proof_url: line.proof_url,
     })
     setFormError(null)
     setModalOpen(true)
@@ -130,7 +134,7 @@ export function IssuancePage() {
 
   const closeModal = () => {
     setModalOpen(false)
-    setEditing(null)
+    setEditingLine(null)
     setFormError(null)
   }
 
@@ -147,16 +151,21 @@ export function IssuancePage() {
       proof_url: form.proof_url.trim(),
     }
     try {
-      if (editing) {
-        await api.updateIssuance(editing.id, {
+      if (editingLine) {
+        await api.updateIssuanceLine(editingLine.line.id, {
           role_title: body.role_title,
-          nickname: body.nickname,
           amount: body.amount,
           reason: body.reason,
           proof_url: body.proof_url,
         })
+        setNotice(null)
       } else {
-        await api.createIssuance(body)
+        const created = await api.createIssuance(body)
+        setNotice(
+          created.appended
+            ? `Добавлено к заявке «${created.nickname}» · итог ${created.amount_label}`
+            : null,
+        )
       }
       closeModal()
       await load({ silent: true })
@@ -249,6 +258,7 @@ export function IssuancePage() {
       </div>
 
       {error ? <Alert>{error}</Alert> : null}
+      {notice ? <Alert>{notice}</Alert> : null}
 
       <ModalViewport open={modalOpen} onBackdropClick={closeModal}>
         <form
@@ -257,7 +267,9 @@ export function IssuancePage() {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-            <h2 className="m-0 text-lg font-semibold">{editing ? 'Заявка' : 'Новая заявка'}</h2>
+            <h2 className="m-0 text-lg font-semibold">
+              {editingLine ? 'Изменить позицию' : 'Новая заявка'}
+            </h2>
           </div>
           <div className="issuance-modal-body">
             <div className="issuance-form-grid">
@@ -284,6 +296,7 @@ export function IssuancePage() {
                   value={form.nickname}
                   onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))}
                   placeholder="Name_Surname"
+                  disabled={Boolean(editingLine)}
                 />
               </label>
               <label className="staff-profile-field">
@@ -328,7 +341,7 @@ export function IssuancePage() {
               Отмена
             </button>
             <button type="submit" className="btn btn-gold" disabled={saving}>
-              {saving ? 'Сохранение…' : editing ? 'Сохранить' : 'Создать'}
+              {saving ? 'Сохранение…' : editingLine ? 'Сохранить' : 'Создать'}
             </button>
           </div>
         </form>
@@ -351,96 +364,164 @@ export function IssuancePage() {
             <span />
           </div>
           <div className="staff-registry-body">
-            {items.map((row) => (
-              <div
-                key={row.id}
-                className={cn(
-                  'staff-registry-row',
-                  row.status === 'rejected' && 'issuance-row--rejected',
-                  row.status === 'issued' && 'issuance-row--issued',
-                )}
-              >
-                <IssuanceStamp iso={row.created_at} />
-                <span className="issuance-col-status">
-                  <span
+            {items.map((row) => {
+              const lines = row.lines?.length ? row.lines : []
+              const showLines = lines.length > 1
+              const soleLine = lines.length === 1 ? lines[0] : null
+              return (
+                <div key={row.id} className="issuance-bag">
+                  <div
                     className={cn(
-                      'issuance-status',
-                      row.status === 'issued' && 'issuance-status--issued',
-                      row.status === 'rejected' && 'issuance-status--rejected',
+                      'staff-registry-row',
+                      row.status === 'rejected' && 'issuance-row--rejected',
+                      row.status === 'issued' && 'issuance-row--issued',
                     )}
                   >
-                    {issuanceStatusLabel(row.status, kind)}
-                  </span>
-                </span>
-                <span className="issuance-col-person">
-                  <span className="staff-nick">{row.nickname}</span>
-                  <span className="issuance-role" title={row.role_title}>
-                    {row.role_title}
-                  </span>
-                </span>
-                <span className="issuance-col-amount">
-                  <span>{row.amount_label}</span>
-                  {kind === 'virts' ? (
-                    <button
-                      type="button"
-                      className={cn('issuance-copy-btn', copied === row.id && 'is-copied')}
-                      title="Скопировать сумму"
-                      aria-label={`Скопировать ${issuanceRawAmount(row.amount)}`}
-                      onClick={() => void copyText(issuanceRawAmount(row.amount), row.id)}
-                    >
-                      {copied === row.id ? <Check size={13} /> : <Copy size={13} />}
-                    </button>
+                    <IssuanceStamp iso={row.created_at} />
+                    <span className="issuance-col-status">
+                      <span
+                        className={cn(
+                          'issuance-status',
+                          row.status === 'issued' && 'issuance-status--issued',
+                          row.status === 'rejected' && 'issuance-status--rejected',
+                        )}
+                      >
+                        {issuanceStatusLabel(row.status, kind)}
+                      </span>
+                    </span>
+                    <span className="issuance-col-person">
+                      <span className="staff-nick">{row.nickname}</span>
+                      <span className="issuance-role" title={row.role_title}>
+                        {showLines ? `${lines.length} позиций` : row.role_title}
+                      </span>
+                    </span>
+                    <span className="issuance-col-amount">
+                      <span>{row.amount_label}</span>
+                      {kind === 'virts' ? (
+                        <button
+                          type="button"
+                          className={cn('issuance-copy-btn', copied === row.id && 'is-copied')}
+                          title="Скопировать сумму"
+                          aria-label={`Скопировать ${issuanceRawAmount(row.amount)}`}
+                          onClick={() => void copyText(issuanceRawAmount(row.amount), row.id)}
+                        >
+                          {copied === row.id ? <Check size={13} /> : <Copy size={13} />}
+                        </button>
+                      ) : null}
+                    </span>
+                    <span className="issuance-col-reason">
+                      <span className="issuance-reason" title={row.reason}>
+                        {showLines ? 'Сумма позиций ниже' : row.reason}
+                      </span>
+                    </span>
+                    <span className="issuance-col-proof">
+                      {!showLines && row.proof_url ? (
+                        <a
+                          className="issuance-proof"
+                          href={row.proof_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Открыть доказательство"
+                          aria-label="Доказательство"
+                        >
+                          <ExternalLink size={15} />
+                        </a>
+                      ) : (
+                        <span className="issuance-who-empty">—</span>
+                      )}
+                    </span>
+                    <span className="issuance-col-who">
+                      <WhoLine label="Подал" name={row.created_by_name} vkId={row.created_by_vk_id} />
+                      <WhoLine
+                        label={issuanceIssuedByLabel(kind)}
+                        name={row.issued_by_name}
+                        vkId={row.issued_by_vk_id}
+                      />
+                    </span>
+                    <span className="issuance-col-actions">
+                      <IssuanceRowMenu
+                        row={row}
+                        soleLine={soleLine}
+                        open={menuId === row.id}
+                        busy={busyId === row.id}
+                        onToggle={() => {
+                          setLineMenuId(null)
+                          setMenuId((id) => (id === row.id ? null : row.id))
+                        }}
+                        onClose={() => setMenuId(null)}
+                        onEditLine={
+                          soleLine
+                            ? () => {
+                                setMenuId(null)
+                                openEditLine(row, soleLine)
+                              }
+                            : undefined
+                        }
+                        onIssue={() => void runRow(row.id, () => api.issueIssuance(row.id))}
+                        onUnissue={() => void runRow(row.id, () => api.unissueIssuance(row.id))}
+                        onReject={() => void runRow(row.id, () => api.rejectIssuance(row.id))}
+                        onUnreject={() => void runRow(row.id, () => api.unrejectIssuance(row.id))}
+                        onDelete={() => void runRow(row.id, () => api.deleteIssuance(row.id))}
+                      />
+                    </span>
+                  </div>
+                  {showLines ? (
+                    <div className="issuance-lines">
+                      {lines.map((line) => (
+                        <div key={line.id} className="issuance-line">
+                          <span className="issuance-line-who" title={line.created_by_name ?? undefined}>
+                            {line.created_by_name || `id${line.created_by_vk_id}`}
+                          </span>
+                          <span className="issuance-line-role" title={line.role_title}>
+                            {line.role_title}
+                          </span>
+                          <span className="issuance-line-amount">{line.amount_label}</span>
+                          <span className="issuance-line-reason" title={line.reason}>
+                            {line.reason}
+                          </span>
+                          <span className="issuance-line-proof">
+                            {line.proof_url ? (
+                              <a
+                                className="issuance-proof"
+                                href={line.proof_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label="Доказательство"
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                            ) : (
+                              <span className="issuance-who-empty">—</span>
+                            )}
+                          </span>
+                          <span className="issuance-line-actions">
+                            <IssuanceLineMenu
+                              line={line}
+                              open={lineMenuId === line.id}
+                              busy={busyId === line.id}
+                              onToggle={() => {
+                                setMenuId(null)
+                                setLineMenuId((id) => (id === line.id ? null : line.id))
+                              }}
+                              onClose={() => setLineMenuId(null)}
+                              onEdit={() => {
+                                setLineMenuId(null)
+                                openEditLine(row, line)
+                              }}
+                              onDelete={() =>
+                                void runRow(line.id, async () => {
+                                  await api.deleteIssuanceLine(line.id)
+                                })
+                              }
+                            />
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   ) : null}
-                </span>
-                <span className="issuance-col-reason">
-                  <span className="issuance-reason" title={row.reason}>
-                    {row.reason}
-                  </span>
-                </span>
-                <span className="issuance-col-proof">
-                  {row.proof_url ? (
-                    <a
-                      className="issuance-proof"
-                      href={row.proof_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Открыть доказательство"
-                      aria-label="Доказательство"
-                    >
-                      <ExternalLink size={15} />
-                    </a>
-                  ) : (
-                    <span className="issuance-who-empty">—</span>
-                  )}
-                </span>
-                <span className="issuance-col-who">
-                  <WhoLine label="Подал" name={row.created_by_name} vkId={row.created_by_vk_id} />
-                  <WhoLine
-                    label={issuanceIssuedByLabel(kind)}
-                    name={row.issued_by_name}
-                    vkId={row.issued_by_vk_id}
-                  />
-                </span>
-                <span className="issuance-col-actions">
-                  <IssuanceRowMenu
-                    row={row}
-                    open={menuId === row.id}
-                    busy={busyId === row.id}
-                    onToggle={() => setMenuId((id) => (id === row.id ? null : row.id))}
-                    onClose={() => setMenuId(null)}
-                    onIssue={() => void runRow(row.id, () => api.issueIssuance(row.id))}
-                    onUnissue={() => void runRow(row.id, () => api.unissueIssuance(row.id))}
-                    onEdit={() => {
-                      setMenuId(null)
-                      openEdit(row)
-                    }}
-                    onReject={() => void runRow(row.id, () => api.rejectIssuance(row.id))}
-                    onUnreject={() => void runRow(row.id, () => api.unrejectIssuance(row.id))}
-                    onDelete={() => void runRow(row.id, () => api.deleteIssuance(row.id))}
-                  />
-                </span>
-              </div>
-            ))}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -483,25 +564,27 @@ function WhoLine({
 
 function IssuanceRowMenu({
   row,
+  soleLine,
   open,
   busy,
   onToggle,
   onClose,
+  onEditLine,
   onIssue,
   onUnissue,
-  onEdit,
   onReject,
   onUnreject,
   onDelete,
 }: {
   row: IssuanceItem
+  soleLine?: IssuanceLineItem | null
   open: boolean
   busy: boolean
   onToggle: () => void
   onClose: () => void
+  onEditLine?: () => void
   onIssue: () => void
   onUnissue: () => void
-  onEdit: () => void
   onReject: () => void
   onUnreject: () => void
   onDelete: () => void
@@ -509,8 +592,11 @@ function IssuanceRowMenu({
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const items = [
+    soleLine?.permissions.can_edit && onEditLine
+      ? { key: 'edit', label: 'Изменить', onClick: onEditLine }
+      : null,
     row.permissions.can_issue
-      ? { key: 'issue', label: row.kind === 'az' ? 'Передать ГА/ЗГА' : 'Выдать', onClick: onIssue }
+      ? { key: 'issue', label: row.kind === 'az' ? 'Передать ГА/Зга' : 'Выдать', onClick: onIssue }
       : null,
     row.permissions.can_unissue
       ? {
@@ -520,10 +606,10 @@ function IssuanceRowMenu({
         }
       : null,
     row.permissions.can_unreject ? { key: 'unreject', label: 'Снять отклонение', onClick: onUnreject } : null,
-    row.permissions.can_edit ? { key: 'edit', label: 'Изменить', onClick: onEdit } : null,
     row.permissions.can_reject ? { key: 'reject', label: 'Отклонить', onClick: onReject, danger: true } : null,
-    row.permissions.can_delete ? { key: 'delete', label: 'Удалить', onClick: onDelete, danger: true } : null,
+    row.permissions.can_delete ? { key: 'delete', label: 'Удалить пакет', onClick: onDelete, danger: true } : null,
   ].filter((item): item is { key: string; label: string; onClick: () => void; danger?: boolean } => item != null)
+
 
   const syncMenuPosition = useCallback(() => {
     const root = rootRef.current
@@ -615,6 +701,128 @@ function IssuanceRowMenu({
         onClick={onToggle}
       >
         <MoreHorizontal size={16} />
+      </button>
+      {menu ? createPortal(menu, document.body) : null}
+    </div>
+  )
+}
+
+function IssuanceLineMenu({
+  line,
+  open,
+  busy,
+  onToggle,
+  onClose,
+  onEdit,
+  onDelete,
+}: {
+  line: IssuanceLineItem
+  open: boolean
+  busy: boolean
+  onToggle: () => void
+  onClose: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const items = [
+    line.permissions.can_edit ? { key: 'edit', label: 'Изменить', onClick: onEdit } : null,
+    line.permissions.can_delete
+      ? { key: 'delete', label: 'Удалить позицию', onClick: onDelete, danger: true }
+      : null,
+  ].filter((item): item is { key: string; label: string; onClick: () => void; danger?: boolean } => item != null)
+
+  const syncMenuPosition = useCallback(() => {
+    const root = rootRef.current
+    const menu = menuRef.current
+    if (!root || !menu) return
+    const rect = root.getBoundingClientRect()
+    const menuH = menu.offsetHeight || items.length * 36 + 12
+    const menuW = Math.max(menu.offsetWidth, 184)
+    const margin = 8
+    const spaceBelow = window.innerHeight - rect.bottom - margin
+    const flipUp = spaceBelow < menuH && rect.top > spaceBelow
+    const top = flipUp ? rect.top - menuH - 4 : rect.bottom + 4
+    const left = Math.min(Math.max(margin, rect.right - menuW), window.innerWidth - menuW - margin)
+    menu.style.top = `${Math.max(margin, top)}px`
+    menu.style.left = `${left}px`
+  }, [items.length])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    syncMenuPosition()
+  }, [open, syncMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    let raf = 0
+    const onReposition = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(syncMenuPosition)
+    }
+    window.addEventListener('scroll', onReposition, true)
+    window.addEventListener('resize', onReposition)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onReposition, true)
+      window.removeEventListener('resize', onReposition)
+    }
+  }, [open, syncMenuPosition])
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (!rootRef.current?.contains(t) && !menuRef.current?.contains(t)) onClose()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    const timer = window.setTimeout(() => {
+      document.addEventListener('mousedown', onDoc)
+    }, 0)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose])
+
+  if (items.length === 0) return null
+
+  const menu =
+    open && typeof document !== 'undefined' ? (
+      <div className="issuance-menu-list issuance-menu-list--portal" role="menu" ref={menuRef}>
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="menuitem"
+            className={cn('issuance-menu-item', item.danger && 'issuance-menu-item--danger')}
+            disabled={busy}
+            onClick={item.onClick}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    ) : null
+
+  return (
+    <div className="issuance-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="staff-settings-btn"
+        title="Позиция"
+        aria-label="Действия по позиции"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        disabled={busy}
+        onClick={onToggle}
+      >
+        <MoreHorizontal size={14} />
       </button>
       {menu ? createPortal(menu, document.body) : null}
     </div>

@@ -143,6 +143,8 @@ export const api = {
     }),
   me: () => request<UserProfile>('/auth/me'),
   refreshSession: () => request<{ ok: boolean; slid: boolean }>('/auth/refresh', { method: 'POST' }),
+  resolveProfile: (key: string) =>
+    request<{ vk_id: number; public_id: string }>(`/profile/resolve/${encodeURIComponent(key)}`),
   updateProfile: (body: ProfileUpdateBody) =>
     request<UserProfile>('/profile', {
       method: 'PATCH',
@@ -346,8 +348,17 @@ export const api = {
     request<IssuanceListResponse>(`/issuance?kind=${encodeURIComponent(kind)}`),
   createIssuance: (body: IssuanceBody) =>
     request<IssuanceItem>('/issuance', { method: 'POST', body: JSON.stringify(body) }),
-  updateIssuance: (id: number, body: Partial<Omit<IssuanceBody, 'kind'>>) =>
+  updateIssuance: (id: number, body: { nickname?: string }) =>
     request<IssuanceItem>(`/issuance/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateIssuanceLine: (
+    lineId: number,
+    body: Partial<Pick<IssuanceBody, 'role_title' | 'amount' | 'reason' | 'proof_url'>>,
+  ) =>
+    request<IssuanceItem>(`/issuance/lines/${lineId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteIssuanceLine: (lineId: number) =>
+    request<IssuanceItem | { ok: boolean; deleted_bag?: boolean }>(`/issuance/lines/${lineId}`, {
+      method: 'DELETE',
+    }),
   issueIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/issue`, { method: 'POST' }),
   unissueIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/unissue`, { method: 'POST' }),
   rejectIssuance: (id: number) => request<IssuanceItem>(`/issuance/${id}/reject`, { method: 'POST' }),
@@ -696,6 +707,7 @@ export interface AuthConfig {
 
 export interface UserProfile {
   vk_id: number
+  public_id?: string
   nickname: string | null
   bot_nickname?: string | null
   username: string | null
@@ -770,6 +782,7 @@ export interface DashboardSummary {
 
 export interface StaffMember {
   vk_id: number
+  public_id?: string
   nickname: string
   bot_nickname?: string | null
   display_name?: string
@@ -861,6 +874,7 @@ export interface StaffResponse {
 
 export interface LeaderMember {
   vk_id: number
+  public_id?: string
   nickname: string
   bot_nickname?: string | null
   display_name?: string
@@ -1872,6 +1886,25 @@ export interface IssuanceRowPermissions {
   can_unreject: boolean
 }
 
+export interface IssuanceLinePermissions {
+  can_edit: boolean
+  can_delete: boolean
+}
+
+export interface IssuanceLineItem {
+  id: number
+  request_id: number
+  role_title: string
+  amount: number
+  amount_label: string
+  reason: string
+  proof_url: string
+  created_by_vk_id: number
+  created_by_name: string | null
+  created_at: string | null
+  permissions: IssuanceLinePermissions
+}
+
 export interface IssuanceItem {
   id: number
   server_id: number
@@ -1891,6 +1924,9 @@ export interface IssuanceItem {
   reviewed_at: string | null
   created_at: string | null
   permissions: IssuanceRowPermissions
+  lines?: IssuanceLineItem[]
+  line_count?: number
+  appended?: boolean
 }
 
 export interface IssuanceListResponse {
@@ -1914,6 +1950,7 @@ export interface KnowledgePermissions {
   can_edit: boolean
   editable_spheres: string[]
   can_edit_all_spheres: boolean
+  access_levels?: { value: number; label: string }[]
 }
 
 export interface KnowledgeArticleListItem {
@@ -1926,6 +1963,8 @@ export interface KnowledgeArticleListItem {
   excerpt: string
   sort_order: number
   published: boolean
+  min_view_level?: number
+  min_view_level_label?: string
   created_at?: string | null
   updated_at?: string | null
   permissions?: { can_edit: boolean }
@@ -1941,11 +1980,17 @@ export interface KnowledgeArticleDetail {
   body_md: string
   sort_order: number
   published: boolean
+  min_view_level?: number
+  min_view_level_label?: string
   created_by_vk_id?: number
   updated_by_vk_id?: number | null
   created_at?: string | null
   updated_at?: string | null
-  permissions?: { can_edit: boolean; editable_spheres?: string[] }
+  permissions?: {
+    can_edit: boolean
+    editable_spheres?: string[]
+    access_levels?: { value: number; label: string }[]
+  }
 }
 
 export interface KnowledgeArticleWrite {
@@ -1955,4 +2000,5 @@ export interface KnowledgeArticleWrite {
   sort_order?: number
   published?: boolean
   sphere?: string
+  min_view_level?: number
 }

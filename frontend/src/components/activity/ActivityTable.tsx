@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { ActivityLogItem } from '../../api'
 import { activityVerb, formatStaffUpdateDetail, staffUpdateVerb } from '../../lib/activityLabels'
+import { profilePath } from '../../lib/profileLinks'
 import { parseStaffNick } from '../../lib/staff'
 import { rewriteLegacyNicknameTags } from '../../lib/staffNickname'
 import { cn } from '../../lib/utils'
@@ -140,16 +141,15 @@ function ActivityNick({ label, to }: { label: string; to?: string | null }) {
 }
 
 function actorPath(vkId: number) {
-  return `/staff/${vkId}`
+  return profilePath(vkId)
 }
 
 function targetPath(item: ActivityLogItem): string | null {
   if (item.target_vk_id == null) return null
-  if (item.entity_type === 'leader') return `/leaders/${item.target_vk_id}`
   if (item.entity_type === 'academy_cadet' || item.action.startsWith('academy_')) {
     return `/academy/${item.target_vk_id}`
   }
-  return `/staff/${item.target_vk_id}`
+  return profilePath(item.target_vk_id)
 }
 
 export function pageWindow(current: number, last: number): number[] {

@@ -12,6 +12,7 @@ import { PageSkeleton } from '../components/ui/LoadingState'
 import { Select } from '../components/ui/Select'
 import { FieldReq } from '../components/ui/FormField'
 import { markdownExcerpt } from '../lib/markdownExcerpt'
+import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
 import { cn } from '../lib/utils'
 
 export function KnowledgePage() {
@@ -24,6 +25,7 @@ export function KnowledgePage() {
   const [categories, setCategories] = useState<{ id: string; label: string }[]>([])
   const [canEdit, setCanEdit] = useState(false)
   const [editableSpheres, setEditableSpheres] = useState<string[]>([])
+  const [levelOptions, setLevelOptions] = useState(ACCESS_LEVEL_OPTIONS)
   const [category, setCategory] = useState('')
   const [q, setQ] = useState('')
   const [qDraft, setQDraft] = useState('')
@@ -33,6 +35,7 @@ export function KnowledgePage() {
   const [title, setTitle] = useState('')
   const [createCategory, setCreateCategory] = useState('reglament')
   const [createSphere, setCreateSphere] = useState('')
+  const [createMinView, setCreateMinView] = useState('1')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const titleId = useId()
@@ -53,6 +56,11 @@ export function KnowledgePage() {
         setCategories(r.categories)
         setCanEdit(r.permissions.can_edit)
         setEditableSpheres(r.permissions.editable_spheres || [])
+        if (r.permissions.access_levels?.length) {
+          setLevelOptions(
+            r.permissions.access_levels.map((l) => ({ value: String(l.value), label: l.label })),
+          )
+        }
       })
       .catch((e: unknown) => {
         setError(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось загрузить')
@@ -79,6 +87,7 @@ export function KnowledgePage() {
     setTitle('')
     setCreateCategory(categories.find((c) => c.id === 'reglament')?.id || categories[0]?.id || 'other')
     setCreateSphere(pickDefaultCreateSphere(editableSpheres, activeSpheres[0]))
+    setCreateMinView('1')
     setFormError(null)
     setCreateOpen(true)
   }
@@ -95,6 +104,7 @@ export function KnowledgePage() {
         sphere: createSphere,
         body_md: '# ' + title.trim() + '\n\nНачните писать регламент здесь…\n',
         published: true,
+        min_view_level: parseInt(createMinView, 10) || 1,
       })
       setCreateOpen(false)
       navigate(`/knowledge/${row.id}?edit=1`)
@@ -193,6 +203,11 @@ export function KnowledgePage() {
                 <div className="kb-card-top">
                   <span className="kb-card-cat">{a.category_label}</span>
                   <span className="kb-card-sphere">{a.sphere_label}</span>
+                  {(a.min_view_level ?? 1) > 1 ? (
+                    <span className="kb-card-draft" title="Мин. уровень просмотра">
+                      от {a.min_view_level_label || `ур. ${a.min_view_level}`}
+                    </span>
+                  ) : null}
                   {!a.published ? <span className="kb-card-draft">Черновик</span> : null}
                 </div>
                 <h2 className="kb-card-title">{a.title}</h2>
@@ -241,6 +256,11 @@ export function KnowledgePage() {
             <div>
               <label className="text-caption mb-1.5 block">Раздел</label>
               <Select value={createCategory} onChange={setCreateCategory} options={createOptions} />
+            </div>
+            <div>
+              <label className="text-caption mb-1.5 block">Кто может смотреть</label>
+              <Select value={createMinView} onChange={setCreateMinView} options={levelOptions} />
+              <p className="text-xs text-white/40 mt-1.5">Минимальный уровень доступа к статье</p>
             </div>
             <div className="flex justify-end gap-2 pt-1">
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCreateOpen(false)}>

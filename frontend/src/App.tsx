@@ -22,22 +22,22 @@ import { LootCaseSpinPage } from './pages/LootCaseSpinPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
+import { PersonProfilePage } from './pages/PersonProfilePage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { StaffPage } from './pages/StaffPage'
-import { StaffMemberPage } from './pages/StaffMemberPage'
 import { LeadersPage } from './pages/LeadersPage'
-import { LeaderMemberPage } from './pages/LeaderMemberPage'
 import { TasksPage } from './pages/TasksPage'
 import { AcademyPage } from './pages/AcademyPage'
 import { AcademyCadetPage } from './pages/AcademyCadetPage'
 import { IssuancePage } from './pages/IssuancePage'
 import { KnowledgePage } from './pages/KnowledgePage'
 import { KnowledgeArticlePage } from './pages/KnowledgeArticlePage'
+import { profilePath } from './lib/profileLinks'
 
-function RedirectJudgeToLeader() {
+function RedirectToProfile() {
   const { vkId } = useParams()
-  return <Navigate to={vkId ? `/leaders/${vkId}` : '/leaders'} replace />
+  return <Navigate to={vkId ? profilePath(vkId) : '/profile'} replace />
 }
 
 function AppRoutes() {
@@ -51,11 +51,11 @@ function AppRoutes() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/access" element={<AccessGuidePage />} />
           <Route path="/staff" element={<StaffPage />} />
-          <Route path="/staff/:vkId" element={<StaffMemberPage />} />
+          <Route path="/staff/:vkId" element={<RedirectToProfile />} />
           <Route path="/leaders" element={<LeadersPage />} />
-          <Route path="/leaders/:vkId" element={<LeaderMemberPage />} />
+          <Route path="/leaders/:vkId" element={<RedirectToProfile />} />
           <Route path="/judges" element={<Navigate to="/leaders" replace />} />
-          <Route path="/judges/:vkId" element={<RedirectJudgeToLeader />} />
+          <Route path="/judges/:vkId" element={<RedirectToProfile />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TasksPage />} />
           <Route path="/academy" element={<AcademyPage />} />
@@ -76,6 +76,7 @@ function AppRoutes() {
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/:profileId" element={<PersonProfilePage />} />
           <Route path="/dev" element={<DevPage />} />
           <Route path="/dev/settings" element={<DevSettingsPage />} />
           <Route path="/dev/leadership" element={<DevLeadershipPage />} />

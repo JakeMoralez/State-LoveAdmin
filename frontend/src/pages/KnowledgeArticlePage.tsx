@@ -29,6 +29,7 @@ import { Select } from '../components/ui/Select'
 import { Switch } from '../components/ui/Switch'
 import { FieldReq } from '../components/ui/FormField'
 import { useMobileTopBarTitle } from '../context/MobileTopBarTitleContext'
+import { ACCESS_LEVEL_OPTIONS } from '../lib/accessLevels'
 import { cn } from '../lib/utils'
 
 const CATEGORY_FALLBACK = [
@@ -174,6 +175,8 @@ export function KnowledgeArticlePage() {
   const [sphere, setSphere] = useState('')
   const [bodyMd, setBodyMd] = useState('')
   const [published, setPublished] = useState(true)
+  const [minViewLevel, setMinViewLevel] = useState('1')
+  const [levelOptions, setLevelOptions] = useState(ACCESS_LEVEL_OPTIONS)
   const [preview, setPreview] = useState(false)
   const titleFieldId = useId()
   const bodyFieldId = useId()
@@ -203,11 +206,17 @@ export function KnowledgeArticlePage() {
         setArticle(row)
         setCanEdit(Boolean(row.permissions?.can_edit))
         setEditableSpheres(row.permissions?.editable_spheres || [])
+        if (row.permissions?.access_levels?.length) {
+          setLevelOptions(
+            row.permissions.access_levels.map((l) => ({ value: String(l.value), label: l.label })),
+          )
+        }
         setTitle(row.title)
         setCategory(row.category)
         setSphere(row.sphere)
         setBodyMd(row.body_md || '')
         setPublished(row.published)
+        setMinViewLevel(String(row.min_view_level ?? 1))
         if (wantEdit && row.permissions?.can_edit) setEditing(true)
       })
       .catch((e: unknown) => {
@@ -229,6 +238,7 @@ export function KnowledgeArticlePage() {
     setSphere(article.sphere)
     setBodyMd(article.body_md || '')
     setPublished(article.published)
+    setMinViewLevel(String(article.min_view_level ?? 1))
     setPreview(false)
     setEditing(true)
     setSearchParams({ edit: '1' }, { replace: true })
@@ -244,6 +254,7 @@ export function KnowledgeArticlePage() {
     setSphere(article.sphere)
     setBodyMd(article.body_md || '')
     setPublished(article.published)
+    setMinViewLevel(String(article.min_view_level ?? 1))
   }
 
   const save = async () => {
@@ -257,6 +268,7 @@ export function KnowledgeArticlePage() {
         sphere,
         body_md: bodyMd,
         published,
+        min_view_level: parseInt(minViewLevel, 10) || 1,
       })
       setArticle(row)
       setCanEdit(Boolean(row.permissions?.can_edit ?? true))
@@ -446,6 +458,11 @@ export function KnowledgeArticlePage() {
             <div className="kb-folio-tags">
               <span className="kb-card-cat">{article.category_label}</span>
               <span className="kb-card-sphere">{article.sphere_label}</span>
+              {(article.min_view_level ?? 1) > 1 ? (
+                <span className="kb-card-draft" title="Мин. уровень просмотра">
+                  от {article.min_view_level_label || `ур. ${article.min_view_level}`}
+                </span>
+              ) : null}
               {!article.published ? <span className="kb-card-draft">Черновик</span> : null}
             </div>
             {article.updated_at ? (
@@ -485,6 +502,11 @@ export function KnowledgeArticlePage() {
             <div className="kb-desk-field">
               <label className="text-caption mb-1.5 block">Раздел</label>
               <Select value={category} onChange={setCategory} options={categoryOptions} />
+            </div>
+            <div className="kb-desk-field">
+              <label className="text-caption mb-1.5 block">Кто может смотреть</label>
+              <Select value={minViewLevel} onChange={setMinViewLevel} options={levelOptions} />
+              <p className="text-xs text-white/40 mt-1.5">Минимальный уровень доступа к статье</p>
             </div>
             <div className="kb-desk-publish">
               <div>

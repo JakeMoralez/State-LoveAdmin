@@ -8,7 +8,6 @@ export function JudgesPage() {
       title="Судьи"
       icon={Scale}
       badge="⚖"
-      profilePath="/judges"
       assignType="judge"
       list={api.judges}
       loadOne={api.judgeMember}

@@ -23,7 +23,8 @@ const ROUTE_TITLES: Record<string, string> = {
 
 export function getMobilePageTitle(pathname: string): string {
   if (pathname.startsWith('/academy/')) return 'Академик'
-  if (pathname.startsWith('/staff/')) return 'Следящий'
+  if (pathname.startsWith('/profile/') && pathname !== '/profile') return 'Профиль'
+  if (pathname.startsWith('/staff/')) return 'Профиль'
   if (pathname.startsWith('/leaders/')) return 'Профиль'
   if (pathname.startsWith('/projects/')) return 'Проект'
   if (pathname.startsWith('/knowledge/')) return 'Статья'

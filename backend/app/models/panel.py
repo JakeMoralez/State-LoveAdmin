@@ -40,6 +40,17 @@ class DiscordLink(Model):
         table = "discord_links"
 
 
+class PanelProfileId(Model):
+    """Публичный ID профиля портала (в URL вместо vk_id): 1, 2, 3…"""
+
+    vk_id = fields.BigIntField(pk=True)
+    public_id = fields.IntField(unique=True, index=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "panel_profile_ids"
+
+
 class StaffNote(Model):
     id = fields.IntField(pk=True)
     vk_id = fields.BigIntField(index=True)
@@ -535,9 +546,10 @@ class IssuanceRequest(Model):
     id = fields.IntField(pk=True)
     server_id = fields.IntField(index=True)
     kind = fields.CharField(max_length=16, index=True)
-    role_title = fields.CharField(max_length=128)
+    role_title = fields.CharField(max_length=128, default="")
     nickname = fields.CharField(max_length=128)
-    amount = fields.BigIntField()
+    nickname_norm = fields.CharField(max_length=128, default="", index=True)
+    amount = fields.BigIntField(default=0)
     reason = fields.TextField(default="")
     proof_url = fields.CharField(max_length=1024, default="")
     status = fields.CharField(max_length=16, default="pending", index=True)
@@ -551,6 +563,23 @@ class IssuanceRequest(Model):
         table = "issuance_requests"
 
 
+class IssuanceLine(Model):
+    """Отдельная позиция внутри пакета выдачи (кто/куда/что)."""
+
+    id = fields.IntField(pk=True)
+    request = fields.ForeignKeyField("models.IssuanceRequest", related_name="lines")
+    role_title = fields.CharField(max_length=128)
+    amount = fields.BigIntField()
+    reason = fields.TextField(default="")
+    proof_url = fields.CharField(max_length=1024, default="")
+    created_by_vk_id = fields.BigIntField(index=True)
+    created_at = fields.DatetimeField(auto_now_add=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "issuance_lines"
+
+
 class KnowledgeArticle(Model):
     """База знаний: регламенты, правила, инструкции (Markdown)."""
 
@@ -562,6 +591,7 @@ class KnowledgeArticle(Model):
     body_md = fields.TextField(default="")
     sort_order = fields.IntField(default=0)
     published = fields.BooleanField(default=True)
+    min_view_level = fields.IntField(default=1)
     created_by_vk_id = fields.BigIntField(index=True)
     updated_by_vk_id = fields.BigIntField(null=True)
     created_at = fields.DatetimeField(auto_now_add=True)

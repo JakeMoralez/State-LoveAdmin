@@ -21,6 +21,7 @@ from app.services.display_names import (
     resolve_display_names,
     resolve_vk_photos,
 )
+from app.services.profile_ids import attach_public_ids, ensure_public_id
 from app.services.staff import (
     assign_staff_member,
     parse_appointment_date,
@@ -190,6 +191,7 @@ async def _former_staff_payload(server_id: int, q: str) -> dict:
     for r in rows:
         r["display_name"] = r.get("bot_nickname") or r["nickname"]
         r["avatar_url"] = photos.get(r["vk_id"])
+    await attach_public_ids(rows)
 
     return {
         "server_id": server_id,
@@ -227,6 +229,7 @@ async def get_staff(
     for r in rows:
         r["display_name"] = r.get("bot_nickname") or names.get(r["vk_id"], r["nickname"])
         r["avatar_url"] = photos.get(r["vk_id"])
+    await attach_public_ids(rows)
 
     grouped: dict[int, list] = {}
     for row in rows:
@@ -277,6 +280,7 @@ async def get_ca_leaders(
     for r in rows:
         r["display_name"] = r.get("bot_nickname") or names.get(r["vk_id"], r["nickname"])
         r["avatar_url"] = photos.get(r["vk_id"])
+    await attach_public_ids(rows)
 
     peer_id = await get_leadership_peer_id(server_id)
 
@@ -314,6 +318,7 @@ async def _office_list_payload(
     for r in rows:
         r["display_name"] = r.get("bot_nickname") or names.get(r["vk_id"], r["nickname"])
         r["avatar_url"] = photos.get(r["vk_id"])
+    await attach_public_ids(rows)
     return {
         "server_id": server_id,
         "peer_id": peer_id,
@@ -667,6 +672,7 @@ async def _enrich_staff_row(row: dict, server_id: int) -> dict:
     row["discord_id"] = link.discord_id if link else None
     row["discord_username"] = link.discord_username if link else None
     row["discord_display_name"] = link.discord_display_name if link else None
+    row["public_id"] = await ensure_public_id(int(vk_id))
     return row
 
 

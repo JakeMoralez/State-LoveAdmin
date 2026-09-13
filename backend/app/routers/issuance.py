@@ -21,9 +21,12 @@ class IssuanceCreate(BaseModel):
     proof_url: str = Field(default="", max_length=1024)
 
 
-class IssuanceUpdate(BaseModel):
-    role_title: str | None = Field(default=None, max_length=128)
+class IssuanceBagUpdate(BaseModel):
     nickname: str | None = Field(default=None, max_length=128)
+
+
+class IssuanceLineUpdate(BaseModel):
+    role_title: str | None = Field(default=None, max_length=128)
     amount: int | str | None = None
     reason: str | None = Field(default=None, max_length=2000)
     proof_url: str | None = Field(default=None, max_length=1024)
@@ -56,21 +59,37 @@ async def create_issuance(
     )
 
 
-@router.patch("/{request_id}")
-async def update_issuance(
-    request_id: int,
-    body: IssuanceUpdate,
+@router.patch("/lines/{line_id}")
+async def update_issuance_line(
+    line_id: int,
+    body: IssuanceLineUpdate,
     user: dict = Depends(require_ca_user),
 ):
-    return await svc.update_request(
-        request_id,
+    return await svc.update_line(
+        line_id,
         user,
         role_title=body.role_title,
-        nickname=body.nickname,
         amount=body.amount,
         reason=body.reason,
         proof_url=body.proof_url,
     )
+
+
+@router.delete("/lines/{line_id}")
+async def delete_issuance_line(line_id: int, user: dict = Depends(require_ca_user)):
+    result = await svc.delete_line(line_id, user)
+    if result is None:
+        return {"ok": True, "deleted_bag": True}
+    return result
+
+
+@router.patch("/{request_id}")
+async def update_issuance(
+    request_id: int,
+    body: IssuanceBagUpdate,
+    user: dict = Depends(require_ca_user),
+):
+    return await svc.update_request(request_id, user, nickname=body.nickname)
 
 
 @router.post("/{request_id}/issue")

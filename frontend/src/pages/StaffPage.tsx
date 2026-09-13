@@ -12,6 +12,7 @@ import { useMediaQuery, MOBILE_NAV_QUERY } from '../hooks/useMediaQuery'
 import { ACCESS_LEVEL_OPTIONS, ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
 import { SPHERE_OPTIONS } from '../lib/spheres'
 import { staffLabel } from '../lib/staff'
+import { profilePathFrom } from '../lib/profileLinks'
 import { PageSkeleton } from '../components/ui/LoadingState'
 
 type StaffTab = 'active' | 'inactive'
@@ -259,7 +260,7 @@ export function StaffPage() {
                     </span>
                     <span className="staff-nick-cluster">
                       <Link
-                        to={`/staff/${m.vk_id}`}
+                        to={profilePathFrom(m)}
                         className="staff-nick staff-nick-btn staff-nick-link no-underline"
                       >
                         {staffLabel(m)}

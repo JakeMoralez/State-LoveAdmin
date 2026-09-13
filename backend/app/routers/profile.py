@@ -12,6 +12,7 @@ from app.services.discord_links import set_discord_link
 from app.services.discord_oauth import normalize_discord_id
 from app.services.staff import update_staff_member
 from app.services.audit import log_audit
+from app.services.profile_ids import resolve_profile_key
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
@@ -31,6 +32,15 @@ async def _notify_prefs_payload(vk_id: int) -> dict[str, bool]:
         "notify_tasks": True if row is None else bool(row.notify_tasks),
         "notify_assign": True if row is None else bool(row.notify_assign),
     }
+
+
+@router.get("/resolve/{key}")
+async def resolve_profile(key: str, user: dict = Depends(require_ca_user)):
+    """Публичный ID или legacy vk_id → каноническая пара."""
+    resolved = await resolve_profile_key(key)
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+    return resolved
 
 
 @router.get("")

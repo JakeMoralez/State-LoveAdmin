@@ -107,6 +107,116 @@ async def ensure_question_banks_schema() -> None:
             logger.warning("question_banks: could not add column %s: %s", col, exc)
 
 
+async def ensure_profile_ids_schema() -> None:
+    """panel_profile_ids.public_id → INTEGER sequential (rebuild if was VARCHAR/random)."""
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if not (is_sqlite_url(PANEL_DATABASE_URL) or is_postgres_url(PANEL_DATABASE_URL)):
+        return
+    if not await _table_exists("panel_profile_ids"):
+        return
+
+    conn = Tortoise.get_connection("default")
+    needs_rebuild = False
+    if is_postgres_url(PANEL_DATABASE_URL):
+        rows = await conn.execute_query_dict(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name = 'panel_profile_ids' AND column_name = 'public_id'"
+        )
+        dtype = (rows[0].get("data_type") or "").lower() if rows else ""
+        if dtype and dtype not in ("integer", "bigint", "smallint"):
+            needs_rebuild = True
+    elif is_sqlite_url(PANEL_DATABASE_URL):
+        info = await conn.execute_query_dict("PRAGMA table_info(panel_profile_ids)")
+        for col in info:
+            if col.get("name") == "public_id":
+                ctype = str(col.get("type") or "").upper()
+                if "INT" not in ctype:
+                    needs_rebuild = True
+                break
+
+    if not needs_rebuild:
+        # Даже при INT могли остаться «дыры» / не 1..N после рандома-как-числа — проверим позже через ORM
+        return
+
+    logger.info("panel_profile_ids: rebuilding public_id as sequential INTEGER")
+    data = await conn.execute_query_dict(
+        "SELECT vk_id, created_at FROM panel_profile_ids ORDER BY created_at ASC, vk_id ASC"
+    )
+    if is_sqlite_url(PANEL_DATABASE_URL):
+        await conn.execute_query("DROP TABLE IF EXISTS panel_profile_ids_new")
+        await conn.execute_query(
+            "CREATE TABLE panel_profile_ids_new ("
+            "vk_id BIGINT PRIMARY KEY NOT NULL,"
+            "public_id INT NOT NULL UNIQUE,"
+            "created_at TIMESTAMP"
+            ")"
+        )
+        for i, row in enumerate(data, start=1):
+            await conn.execute_query(
+                "INSERT INTO panel_profile_ids_new (vk_id, public_id, created_at) VALUES (?, ?, ?)",
+                [row["vk_id"], i, row.get("created_at")],
+            )
+        await conn.execute_query("DROP TABLE panel_profile_ids")
+        await conn.execute_query("ALTER TABLE panel_profile_ids_new RENAME TO panel_profile_ids")
+    else:
+        await conn.execute_query("DROP TABLE IF EXISTS panel_profile_ids_new")
+        await conn.execute_query(
+            "CREATE TABLE panel_profile_ids_new ("
+            "vk_id BIGINT PRIMARY KEY,"
+            "public_id INTEGER NOT NULL UNIQUE,"
+            "created_at TIMESTAMPTZ"
+            ")"
+        )
+        for i, row in enumerate(data, start=1):
+            await conn.execute_query(
+                "INSERT INTO panel_profile_ids_new (vk_id, public_id, created_at) VALUES ($1, $2, $3)",
+                [row["vk_id"], i, row.get("created_at")],
+            )
+        await conn.execute_query("DROP TABLE panel_profile_ids")
+        await conn.execute_query("ALTER TABLE panel_profile_ids_new RENAME TO panel_profile_ids")
+    logger.info("panel_profile_ids: rebuilt %s rows", len(data))
+
+
+async def ensure_issuance_schema() -> None:
+    """nickname_norm на пакетах + таблица строк создаётся через generate_schemas."""
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if not (is_sqlite_url(PANEL_DATABASE_URL) or is_postgres_url(PANEL_DATABASE_URL)):
+        return
+    if not await _table_exists("issuance_requests"):
+        return
+    conn = Tortoise.get_connection("default")
+    if not await _column_exists("issuance_requests", "nickname_norm"):
+        try:
+            await conn.execute_query(
+                "ALTER TABLE issuance_requests ADD COLUMN nickname_norm VARCHAR(128) NOT NULL DEFAULT ''"
+            )
+            logger.info("issuance_requests: added nickname_norm")
+        except Exception as exc:
+            logger.warning("issuance_requests nickname_norm: %s", exc)
+
+
+async def ensure_knowledge_schema() -> None:
+    """min_view_level для статей базы знаний."""
+    from app.config import PANEL_DATABASE_URL, is_postgres_url, is_sqlite_url
+
+    if not (is_sqlite_url(PANEL_DATABASE_URL) or is_postgres_url(PANEL_DATABASE_URL)):
+        return
+    if not await _table_exists("knowledge_articles"):
+        return
+    if await _column_exists("knowledge_articles", "min_view_level"):
+        return
+    conn = Tortoise.get_connection("default")
+    try:
+        await conn.execute_query(
+            "ALTER TABLE knowledge_articles ADD COLUMN min_view_level INTEGER NOT NULL DEFAULT 1"
+        )
+        logger.info("knowledge_articles: added min_view_level")
+    except Exception as exc:
+        logger.warning("knowledge_articles min_view_level: %s", exc)
+
+
 async def ensure_defaults() -> None:
     from app.config import PANEL_DATABASE_URL, is_sqlite_url
     from app.services.bot_users import ensure_user_server_access_senior_columns

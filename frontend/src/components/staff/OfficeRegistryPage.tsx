@@ -13,6 +13,7 @@ import { canOpenLeaderSettings } from '../../lib/accessLevels'
 import { inferLeadershipFromNickname, resolveLeadershipSphere } from '../../lib/leaderNickname'
 import { SPHERE_OPTIONS, formatSpheresDisplay } from '../../lib/spheres'
 import { staffLabel } from '../../lib/staff'
+import { profilePathFrom } from '../../lib/profileLinks'
 import { PageSkeleton } from '../ui/LoadingState'
 
 function memberSphere(m: LeaderMember): string | null {
@@ -56,7 +57,6 @@ export function OfficeRegistryPage({
   title,
   icon: Icon,
   badge,
-  profilePath,
   assignType,
   list,
   loadOne,
@@ -67,7 +67,6 @@ export function OfficeRegistryPage({
   title: string
   icon: LucideIcon
   badge: string
-  profilePath: string
   assignType: string
   list: (params?: { q?: string; inactive?: boolean }) => Promise<{ members: LeaderMember[]; total: number }>
   loadOne: (vkId: number) => Promise<LeaderMemberDetail>
@@ -288,7 +287,7 @@ export function OfficeRegistryPage({
                     </span>
                     <span className="staff-nick-cluster">
                       <Link
-                        to={`${profilePath}/${m.vk_id}`}
+                        to={profilePathFrom(m)}
                         className="staff-nick staff-nick-btn staff-nick-link no-underline"
                       >
                         {staffLabel(m)}

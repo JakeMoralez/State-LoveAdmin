@@ -204,6 +204,7 @@ ISSUANCE_REVIEW_FORBIDDEN = "Выдавать и отклонять заявки
 ISSUANCE_EDIT_FORBIDDEN = "Править можно только свою заявку в статусе «ожидает»."
 ISSUANCE_DELETE_FORBIDDEN = "Удалить можно только заявку в статусе «ожидает»."
 ISSUANCE_NOT_FOUND = "Заявка на выдачу не найдена."
+ISSUANCE_LINE_NOT_FOUND = "Строка заявки не найдена."
 ISSUANCE_BAD_KIND = "Раздел должен быть АЗ или вирты."
 ISSUANCE_BAD_STATUS = "Заявка уже обработана."
 ISSUANCE_BAD_AMOUNT = "Укажите сумму числом."
