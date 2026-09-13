@@ -29,10 +29,10 @@ const EMPTY_STAFF_PERMS: StaffMemberPermissions = {
   max_access_level: 0,
 }
 
-function stubStaff(vkId: number, publicId?: string): StaffMemberDetail {
+function stubStaff(vkId: number, publicId?: string | number): StaffMemberDetail {
   return {
     vk_id: vkId,
-    public_id: publicId,
+    public_id: publicId != null ? String(publicId) : undefined,
     nickname: `id${vkId}`,
     display_name: `id${vkId}`,
     username: null,
@@ -50,10 +50,10 @@ function stubStaff(vkId: number, publicId?: string): StaffMemberDetail {
   }
 }
 
-function stubLeader(vkId: number, publicId?: string): LeaderMemberDetail {
+function stubLeader(vkId: number, publicId?: string | number): LeaderMemberDetail {
   return {
     vk_id: vkId,
-    public_id: publicId,
+    public_id: publicId != null ? String(publicId) : undefined,
     nickname: `id${vkId}`,
     display_name: `id${vkId}`,
     in_registry: false,
@@ -102,22 +102,23 @@ export function PersonProfilePage() {
   const [staffSettingsOpen, setStaffSettingsOpen] = useState(false)
   const [leaderSettingsOpen, setLeaderSettingsOpen] = useState(false)
 
-  const loadMembers = (resolvedVk: number, resolvedPublic: string) => {
+  const loadMembers = (resolvedVk: number, resolvedPublic: string | number) => {
     setLoading(true)
     setError(null)
+    const publicKey = String(resolvedPublic)
     void Promise.all([
       api.staffMember(resolvedVk).catch((e: unknown) => {
-        if (isNotInRegistryError(e)) return stubStaff(resolvedVk, resolvedPublic)
+        if (isNotInRegistryError(e)) return stubStaff(resolvedVk, publicKey)
         throw e
       }),
       api.leaderMember(resolvedVk).catch((e: unknown) => {
-        if (isNotInRegistryError(e)) return stubLeader(resolvedVk, resolvedPublic)
+        if (isNotInRegistryError(e)) return stubLeader(resolvedVk, publicKey)
         throw e
       }),
     ])
       .then(([s, l]) => {
-        setStaff({ ...s, public_id: s.public_id || resolvedPublic })
-        setLeader({ ...l, public_id: l.public_id || resolvedPublic })
+        setStaff({ ...s, public_id: s.public_id != null ? String(s.public_id) : publicKey })
+        setLeader({ ...l, public_id: l.public_id != null ? String(l.public_id) : publicKey })
       })
       .catch((e: unknown) => {
         setStaff(null)
@@ -136,13 +137,14 @@ export function PersonProfilePage() {
       .resolveProfile(key)
       .then((resolved) => {
         if (cancelled) return
+        const canonical = String(resolved.public_id)
         setVkId(resolved.vk_id)
-        setPublicId(resolved.public_id)
-        if (key !== resolved.public_id) {
-          navigate(profilePath(resolved.public_id), { replace: true })
+        setPublicId(canonical)
+        if (key !== canonical) {
+          navigate(profilePath(canonical), { replace: true })
           return
         }
-        loadMembers(resolved.vk_id, resolved.public_id)
+        loadMembers(resolved.vk_id, canonical)
       })
       .catch((e: unknown) => {
         if (cancelled) return

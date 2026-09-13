@@ -144,7 +144,7 @@ export const api = {
   me: () => request<UserProfile>('/auth/me'),
   refreshSession: () => request<{ ok: boolean; slid: boolean }>('/auth/refresh', { method: 'POST' }),
   resolveProfile: (key: string) =>
-    request<{ vk_id: number; public_id: string }>(`/profile/resolve/${encodeURIComponent(key)}`),
+    request<{ vk_id: number; public_id: number | string }>(`/profile/resolve/${encodeURIComponent(key)}`),
   updateProfile: (body: ProfileUpdateBody) =>
     request<UserProfile>('/profile', {
       method: 'PATCH',
