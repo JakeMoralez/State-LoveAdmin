@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useOverlayFocus } from '../../hooks/useOverlayFocus'
 
@@ -16,9 +16,8 @@ export function ModalViewport({
   ariaLabel?: string
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
-  const onEscape = useCallback(() => {
-    onBackdropClick?.()
-  }, [onBackdropClick])
+  const backdropRef = useRef(onBackdropClick)
+  backdropRef.current = onBackdropClick
 
   useEffect(() => {
     if (!open) return
@@ -27,7 +26,7 @@ export function ModalViewport({
     return () => document.body.classList.remove('modal-open')
   }, [open])
 
-  useOverlayFocus(open, rootRef, onBackdropClick ? onEscape : undefined)
+  useOverlayFocus(open, rootRef, onBackdropClick ? () => backdropRef.current?.() : undefined)
 
   if (!open) return null
 

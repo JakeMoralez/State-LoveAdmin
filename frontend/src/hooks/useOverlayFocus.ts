@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 const FOCUSABLE =
   'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
@@ -15,6 +15,9 @@ export function useOverlayFocus(
   containerRef: RefObject<HTMLElement | null>,
   onEscape?: () => void,
 ) {
+  const onEscapeRef = useRef(onEscape)
+  onEscapeRef.current = onEscape
+
   useEffect(() => {
     if (!active) return
     const root = containerRef.current
@@ -32,10 +35,10 @@ export function useOverlayFocus(
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (!onEscape) return
+        if (!onEscapeRef.current) return
         e.preventDefault()
         e.stopPropagation()
-        onEscape()
+        onEscapeRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -63,5 +66,6 @@ export function useOverlayFocus(
       document.removeEventListener('keydown', onKeyDown, true)
       if (prev && document.contains(prev)) prev.focus()
     }
-  }, [active, containerRef, onEscape])
+    // onEscape через ref — иначе каждый рендер родителя (ввод в поле) снова фокусит первый элемент
+  }, [active, containerRef])
 }

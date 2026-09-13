@@ -258,7 +258,7 @@ export function IssuancePage() {
       </div>
 
       {error ? <Alert>{error}</Alert> : null}
-      {notice ? <Alert>{notice}</Alert> : null}
+      {notice ? <Alert variant="success">{notice}</Alert> : null}
 
       <ModalViewport open={modalOpen} onBackdropClick={closeModal}>
         <form
