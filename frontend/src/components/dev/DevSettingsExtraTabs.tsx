@@ -161,15 +161,15 @@ export function ForumSettingsTab() {
         <div className="dev-settings-form-grid">
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_user</span>
-            <input type="password" className="control w-full" value={xfUser} onChange={(e) => setXfUser(e.target.value)} autoComplete="off" />
+            <input type="text" className="control w-full" value={xfUser} onChange={(e) => setXfUser(e.target.value)} autoComplete="off" spellCheck={false} />
           </label>
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_session</span>
-            <input type="password" className="control w-full" value={xfSession} onChange={(e) => setXfSession(e.target.value)} autoComplete="off" />
+            <input type="text" className="control w-full" value={xfSession} onChange={(e) => setXfSession(e.target.value)} autoComplete="off" spellCheck={false} />
           </label>
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_tfa_trust</span>
-            <input type="password" className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" />
+            <input type="text" className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" spellCheck={false} />
           </label>
         </div>
         <button
