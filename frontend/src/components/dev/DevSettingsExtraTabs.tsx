@@ -37,6 +37,8 @@ export function ForumSettingsTab() {
   const [xfUser, setXfUser] = useState('')
   const [xfSession, setXfSession] = useState('')
   const [xfTfa, setXfTfa] = useState('')
+  const [forumProxy, setForumProxy] = useState('')
+  const [clearForumProxy, setClearForumProxy] = useState(false)
   const [browserUserAgent, setBrowserUserAgent] = useState(() =>
     typeof navigator === 'undefined' ? '' : navigator.userAgent,
   )
@@ -140,6 +142,10 @@ export function ForumSettingsTab() {
               <dt>User-Agent</dt>
               <dd>{status.cookies?.panel_user_agent ? 'браузерный из панели' : 'из конфигурации бота'}</dd>
             </div>
+            <div>
+              <dt>Прокси</dt>
+              <dd>{status.cookies?.proxy_configured ? 'задан' : 'не задан'}</dd>
+            </div>
           </dl>
         ) : (
           <p className="text-white/40 text-sm">Загрузка…</p>
@@ -230,6 +236,63 @@ export function ForumSettingsTab() {
           }
         >
           Сохранить и переподключить
+        </button>
+      </section>
+
+      <section className="glass-card dev-settings-block">
+        <h3 className="dev-settings-block-title">Прокси форума</h3>
+        <p className="dev-settings-hint">
+          Укажите адрес одного HTTP(S) или SOCKS-узла. Ссылка подписки со списком узлов не подойдёт.
+          Изменение проверяется подключением к текущему форумному аккаунту и сохраняется только при успехе.
+        </p>
+        <div className="dev-settings-form-grid">
+          <label className="staff-profile-field">
+            <span className="staff-profile-label">Адрес прокси</span>
+            <input
+              type="password"
+              className="control w-full"
+              value={forumProxy}
+              onChange={(e) => {
+                setForumProxy(e.target.value)
+                if (e.target.value.trim()) setClearForumProxy(false)
+              }}
+              placeholder="Оставьте пустым, чтобы не менять"
+              autoComplete="new-password"
+              spellCheck={false}
+            />
+          </label>
+        </div>
+        <label className="dev-settings-check">
+          <input
+            type="checkbox"
+            checked={clearForumProxy}
+            onChange={(e) => {
+              setClearForumProxy(e.target.checked)
+              if (e.target.checked) setForumProxy('')
+            }}
+          />
+          Отключить сохранённый прокси
+        </label>
+        <button
+          type="button"
+          className="btn btn-gold btn-sm"
+          disabled={busy || (!forumProxy.trim() && !clearForumProxy)}
+          onClick={() =>
+            void run(
+              () => api.forumConfigureProxy({
+                proxy: forumProxy.trim() || undefined,
+                clear_proxy: clearForumProxy || undefined,
+              }),
+              'Прокси сохранён, сессия переподключена',
+            ).then((succeeded) => {
+              if (succeeded) {
+                setForumProxy('')
+                setClearForumProxy(false)
+              }
+            })
+          }
+        >
+          Сохранить прокси
         </button>
       </section>
     </div>

@@ -305,6 +305,8 @@ export const api = {
     xf_session: string
     xf_tfa_trust?: string
     user_agent: string
+    proxy?: string
+    clear_proxy?: boolean
   }) =>
     request<DevForumStatus>('/dev/forum/cookies', {
       method: 'POST',
@@ -1419,6 +1421,7 @@ export interface DevForumStatus {
     env_xf_tfa_trust?: boolean
     file_present?: boolean
     panel_user_agent?: boolean
+    proxy_configured?: boolean
   }
 }
 
