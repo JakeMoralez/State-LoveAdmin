@@ -61,7 +61,7 @@ export function ForumSettingsTab() {
     try {
       const result = await fn()
       if (result && typeof result === 'object' && 'ok' in result && result.ok === false) {
-        if ('configured' in result && 'connected' in result) {
+        if ('configured' in result && 'connected' in result && !('applied' in result && result.applied === false)) {
           setStatus(result as DevForumStatus)
         }
         const message =
@@ -175,7 +175,8 @@ export function ForumSettingsTab() {
       <section className="glass-card dev-settings-block">
         <h3 className="dev-settings-block-title">Заменить cookies</h3>
         <p className="dev-settings-hint">
-          Cookies и User-Agent из панели сохраняются для следующих подключений. User-Agent текущего
+          Новые cookies проверяются перед сохранением. При ошибке предыдущая конфигурация сохраняется.
+          User-Agent текущего
           браузера подставлен автоматически; если форум открыт в другом браузере, скопируйте его
           User-Agent оттуда. Нужны xf_user и xf_session.
         </p>

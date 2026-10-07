@@ -1410,6 +1410,8 @@ export interface DevForumStatus {
   logged_in: boolean
   username?: string | null
   error?: string | null
+  error_kind?: 'authentication' | 'connection' | 'storage' | 'validation' | 'dependency' | null
+  applied?: boolean | null
   ok?: boolean
   cookies?: {
     env_xf_user?: boolean
