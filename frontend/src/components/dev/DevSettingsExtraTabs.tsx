@@ -37,6 +37,9 @@ export function ForumSettingsTab() {
   const [xfUser, setXfUser] = useState('')
   const [xfSession, setXfSession] = useState('')
   const [xfTfa, setXfTfa] = useState('')
+  const [browserUserAgent, setBrowserUserAgent] = useState(() =>
+    typeof navigator === 'undefined' ? '' : navigator.userAgent,
+  )
 
   const load = async () => {
     setError(null)
@@ -51,12 +54,23 @@ export function ForumSettingsTab() {
     void load()
   }, [])
 
-  const run = async (fn: () => Promise<unknown>, okMsg: string) => {
+  const run = async (fn: () => Promise<unknown>, okMsg: string): Promise<boolean> => {
     setBusy(true)
     setError(null)
     setNotice(null)
     try {
       const result = await fn()
+      if (result && typeof result === 'object' && 'ok' in result && result.ok === false) {
+        if ('configured' in result && 'connected' in result) {
+          setStatus(result as DevForumStatus)
+        }
+        const message =
+          'error' in result && typeof result.error === 'string' && result.error.trim()
+            ? result.error
+            : 'Операция не выполнена'
+        setError(message)
+        return false
+      }
       if (
         result &&
         typeof result === 'object' &&
@@ -71,13 +85,15 @@ export function ForumSettingsTab() {
           const msg = String((result as { message?: string }).message || '').trim()
           if (msg) {
             setNotice(msg)
-            return
+            return true
           }
         }
       }
       setNotice(okMsg)
+      return true
     } catch (e) {
       setError(formatError(e))
+      return false
     } finally {
       setBusy(false)
     }
@@ -120,6 +136,10 @@ export function ForumSettingsTab() {
               <dt>Файл cookies</dt>
               <dd>{status.cookies?.file_present ? 'есть' : 'нет'}</dd>
             </div>
+            <div>
+              <dt>User-Agent</dt>
+              <dd>{status.cookies?.panel_user_agent ? 'браузерный из панели' : 'из конфигурации бота'}</dd>
+            </div>
           </dl>
         ) : (
           <p className="text-white/40 text-sm">Загрузка…</p>
@@ -155,8 +175,9 @@ export function ForumSettingsTab() {
       <section className="glass-card dev-settings-block">
         <h3 className="dev-settings-block-title">Заменить cookies</h3>
         <p className="dev-settings-hint">
-          После сохранения cookies из панели имеют приоритет над .env. Значения не показываются обратно.
-          Нужны xf_user и xf_session.
+          Cookies и User-Agent из панели сохраняются для следующих подключений. User-Agent текущего
+          браузера подставлен автоматически; если форум открыт в другом браузере, скопируйте его
+          User-Agent оттуда. Нужны xf_user и xf_session.
         </p>
         <div className="dev-settings-form-grid">
           <label className="staff-profile-field">
@@ -171,6 +192,18 @@ export function ForumSettingsTab() {
             <span className="staff-profile-label">xf_tfa_trust</span>
             <input type="text" className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" spellCheck={false} />
           </label>
+          <label className="staff-profile-field">
+            <span className="staff-profile-label">Браузер (User-Agent)</span>
+            <textarea
+              className="control w-full"
+              value={browserUserAgent}
+              onChange={(e) => setBrowserUserAgent(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              rows={3}
+              maxLength={1024}
+            />
+          </label>
         </div>
         <button
           type="button"
@@ -183,12 +216,15 @@ export function ForumSettingsTab() {
                   xf_user: xfUser.trim(),
                   xf_session: xfSession.trim(),
                   xf_tfa_trust: xfTfa.trim() || undefined,
+                  user_agent: browserUserAgent.trim(),
                 }),
               'Cookies сохранены, сессия обновлена',
-            ).then(() => {
-              setXfUser('')
-              setXfSession('')
-              setXfTfa('')
+            ).then((succeeded) => {
+              if (succeeded) {
+                setXfUser('')
+                setXfSession('')
+                setXfTfa('')
+              }
             })
           }
         >

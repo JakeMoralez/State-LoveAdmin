@@ -300,7 +300,12 @@ export const api = {
   devForum: () => request<DevForumStatus>('/dev/forum'),
   forumReconnect: () =>
     request<DevForumStatus>('/dev/forum/reconnect', { method: 'POST', body: '{}' }),
-  forumReplaceCookies: (body: { xf_user: string; xf_session: string; xf_tfa_trust?: string }) =>
+  forumReplaceCookies: (body: {
+    xf_user: string
+    xf_session: string
+    xf_tfa_trust?: string
+    user_agent: string
+  }) =>
     request<DevForumStatus>('/dev/forum/cookies', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -1411,6 +1416,7 @@ export interface DevForumStatus {
     env_xf_session?: boolean
     env_xf_tfa_trust?: boolean
     file_present?: boolean
+    panel_user_agent?: boolean
   }
 }
 

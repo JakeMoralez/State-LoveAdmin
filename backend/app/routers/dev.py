@@ -345,11 +345,18 @@ class ForumCookiesIn(BaseModel):
     xf_user: str = ""
     xf_session: str = ""
     xf_tfa_trust: str = ""
+    user_agent: str = Field(default="", max_length=1024)
 
 
 @router.post("/forum/cookies")
 async def post_dev_forum_cookies(body: ForumCookiesIn, user: dict = Depends(require_dev_user)):
-    payload = {k: v.strip() for k, v in body.model_dump().items() if v and str(v).strip()}
+    payload = {
+        k: v.strip()
+        for k, v in body.model_dump().items()
+        if k == "user_agent" or (v and str(v).strip())
+    }
+    if "\r" in payload["user_agent"] or "\n" in payload["user_agent"]:
+        raise HTTPException(status_code=400, detail="Некорректный User-Agent браузера")
     if not payload.get("xf_user") or not payload.get("xf_session"):
         raise HTTPException(status_code=400, detail="Нужны xf_user и xf_session")
     data, error = await forum_replace_cookies(payload)
