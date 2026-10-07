@@ -345,8 +345,6 @@ class ForumCookiesIn(BaseModel):
     xf_user: str = ""
     xf_session: str = ""
     xf_tfa_trust: str = ""
-    xf_csrf: str = ""
-    l7_clearance: str = Field(default="", alias="__Host-l7_clearance")
     user_agent: str = Field(default="", max_length=1024)
 
 
