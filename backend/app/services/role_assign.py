@@ -189,11 +189,11 @@ async def assign_congress(
         )
         field = "is_congress_vice"
 
-    await ensure_server_access(vk_id, server_id, granted_by=granted_by)
-    appointed = granted_at or datetime.now(UTC)
-    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
-        **{field: True, "granted_by": granted_by, "granted_at": appointed},
-    )
+    _, created = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
+    fields = {field: True}
+    if created and granted_at is not None:
+        fields["granted_at"] = granted_at
+    await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(**fields)
 
     await _persist_member_nickname(vk_id, server_id, nick)
     invalidate_display_names(vk_id)

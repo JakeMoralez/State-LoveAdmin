@@ -154,19 +154,22 @@ export function ForumSettingsTab() {
 
       <section className="glass-card dev-settings-block">
         <h3 className="dev-settings-block-title">Заменить cookies</h3>
-        <p className="dev-settings-hint">Значения не показываются обратно. Нужны xf_user и xf_session.</p>
+        <p className="dev-settings-hint">
+          После сохранения cookies из панели имеют приоритет над .env. Значения не показываются обратно.
+          Нужны xf_user и xf_session.
+        </p>
         <div className="dev-settings-form-grid">
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_user</span>
-            <input className="control w-full" value={xfUser} onChange={(e) => setXfUser(e.target.value)} autoComplete="off" />
+            <input type="password" className="control w-full" value={xfUser} onChange={(e) => setXfUser(e.target.value)} autoComplete="off" />
           </label>
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_session</span>
-            <input className="control w-full" value={xfSession} onChange={(e) => setXfSession(e.target.value)} autoComplete="off" />
+            <input type="password" className="control w-full" value={xfSession} onChange={(e) => setXfSession(e.target.value)} autoComplete="off" />
           </label>
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_tfa_trust</span>
-            <input className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" />
+            <input type="password" className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" />
           </label>
         </div>
         <button
