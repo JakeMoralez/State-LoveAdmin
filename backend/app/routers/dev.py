@@ -345,6 +345,8 @@ class ForumCookiesIn(BaseModel):
     xf_user: str = ""
     xf_session: str = ""
     xf_tfa_trust: str = ""
+    xf_csrf: str = ""
+    l7_clearance: str = Field(default="", alias="__Host-l7_clearance")
     user_agent: str = Field(default="", max_length=1024)
 
 
@@ -352,7 +354,7 @@ class ForumCookiesIn(BaseModel):
 async def post_dev_forum_cookies(body: ForumCookiesIn, user: dict = Depends(require_dev_user)):
     payload = {
         k: v.strip()
-        for k, v in body.model_dump().items()
+        for k, v in body.model_dump(by_alias=True).items()
         if k == "user_agent" or (v and str(v).strip())
     }
     if "\r" in payload["user_agent"] or "\n" in payload["user_agent"]:

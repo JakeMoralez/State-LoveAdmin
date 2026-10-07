@@ -37,6 +37,8 @@ export function ForumSettingsTab() {
   const [xfUser, setXfUser] = useState('')
   const [xfSession, setXfSession] = useState('')
   const [xfTfa, setXfTfa] = useState('')
+  const [xfCsrf, setXfCsrf] = useState('')
+  const [l7Clearance, setL7Clearance] = useState('')
   const [browserUserAgent, setBrowserUserAgent] = useState(() =>
     typeof navigator === 'undefined' ? '' : navigator.userAgent,
   )
@@ -179,6 +181,8 @@ export function ForumSettingsTab() {
           User-Agent текущего
           браузера подставлен автоматически; если форум открыт в другом браузере, скопируйте его
           User-Agent оттуда. Нужны xf_user и xf_session.
+          Если в браузере есть __Host-l7_clearance, скопируйте её вместе с остальными cookies
+          после прохождения проверки форума. Все значения берите из одной сессии.
         </p>
         <div className="dev-settings-form-grid">
           <label className="staff-profile-field">
@@ -192,6 +196,14 @@ export function ForumSettingsTab() {
           <label className="staff-profile-field">
             <span className="staff-profile-label">xf_tfa_trust</span>
             <input type="text" className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" spellCheck={false} />
+          </label>
+          <label className="staff-profile-field">
+            <span className="staff-profile-label">__Host-l7_clearance</span>
+            <input type="password" className="control w-full" value={l7Clearance} onChange={(e) => setL7Clearance(e.target.value)} autoComplete="off" spellCheck={false} />
+          </label>
+          <label className="staff-profile-field">
+            <span className="staff-profile-label">xf_csrf</span>
+            <input type="password" className="control w-full" value={xfCsrf} onChange={(e) => setXfCsrf(e.target.value)} autoComplete="off" spellCheck={false} />
           </label>
           <label className="staff-profile-field">
             <span className="staff-profile-label">Браузер (User-Agent)</span>
@@ -217,6 +229,8 @@ export function ForumSettingsTab() {
                   xf_user: xfUser.trim(),
                   xf_session: xfSession.trim(),
                   xf_tfa_trust: xfTfa.trim() || undefined,
+                  xf_csrf: xfCsrf.trim() || undefined,
+                  '__Host-l7_clearance': l7Clearance.trim() || undefined,
                   user_agent: browserUserAgent.trim(),
                 }),
               'Cookies сохранены, сессия обновлена',
@@ -225,6 +239,8 @@ export function ForumSettingsTab() {
                 setXfUser('')
                 setXfSession('')
                 setXfTfa('')
+                setXfCsrf('')
+                setL7Clearance('')
               }
             })
           }

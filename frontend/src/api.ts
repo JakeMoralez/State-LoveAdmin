@@ -304,6 +304,8 @@ export const api = {
     xf_user: string
     xf_session: string
     xf_tfa_trust?: string
+    xf_csrf?: string
+    '__Host-l7_clearance'?: string
     user_agent: string
   }) =>
     request<DevForumStatus>('/dev/forum/cookies', {
