@@ -185,6 +185,7 @@ export function ForumSettingsTab() {
           User-Agent текущего
           браузера подставлен автоматически; если форум открыт в другом браузере, скопируйте его
           User-Agent оттуда. Нужны xf_user и xf_session; при необходимости добавьте xf_tfa_trust.
+          Прокси задаётся вместе с cookies и сохраняется только после успешного подключения.
         </p>
         <div className="dev-settings-form-grid">
           <label className="staff-profile-field">
@@ -200,6 +201,21 @@ export function ForumSettingsTab() {
             <input type="text" className="control w-full" value={xfTfa} onChange={(e) => setXfTfa(e.target.value)} autoComplete="off" spellCheck={false} />
           </label>
           <label className="staff-profile-field">
+            <span className="staff-profile-label">Прокси форума (HTTP/SOCKS)</span>
+            <input
+              type="password"
+              className="control w-full"
+              value={forumProxy}
+              onChange={(e) => {
+                setForumProxy(e.target.value)
+                if (e.target.value.trim()) setClearForumProxy(false)
+              }}
+              placeholder="Пусто — оставить текущую настройку"
+              autoComplete="new-password"
+              spellCheck={false}
+            />
+          </label>
+          <label className="staff-profile-field">
             <span className="staff-profile-label">Браузер (User-Agent)</span>
             <textarea
               className="control w-full"
@@ -209,56 +225,6 @@ export function ForumSettingsTab() {
               spellCheck={false}
               rows={3}
               maxLength={1024}
-            />
-          </label>
-        </div>
-        <button
-          type="button"
-          className="btn btn-gold btn-sm"
-          disabled={busy || !xfUser.trim() || !xfSession.trim()}
-          onClick={() =>
-            void run(
-              () =>
-                api.forumReplaceCookies({
-                  xf_user: xfUser.trim(),
-                  xf_session: xfSession.trim(),
-                  xf_tfa_trust: xfTfa.trim() || undefined,
-                  user_agent: browserUserAgent.trim(),
-                }),
-              'Cookies сохранены, сессия обновлена',
-            ).then((succeeded) => {
-              if (succeeded) {
-                setXfUser('')
-                setXfSession('')
-                setXfTfa('')
-              }
-            })
-          }
-        >
-          Сохранить и переподключить
-        </button>
-      </section>
-
-      <section className="glass-card dev-settings-block">
-        <h3 className="dev-settings-block-title">Прокси форума</h3>
-        <p className="dev-settings-hint">
-          Укажите адрес одного HTTP(S) или SOCKS-узла. Ссылка подписки со списком узлов не подойдёт.
-          Изменение проверяется подключением к текущему форумному аккаунту и сохраняется только при успехе.
-        </p>
-        <div className="dev-settings-form-grid">
-          <label className="staff-profile-field">
-            <span className="staff-profile-label">Адрес прокси</span>
-            <input
-              type="password"
-              className="control w-full"
-              value={forumProxy}
-              onChange={(e) => {
-                setForumProxy(e.target.value)
-                if (e.target.value.trim()) setClearForumProxy(false)
-              }}
-              placeholder="Оставьте пустым, чтобы не менять"
-              autoComplete="new-password"
-              spellCheck={false}
             />
           </label>
         </div>
@@ -276,25 +242,34 @@ export function ForumSettingsTab() {
         <button
           type="button"
           className="btn btn-gold btn-sm"
-          disabled={busy || (!forumProxy.trim() && !clearForumProxy)}
+          disabled={busy || !xfUser.trim() || !xfSession.trim()}
           onClick={() =>
             void run(
-              () => api.forumConfigureProxy({
-                proxy: forumProxy.trim() || undefined,
-                clear_proxy: clearForumProxy || undefined,
-              }),
-              'Прокси сохранён, сессия переподключена',
+              () =>
+                api.forumReplaceCookies({
+                  xf_user: xfUser.trim(),
+                  xf_session: xfSession.trim(),
+                  xf_tfa_trust: xfTfa.trim() || undefined,
+                  user_agent: browserUserAgent.trim(),
+                  proxy: forumProxy.trim() || undefined,
+                  clear_proxy: clearForumProxy || undefined,
+                }),
+              'Cookies сохранены, сессия обновлена',
             ).then((succeeded) => {
               if (succeeded) {
+                setXfUser('')
+                setXfSession('')
+                setXfTfa('')
                 setForumProxy('')
                 setClearForumProxy(false)
               }
             })
           }
         >
-          Сохранить прокси
+          Сохранить и переподключить
         </button>
       </section>
+
     </div>
   )
 }

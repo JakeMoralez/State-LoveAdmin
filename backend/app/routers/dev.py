@@ -36,7 +36,6 @@ from app.services.sled_client import (
     fetch_command_access,
     fetch_dev_chats,
     forum_reconnect,
-    forum_configure_proxy,
     forum_replace_cookies,
     forum_status,
     forum_sync_judges,
@@ -347,6 +346,8 @@ class ForumCookiesIn(BaseModel):
     xf_session: str = ""
     xf_tfa_trust: str = ""
     user_agent: str = Field(default="", max_length=1024)
+    proxy: str | None = Field(default=None, max_length=2048)
+    clear_proxy: bool = False
 
 
 @router.post("/forum/cookies")
@@ -356,10 +357,16 @@ async def post_dev_forum_cookies(body: ForumCookiesIn, user: dict = Depends(requ
         for k, v in body.model_dump(by_alias=True).items()
         if isinstance(v, str) and (k == "user_agent" or v.strip())
     }
+    if body.clear_proxy:
+        payload["clear_proxy"] = True
+    if payload.get("proxy") and body.clear_proxy:
+        raise HTTPException(status_code=400, detail="Нельзя одновременно задать и отключить прокси")
     if "\r" in payload["user_agent"] or "\n" in payload["user_agent"]:
         raise HTTPException(status_code=400, detail="Некорректный User-Agent браузера")
     if not payload.get("xf_user") or not payload.get("xf_session"):
         raise HTTPException(status_code=400, detail="Нужны xf_user и xf_session")
+    if "\r" in payload.get("proxy", "") or "\n" in payload.get("proxy", ""):
+        raise HTTPException(status_code=400, detail="Некорректный адрес прокси")
     data, error = await forum_replace_cookies(payload)
     if error:
         raise HTTPException(status_code=502, detail=error)
@@ -369,33 +376,6 @@ async def post_dev_forum_cookies(body: ForumCookiesIn, user: dict = Depends(requ
         "forum",
         "cookies",
         {"keys": list(payload.keys()), "ok": data.get("ok")},
-    )
-    return data
-
-
-class ForumProxyIn(BaseModel):
-    proxy: str | None = Field(default=None, max_length=2048)
-    clear_proxy: bool = False
-
-
-@router.post("/forum/proxy")
-async def post_dev_forum_proxy(body: ForumProxyIn, user: dict = Depends(require_dev_user)):
-    proxy = body.proxy.strip() if body.proxy else None
-    if proxy and ("\r" in proxy or "\n" in proxy):
-        raise HTTPException(status_code=400, detail="Некорректный адрес прокси")
-    if proxy and body.clear_proxy:
-        raise HTTPException(status_code=400, detail="Нельзя одновременно задать и отключить прокси")
-    if not proxy and not body.clear_proxy:
-        raise HTTPException(status_code=400, detail="Укажите адрес прокси или выберите его отключение")
-    data, error = await forum_configure_proxy({"proxy": proxy, "clear_proxy": body.clear_proxy})
-    if error:
-        raise HTTPException(status_code=502, detail=error)
-    await log_audit(
-        user["vk_id"],
-        "dev_forum_proxy",
-        "forum",
-        "proxy",
-        {"configured": bool((data.get("cookies") or {}).get("proxy_configured")), "ok": data.get("ok")},
     )
     return data
 

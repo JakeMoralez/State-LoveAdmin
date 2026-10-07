@@ -194,10 +194,6 @@ async def forum_replace_cookies(cookies: dict) -> tuple[dict | None, str | None]
     return await _bot_request("POST", "/internal/forum/cookies", json_body=cookies, timeout=45.0)
 
 
-async def forum_configure_proxy(proxy: dict) -> tuple[dict | None, str | None]:
-    return await _bot_request("POST", "/internal/forum/proxy", json_body=proxy, timeout=45.0)
-
-
 async def forum_sync_judges(server_id: int) -> tuple[dict | None, str | None]:
     return await _bot_request(
         "POST",
