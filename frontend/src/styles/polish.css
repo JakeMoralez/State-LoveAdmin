@@ -1233,7 +1233,7 @@
   }
 }
 
-/* React Bits ShapeWaves (MIT + Commons Clause, license alongside the source). */
+/* React Bits backgrounds (MIT + Commons Clause, license alongside the source). */
 .login-shell { background:var(--sl-bg); isolation:isolate; }
 .login-backdrop { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; background:var(--sl-bg); }
 .login-shell > .login-card {
@@ -1246,3 +1246,5 @@
 }
 
 .login-backdrop .shape-waves { opacity:.36; }
+.login-backdrop .aero-shards { opacity:.9; }
+.login-backdrop .ghost-fibers-container { opacity:.9; }

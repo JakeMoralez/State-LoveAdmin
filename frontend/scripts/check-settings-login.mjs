@@ -4,26 +4,26 @@ import assert from 'node:assert/strict'
 const require = createRequire(import.meta.url)
 const runtime = process.env.PLAYWRIGHT_PATH || 'C:/Users/aAdmin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'
 const { chromium } = require(runtime), { expect } = require(`${runtime}/test`)
-const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-webgpu'] })
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] })
 const context = await browser.newContext({ baseURL: 'http://127.0.0.1:5173' })
 const output = resolve('../data/interface-check')
 try {
   const page = await context.newPage(), errors = [], gpuMessages = []
   page.on('pageerror', e => errors.push(e.message))
-  page.on('console', message => { if (message.text().startsWith('ShapeWaves:')) gpuMessages.push(message.text()) })
+  page.on('console', message => { if (message.text().startsWith('GhostFibers:')) gpuMessages.push(message.text()) })
   await page.goto('/login')
   await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeVisible()
   await expect(page.locator('.login-backdrop')).toHaveCSS('background-color', 'rgb(6, 6, 8)')
   await page.getByRole('textbox', { name: 'VK ID', exact: true }).fill('123456789')
-  await page.waitForFunction(() => document.querySelector('.shape-waves')?.getAttribute('data-ready') === 'true' || document.querySelector('.login-backdrop')?.getAttribute('data-background-state') === 'fallback', { timeout: 20000 })
-  await page.waitForTimeout(2500)
+  await page.waitForFunction(() => document.querySelector('.ghost-fibers-container')?.getAttribute('data-ready') === 'true' || document.querySelector('.login-backdrop')?.getAttribute('data-background-state') === 'fallback', { timeout: 20000 })
+  await page.waitForTimeout(3100)
   const backgroundState = await page.locator('.login-backdrop').getAttribute('data-background-state')
   for (const width of [1440, 768, 390]) {
     await page.setViewportSize({ width, height: 1000 })
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1))
-    await page.screenshot({ path: resolve(output, `login-waves-${width}.png`), fullPage: true })
+    await page.screenshot({ path: resolve(output, `login-fibers-${width}.png`), fullPage: true })
   }
-  console.log(`Login gold/graphite background, form interaction and 3 widths passed; WebGPU=${backgroundState}; ${gpuMessages.join('; ')}`)
+  console.log(`Login gold/graphite background, form interaction and 3 widths passed; WebGL=${backgroundState}; ${gpuMessages.join('; ')}`)
   assert.ok((await context.request.post('/api/auth/dev-login', { data: { access_level: 11, spheres: ['server'] } })).ok())
   const portal = await (await context.request.get('/api/dev/portal')).json()
   const catalog = await (await context.request.get('/api/dev/catalog')).json()

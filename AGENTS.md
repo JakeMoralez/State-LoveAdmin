@@ -292,8 +292,8 @@ npm run dev                                          # http://localhost:5173 (pr
   Посещённые панели остаются смонтированными; `SettingsSection` сообщает dirty/busy.
   Общая кнопка обновляет текущую панель. Секретные поля хранятся только в памяти страницы.
   Настройки `/dev/portal` не пингуют бота.
-- Login ShapeWaves — исходник React Bits с MIT + Commons Clause, лицензия рядом с файлом.
-  Фон лениво загружается, WebGPU, с reduced motion / hidden pause и графитовым fallback.
+- Login GhostFibers — исходник React Bits с MIT + Commons Clause, лицензия рядом с файлом.
+  Фон лениво загружается, WebGL2, с reduced motion / hidden pause и графитовым fallback.
   Палитра совпадает с сайтом, декоративный canvas не перехватывает ввод.
 - Новые проверки: `test_case_inventory.py`, `test_forum19_compat.py`,
   `frontend/scripts/check-case-inventory.mjs`, `check-settings-login.mjs`.

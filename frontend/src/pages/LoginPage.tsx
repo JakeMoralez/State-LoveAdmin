@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLevels'
 import { Alert } from '../components/ui/Alert'
 
-const ShapeWaves = lazy(() => import('../components/backgrounds/ShapeWaves'))
+const GhostFibers = lazy(() => import('../components/backgrounds/GhostFibers'))
 
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
@@ -164,7 +164,43 @@ export function LoginPage() {
   return (
     <div className="login-shell">
       <div className="login-backdrop" data-background-state={backgroundFailed ? 'fallback' : 'active'} aria-hidden="true">
-        {!backgroundFailed && <Suspense fallback={null}><ShapeWaves text="" fontFamily='Geist, "Geist Sans", system-ui, sans-serif' fontWeight={500} textSize={0.6} shapes="mixed" cellSize={10} dotSize={0.75} color="#c9a227" hoverColor="#e8d48c" backgroundColor="#060608" speed={1} scale={1} contrast={1} brightness={0.4} flow={0} direction={0} fade={0.25} interactive splashRadius={40} splashStrength={0.4} glow={0.22} intro introDuration={1.6} paused={false} onError={error => { setBackgroundFailed(true); if (import.meta.env.DEV) console.debug('ShapeWaves:', error.message) }} /></Suspense>}
+        {!backgroundFailed && <Suspense fallback={null}><GhostFibers
+          glowColor="#c9a227"
+          lineColor="#f0dfae"
+          secondaryColor="#8c702f"
+          layers={3}
+          twist={1.2}
+          threads={72}
+          fiberStyle="dots"
+          depthOfField={0.85}
+          hoverEffect="focus"
+          intro
+          mouseInteraction
+          gradient="depth"
+          waves={1}
+          volume={0.7}
+          spread={1}
+          scale={1}
+          rotation={18}
+          perspective={0.65}
+          density={1}
+          thickness={1}
+          tips={0}
+          foldGlow={1}
+          speed={0.5}
+          flow={0.4}
+          rollSpeed={0.15}
+          focusDepth={0}
+          particles={0.5}
+          sparkle={0.5}
+          glow={0.8}
+          brightness={1}
+          vignette={0.3}
+          grain={0.06}
+          mouseStrength={1}
+          pulseOnClick
+          lightMode={false}
+          onRendererError={error => { setBackgroundFailed(true); if (import.meta.env.DEV) console.debug('GhostFibers:', error.message) }} /></Suspense>}
       </div>
       <div className="login-vignette" aria-hidden />
       <div className="login-card">
