@@ -217,11 +217,13 @@ async def get_staff(
 
     if unassigned:
         from app.services.staff import collect_peer_members
+        from app.services.appointments import active_appointment_ids
         from app.models.bot import ChatPeerSettings
         peers = await ChatPeerSettings.filter(server_id=server_id, chat_kind__in=["staff", "sled_ca"]).values_list("peer_id", flat=True)
         ids, warning = await collect_peer_members(list(peers))
+        assigned_ids = await active_appointment_ids(server_id)
         rows = []
-        for member_id in ids:
+        for member_id in ids - assigned_ids:
             row = await get_staff_member_profile(server_id, member_id)
             if not row.get("in_registry"):
                 rows.append(row)

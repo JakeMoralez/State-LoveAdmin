@@ -10,6 +10,7 @@ export interface PageAccessRow {
 }
 
 export const PAGE_ACCESS_ROWS: PageAccessRow[] = [
+  { section: 'Форум', page: 'Форумный список', path: '/forum/list', portal: 'ПС (1+)', sphere: '—', actions: 'Формирование и копирование BBCode — 1+; общий шаблон и соответствия — 7+' },
   { section: 'Работа', page: 'Мои кейсы', path: '/cases', portal: 'ПС (1+)', sphere: 'Сервер', actions: 'Собственные экземпляры; выдача и отзыв неоткрытых — 5+; выдача себе разрешена' },
   {
     section: 'Обзор',

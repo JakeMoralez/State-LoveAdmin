@@ -55,6 +55,37 @@ from app.services.staff import (
 router = APIRouter(prefix="/api/dev", tags=["dev"])
 
 
+@router.get("/forum-list-key")
+async def forum_list_key_status(user: dict = Depends(require_ca_user)):
+    if not can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0)):
+        raise HTTPException(403, "Настройка API-ключа доступна разработчику.")
+    from app.services import forum_list_key
+    return await forum_list_key.status()
+
+
+@router.put("/forum-list-key")
+async def forum_list_key_save(request: Request, user: dict = Depends(require_ca_user)):
+    if not can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0)):
+        raise HTTPException(403, "Настройка API-ключа доступна разработчику.")
+    from app.services import forum_list_key
+    # Manual boundary validation avoids framework error responses echoing secret input.
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Передайте API-ключ в поле key.") from None
+    if not isinstance(body, dict) or not isinstance(body.get("key"), str):
+        raise HTTPException(400, "Передайте API-ключ в поле key.")
+    return await forum_list_key.configure(body["key"])
+
+
+@router.delete("/forum-list-key")
+async def forum_list_key_remove(user: dict = Depends(require_ca_user)):
+    if not can_view_dev_panel(user["vk_id"], int(user.get("access_level") or 0)):
+        raise HTTPException(403, "Настройка API-ключа доступна разработчику.")
+    from app.services import forum_list_key
+    return await forum_list_key.configure("", remove=True)
+
+
 class ClientErrorIn(BaseModel):
     level: str = "error"
     message: str = Field(min_length=1, max_length=4000)

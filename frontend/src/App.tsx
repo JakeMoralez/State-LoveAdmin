@@ -7,6 +7,7 @@ import { ChecklistArchivedPage } from './pages/ChecklistArchivedPage'
 import { CongressPage } from './pages/CongressPage'
 import { ForumFormattingPage } from './pages/ForumFormattingPage'
 import { JudgeForumListPage } from './pages/JudgeForumListPage'
+import { ForumListPage } from './pages/ForumListPage'
 import { AccessGuidePage } from './pages/AccessGuidePage'
 import { ActivityLogPage } from './pages/ActivityLogPage'
 import { AssignPage } from './pages/AssignPage'
@@ -68,6 +69,7 @@ function AppRoutes() {
           <Route path="/assign" element={<AssignPage />} />
           <Route path="/activity" element={<ActivityLogPage />} />
           <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
+          <Route path="/forum/list" element={<ForumListPage />} />
           <Route path="/forum/formatting" element={<ForumFormattingPage />} />
           <Route path="/forum/judge-assign" element={<Navigate to="/assign?type=judge" replace />} />
           <Route path="/cases" element={<MyCasesPage />} />

@@ -15,7 +15,7 @@ VIEW_MIN_LEVEL = AccessLevel.SUPERVISOR
 ACTION_GROUP_PREFIXES: dict[str, tuple[str, ...]] = {
     "main": ("staff_", "leader_", "judge_", "congress_", "profile_", "task_", "issuance_"),
     "materials": ("qb_", "knowledge_", "regulation_", "congress_bill_"),
-    "settings": ("dev_", "settings_", "judge_forum_"),
+    "settings": ("dev_", "settings_", "judge_forum_", "forum_list_"),
     "staff": ("staff_", "profile_"),
     "leaders": ("leader_",),
     "justice": ("judge_", "congress_"),
@@ -70,6 +70,8 @@ ACTION_MESSAGES: dict[str, str] = {
     "project_delete": "удалил проект",
     # Форум
     "judge_forum_template_save": "обновил шаблон списка судей",
+    "forum_list_save": "обновил шаблон форумного списка",
+    "forum_list_reset": "сбросил шаблон форумного списка",
     # Кейсы
     "loot_case_create": "создал кейс",
     "loot_case_update": "изменил кейс",

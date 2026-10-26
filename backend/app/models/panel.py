@@ -418,6 +418,35 @@ class PanelCatalog(Model):
         table = "panel_catalog"
 
 
+class ForumListSettings(Model):
+    server_id = fields.IntField(pk=True)
+    template = fields.TextField(default="")
+    mappings = fields.JSONField(default=dict)
+    version = fields.IntField(default=0)
+    updated_by = fields.BigIntField(null=True)
+    updated_at = fields.DatetimeField(auto_now=True)
+
+    class Meta:
+        table = "forum_list_settings"
+
+
+class ForumListSnapshot(Model):
+    server_id = fields.IntField(pk=True)
+    key_fingerprint = fields.CharField(max_length=64, default="")
+    data = fields.JSONField(default=dict)
+    fetched_at = fields.DatetimeField(null=True)
+    external_server_id = fields.IntField(null=True)
+    lease_token = fields.CharField(max_length=36, default="")
+    lease_until = fields.DatetimeField(null=True)
+    refresh_status = fields.CharField(max_length=16, default="idle")
+    error = fields.CharField(max_length=512, default="")
+    error_kind = fields.CharField(max_length=32, default="")
+    retry_at = fields.DatetimeField(null=True)
+
+    class Meta:
+        table = "forum_list_snapshots"
+
+
 class PanelSettings(Model):
     """Key-value runtime settings for the panel (reminders, retention, …)."""
 

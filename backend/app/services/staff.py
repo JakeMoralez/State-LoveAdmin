@@ -590,12 +590,16 @@ async def list_ca_leaders(server_id: int, *, unassigned: bool = False) -> tuple[
     from app.services.dev_catalog import get_tag_spheres
     sphere_map = await get_tag_spheres()
     member_ids, warning, _ = await collect_office_members(server_id)
+    from app.services.appointments import active_appointment_ids
+    assigned_ids = await active_appointment_ids(server_id) if unassigned else set()
     notes = {(n.vk_id, n.server_id): n for n in await StaffNote.filter(server_id=server_id)}
     candidates = set(member_ids)
     candidates.update(int(a.user_id) for a in await UserServerAccess.filter(server_id=server_id).filter(
         Q(is_leader=True) | Q(is_judge=True) | Q(is_congress_speaker=True) | Q(is_congress_vice=True)))
     result = []
     for vk_id in candidates:
+        if unassigned and vk_id in assigned_ids:
+            continue
         row = await _build_office_row(server_id, vk_id, in_chat=vk_id in member_ids, notes=notes, sphere_map=sphere_map)
         if row and (row['in_registry'] if not unassigned else vk_id in member_ids and not row['in_registry']):
             result.append(row)

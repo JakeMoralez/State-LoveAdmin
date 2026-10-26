@@ -297,3 +297,21 @@ npm run dev                                          # http://localhost:5173 (pr
   Палитра совпадает с сайтом, декоративный canvas не перехватывает ввод.
 - Новые проверки: `test_case_inventory.py`, `test_forum19_compat.py`,
   `frontend/scripts/check-case-inventory.mjs`, `check-settings-login.mjs`.
+
+### Форумный список r-arrow
+
+- `/forum/list`: формирование и копирование 1+, общий шаблон и импорт 7+.
+  `services/forum_list*.py`, `routers/forum_list.py`, `ForumListPage.tsx`.
+- `ForumListSettings` / `ForumListSnapshot` — только panel.db; миграция
+  `forum_list_v1` делает backup до создания таблиц. Полный снимок, TTL 5 минут,
+  общая lease, лимит 8 запросов/минуту. Подробности: `docs/forum-list.md`.
+- Ключ: разработчик, «Настройки → Интеграции», write-only через
+  `/api/dev/forum-list-key`; проверка перед атомарной записью серверного `.env`.
+- Пользовательский образец BBCode: `assets/forum_list_default.bbcode` (15 таблиц,
+  76 мест). Явные токены, все организации в каталоге, администрация без выдуманных
+  контактов. Отсутствующий VK дополняется однозначным действующим назначением
+  из местного реестра; данные API приоритетны.
+- `active_appointment_ids` исключает обе разновидности действующего назначения
+  из «Участников без назначения». Участие в беседе не меняет должность.
+- Проверки: `test_forum_list.py`, `test_staff_appointments.py`,
+  `frontend/scripts/check-forum-list.mjs`.

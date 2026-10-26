@@ -136,6 +136,15 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
 }
 
 export const api = {
+  forumList: () => request<ForumListState>('/forum/list'),
+  forumListKeyStatus: () => request<{ configured: boolean; external_server_id: number | null }>('/dev/forum-list-key'),
+  forumListKeySave: (key: string) => request<{ configured: boolean; external_server_id: number | null; notice?: string }>('/dev/forum-list-key', { method: 'PUT', body: JSON.stringify({ key }) }),
+  forumListKeyRemove: () => request<{ configured: boolean; external_server_id: number | null }>('/dev/forum-list-key', { method: 'DELETE' }),
+  forumListRefresh: () => request<ForumListState>('/forum/list/refresh', { method: 'POST', body: '{}' }),
+  forumListSave: (body: { version: number; template?: string; mappings?: Record<string, number>; reset?: boolean }) =>
+    request<ForumListState>('/forum/list/settings', { method: 'PUT', body: JSON.stringify(body) }),
+  forumListRender: (template?: string) => request<ForumListResult>('/forum/list/render', { method: 'POST', body: JSON.stringify(template === undefined ? {} : { template }) }),
+  forumListImport: (template: string, mappings: Record<string, number>) => request<{ template: string; errors: string[]; conversions: { from: string; to: string[] }[] }>('/forum/list/import', { method: 'POST', body: JSON.stringify({ template, mappings }) }),
   authConfig: () => request<AuthConfig>('/auth/config'),
   devLogin: (body: { access_level: number; vk_id?: number; spheres: string[] }) =>
     request<{ ok: boolean; redirect: string }>('/auth/dev-login', {
@@ -1674,4 +1683,21 @@ export interface KnowledgeArticleWrite {
   published?: boolean
   sphere?: string
   min_view_level?: number
+}
+
+
+export interface ForumListResult { rendered: string | null; errors: string[]; warnings: string[] }
+export interface ForumListSettings { template: string; mappings: Record<string, number>; version: number; updated_at: string; updated_by: number | null }
+export interface ForumListCatalog {
+  fractions: { id: number; name: string; fraction_name: string; government: boolean; leader_count: number; deputy_count: number }[]
+  admin: { key: string; name: string; count: number }[]
+  judges_count: number; ministers_count: number
+  person_fields: Record<string, string>; admin_fields: Record<string, string>; fraction_fields: Record<string, string>; meta_fields: Record<string, string>
+  legacy_mappings: Record<string, number>
+}
+export interface ForumListState {
+  configured: boolean; server_id: number; external_server_id: number | null
+  fetched_at: string | null; stale: boolean; refresh_status: 'idle' | 'running' | 'waiting'
+  error: string; error_kind: string; retry_at: string | null
+  settings: ForumListSettings; catalog: ForumListCatalog; result: ForumListResult | null; default_template: string
 }

@@ -37,6 +37,7 @@ from app.routers import (
     dashboard,
     dev,
     forum_judge_list,
+    forum_list,
     internal,
     issuance,
     knowledge,
@@ -77,6 +78,8 @@ async def _ensure_panel_schemas() -> None:
 
     from app.services.case_inventory_migration import prepare_inventory_schema, finish_inventory_schema
     await prepare_inventory_schema()
+    from app.services import forum_list_migration
+    await forum_list_migration.prepare()
 
     # Колонки на существующих таблицах — до generate_schemas (иначе PG падает на индексах).
     await ensure_task_audience_schema()
@@ -88,6 +91,7 @@ async def _ensure_panel_schemas() -> None:
     conn = Tortoise.get_connection("default")
     await generate_schema_for_client(conn, safe=True)
     await finish_inventory_schema()
+    await forum_list_migration.finish()
 
     try:
         from app.services.profile_ids import renumber_profile_ids_if_needed
@@ -167,6 +171,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        from app.services.forum_list import shutdown as shutdown_forum_list
+        await shutdown_forum_list()
         reminder_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await reminder_task
@@ -257,6 +263,7 @@ app.include_router(spheres.router)
 app.include_router(checklist_archived.router)
 app.include_router(question_banks.router)
 app.include_router(forum_judge_list.router)
+app.include_router(forum_list.router)
 app.include_router(assign.router)
 app.include_router(case_inventory.router)
 app.include_router(case_inventory.rewards_router)

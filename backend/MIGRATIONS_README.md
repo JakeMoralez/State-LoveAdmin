@@ -39,3 +39,11 @@ Subsequent starts do not repeat the update. Regression checks:
 The ledger is marked only after successful schema creation. Restarting does not
 repeat the backup. Existing templates/prizes and AZ/virts requests are unchanged.
 See `docs/case-inventory.md` for access rules and regression checks.
+
+## Forum list (`forum_list_v1`)
+
+Startup creates a complete panel DB backup in `data/backups/forum-list/` before
+creating `forum_list_settings` and `forum_list_snapshots`. The migration ledger
+is written only after successful schema creation; subsequent startups skip it.
+The bot schema is not generated or changed. PostgreSQL backups require `pg_dump`.
+See `docs/forum-list.md` for API configuration, caching and verification.

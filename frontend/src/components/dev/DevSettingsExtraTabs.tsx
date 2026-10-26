@@ -1,3 +1,4 @@
+import { ForumListKeySettings } from './ForumListKeySettings'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ListChecks, RefreshCw } from 'lucide-react'
@@ -294,6 +295,10 @@ export function ForumSettingsTab() {
 }
 
 export function IntegrationsSettingsTab() {
+  return <div className="dev-settings-system"><ForumListKeySettings /><IntegrationDiagnostics /></div>
+}
+
+function IntegrationDiagnostics() {
   const [data, setData] = useState<DevIntegrationsInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -348,7 +353,7 @@ export function IntegrationsSettingsTab() {
             </dd>
           </div>
         </dl>
-        <div className="dev-settings-setup"><h4>Как подключить сервисы</h4><p>Для связи с ботом задайте одинаковый SLED_BOT_SECRET с обеих сторон и доступный SLED_INTERNAL_URL в конфигурации панели.</p><p>Discord OAuth требует настроенных client ID, secret и адреса callback. VK service token используется для данных профилей.</p><p>После изменения серверной конфигурации перезапустите соответствующий сервис и повторите проверку. Значения секретов сюда вводить не нужно.</p></div>
+        <div className="dev-settings-setup"><h4>Как подключить сервисы</h4><p>Для связи с ботом задайте одинаковый SLED_BOT_SECRET с обеих сторон и доступный SLED_INTERNAL_URL в конфигурации панели.</p><p>Discord OAuth требует настроенных client ID, secret и адреса callback. VK service token используется для данных профилей.</p><p>Ключ форумного списка настраивается отдельной формой выше. Остальные секреты задаются в серверной конфигурации; после их изменения перезапустите соответствующий сервис и повторите проверку.</p></div>
       </section>
     </div>
   )

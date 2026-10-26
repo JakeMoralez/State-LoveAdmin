@@ -9,6 +9,7 @@ const ROUTE_TITLES: Record<string, string> = {
   '/assign': 'Назначить',
   '/activity': 'Журнал действий',
   '/forum/judge-list': 'Список судей',
+  '/forum/list': 'Форумный список',
   '/forum/formatting': 'Форматирование',
   '/cases': 'Мои кейсы',
   '/issuance': 'Выдачи',

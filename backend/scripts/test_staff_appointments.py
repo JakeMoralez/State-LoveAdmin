@@ -108,6 +108,19 @@ class AppointmentsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(before, await UserServerAccess.all().values())
         self.assertEqual(await StaffNote.all().count(), 0)
 
+    async def test_active_staff_in_leader_chat_is_not_unassigned(self):
+        await UserServerAccess.filter(user_id=200).update(access_level=7, nickname="[ГС ГОС] Ivan_Volkov")
+        before = await UserServerAccess.all().values()
+        self.assertEqual((await staff.list_ca_leaders(30, unassigned=True))[0], [])
+        self.assertEqual((await staff.list_ca_leaders(30))[0], [])
+        self.assertEqual(before, await UserServerAccess.all().values())
+
+    async def test_active_office_is_excluded_from_staff_unassigned(self):
+        from app.services.appointments import active_appointment_ids
+        await UserServerAccess.filter(user_id=200).update(is_leader=True, nickname="[LSPD][9] Ivan_Volkov")
+        self.assertEqual(await active_appointment_ids(30), {100, 200})
+        self.assertEqual(await active_appointment_ids(31), set())
+
     async def test_explicit_nickname_appoints_and_revoke_does_not_resurrect(self):
         await set_nickname(actor=100, vk_id=200, server_id=30, nickname="[LSPD][9] Ivan_Volkov")
         self.assertEqual((await appointment_snapshot(30, 200))["position"], "Заместитель")

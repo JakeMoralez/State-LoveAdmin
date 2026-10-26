@@ -19,11 +19,11 @@ from tortoise.transactions import in_transaction
 KEY = "case_duration_14_seconds_v1"
 
 
-def backup_panel(url: str, directory: Path) -> Path:
+def backup_panel(url: str, directory: Path, *, prefix: str = "before-case-duration") -> Path:
     from app.config import is_sqlite_url, sqlite_file_path
 
     directory.mkdir(parents=True, exist_ok=True)
-    stem = directory / ("before-case-duration-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8])
+    stem = directory / (prefix + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:8])
     if is_sqlite_url(url):
         source = Path(sqlite_file_path(url)).resolve()
         destination = stem.with_suffix(".sqlite3")

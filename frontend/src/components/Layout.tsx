@@ -288,11 +288,17 @@ function LayoutShell() {
                   </div>
                 </div>
               ))}
-              {(user?.access_level ?? 0) >= 6 && (
+              {(user?.access_level ?? 0) >= 1 && (
                 <div className="sidebar-nav-group sidebar-nav-group--spaced sidebar-nav-group--rail-break">
                   <div className="sidebar-nav-category">Форум</div>
                   <div className="sidebar-nav-divider" aria-hidden />
                   <div className="sidebar-nav-items">
+                    <SidebarNavLink
+                      collapsed={sidebarCollapsed}
+                      onNavigate={closeMobile}
+                      item={{ to: '/forum/list', label: 'Форумный список', icon: ClipboardList }}
+                    />
+                    {(user?.access_level ?? 0) >= 6 && <>
                     <SidebarNavLink
                       collapsed={sidebarCollapsed}
                       onNavigate={closeMobile}
@@ -303,6 +309,7 @@ function LayoutShell() {
                       onNavigate={closeMobile}
                       item={{ to: '/forum/formatting', label: 'Форматирование', icon: TextQuote }}
                     />
+                    </>}
                   </div>
                 </div>
               )}

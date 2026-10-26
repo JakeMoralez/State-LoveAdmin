@@ -20,8 +20,11 @@ async def init_db() -> None:
 
     from app.services.case_inventory_migration import prepare_inventory_schema, finish_inventory_schema
     await prepare_inventory_schema()
+    from app.services import forum_list_migration
+    await forum_list_migration.prepare()
     await generate_schema_for_client(Tortoise.get_connection("default"), safe=True)
     await finish_inventory_schema()
+    await forum_list_migration.finish()
 
 
 async def close_db() -> None:

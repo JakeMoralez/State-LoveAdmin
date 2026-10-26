@@ -40,6 +40,13 @@ async def appointment_snapshot(server_id: int, vk_id: int) -> dict:
     }
 
 
+async def active_appointment_ids(server_id: int) -> set[int]:
+    """Both primary appointment kinds, regardless of which chats they joined."""
+    notes = {n.vk_id: n for n in await StaffNote.filter(server_id=server_id)}
+    return {int(a.user_id) for a in await UserServerAccess.filter(server_id=server_id)
+            if a.access_level > 0 or office_is_active(a, notes.get(a.user_id))}
+
+
 async def archive_appointment(server_id: int, vk_id: int, actor: int | None) -> dict:
     snapshot = await appointment_snapshot(server_id, vk_id)
     if snapshot:

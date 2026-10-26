@@ -15,6 +15,7 @@ load_dotenv(BASE_DIR / ".env")
 PANEL_BASE_URL: str = os.getenv("PANEL_BASE_URL", "http://localhost:5173")
 API_HOST: str = os.getenv("API_HOST", "127.0.0.1")
 API_PORT: int = int(os.getenv("API_PORT", "8000"))
+FORUM_LIST_API_KEY: str = os.getenv("FORUM_LIST_API_KEY", "").strip()
 
 BOT_DATABASE_URL: str = os.getenv(
     "BOT_DATABASE_URL",
