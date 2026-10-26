@@ -101,6 +101,20 @@ class UserServerAccess(Model):
         app = "bot"
 
 
+class Chat(Model):
+    """Read-only subset of the bot's chats table for saved conversation names."""
+
+    id = fields.IntField(pk=True)
+    peer_id = fields.BigIntField(unique=True)
+    server_id = fields.IntField()
+    title = fields.CharField(max_length=256, null=True)
+    alias = fields.CharField(max_length=64, null=True)
+
+    class Meta:
+        table = "chats"
+        app = "bot"
+
+
 class RoleChat(Model):
     id = fields.IntField(pk=True)
     role = fields.CharField(max_length=32)

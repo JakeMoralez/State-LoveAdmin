@@ -33,13 +33,32 @@ async def fetch_chat_members(peer_id: int) -> tuple[list[int], str | None]:
             timeout=20.0,
         )
         if resp.status_code != 200:
-            detail = resp.text[:200] if resp.text else resp.status_code
-            return [], f"Бот не вернул список участников ({detail})."
+            if resp.status_code in (401, 403):
+                return [], "Бот отклонил подключение панели. Проверьте совпадение SLED_BOT_SECRET панели и бота."
+            try:
+                detail = resp.json()
+            except ValueError:
+                detail = {}
+            if isinstance(detail, dict) and detail.get("error") == "membership_unavailable":
+                diagnostics = detail.get("diagnostics")
+                attempts = diagnostics.get("attempts", []) if isinstance(diagnostics, dict) else []
+                codes = sorted({row["vk_error_code"] for row in attempts if isinstance(row, dict)
+                                and type(row.get("vk_error_code")) is int and 0 < row["vk_error_code"] < 10000}) if isinstance(attempts, list) else []
+                suffix = f" Код VK: {', '.join(map(str, codes))}." if codes else ""
+                return [], ("VK не предоставил боту список участников беседы. "
+                            "Проверьте, что бот находится в нужной беседе и имеет права администратора. "
+                            "Если настроен VK_USER_TOKEN, проверьте его действительность и доступ аккаунта к беседе."
+                            + suffix)
+            return [], f"Не удалось получить участников беседы: бот вернул HTTP {resp.status_code}."
         data = resp.json()
-        ids = [int(x) for x in data.get("member_ids") or [] if int(x) > 0]
+        if not isinstance(data, dict) or not isinstance(data.get("member_ids"), list):
+            return [], "Бот вернул некорректный список участников беседы."
+        ids = [x for x in data["member_ids"] if type(x) is int and x > 0]
         return ids, None
+    except httpx.TimeoutException:
+        return [], "Бот не успел получить участников беседы. Повторите запрос."
     except Exception as exc:
-        logger.warning("fetch_chat_members peer=%s: %s", peer_id, exc)
+        logger.warning("fetch_chat_members peer=%s: %s", peer_id, type(exc).__name__)
         return [], "Не удалось связаться с ботом (SLED_INTERNAL_URL)."
 
 

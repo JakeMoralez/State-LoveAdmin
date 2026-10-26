@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tortoise import Tortoise
-from app.models.bot import User, UserServerAccess
+from app.models.bot import Chat, ChatPeerSettings, RoleChat, User, UserServerAccess
 from app.models.panel import PanelAuditLog, StaffAppointmentArchive, StaffNote
 from app.services import bot_users, staff
 from app.services.activity_log import list_activity
@@ -43,6 +43,27 @@ class AppointmentsTest(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         self.members.stop()
         await Tortoise.close_connections()
+
+    async def test_profile_conversations_show_saved_titles_and_preserve_status(self):
+        from app.routers.staff import get_profile_chats
+
+        await RoleChat.create(role="leader", server_id=30, peer_id=2_000_000_101)
+        await ChatPeerSettings.create(chat_kind="leader", server_id=30, peer_id=2_000_000_101)
+        await RoleChat.create(role="leader", server_id=30, peer_id=2_000_000_102)
+        await RoleChat.create(role="judge", server_id=30, peer_id=2_000_000_103)
+        await RoleChat.create(role="staff", server_id=30, peer_id=2_000_000_104)
+        await Chat.create(server_id=30, peer_id=2_000_000_101, title="  Руководители | LSPD  ")
+        await Chat.create(server_id=30, peer_id=2_000_000_102, title="", alias="Суды Love")
+        await Chat.create(server_id=31, peer_id=2_000_000_103, title="Чужой сервер")
+        async def members(peers):
+            return ({200}, None) if peers == [2_000_000_101] else (set(), "unavailable")
+        with patch("app.services.staff.collect_peer_members", members):
+            rows = (await get_profile_chats(200, 30, {"vk_id": 100}))["chats"]
+        self.assertEqual(len(rows), 4)
+        self.assertEqual([r["title"] for r in rows], ["Руководители | LSPD", "Суды Love", "Беседа №103", "Беседа №104"])
+        self.assertTrue(rows[0]["present"])
+        self.assertIsNone(rows[1]["present"])
+        self.assertEqual(rows[0]["label"], "Руководители")
 
     async def test_chat_member_is_unassigned_and_reads_do_not_write(self):
         before = await UserServerAccess.all().values()

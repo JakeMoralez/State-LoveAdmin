@@ -186,7 +186,7 @@ export const api = {
     const path = params?.inactive ? '/staff/leaders/inactive' : '/staff/leaders'
     return request<LeadersResponse>(`${path}${s ? `?${s}` : ''}`)
   },
-  profileChats: (vkId: number) => request<{ chats: { peer_id: number; label: string; present: boolean | null }[] }>(`/staff/${vkId}/chats`),
+  profileChats: (vkId: number) => request<{ chats: { peer_id: number; label: string; title?: string; present: boolean | null }[] }>(`/staff/${vkId}/chats`),
   leaderMember: (vkId: number) => request<LeaderMemberDetail>(`/staff/leaders/${vkId}`),
   judges: (params?: { q?: string; inactive?: boolean }) => {
     const q = new URLSearchParams()
