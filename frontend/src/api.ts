@@ -102,7 +102,8 @@ async function request<T>(path: string, init?: RequestInit, retried = false): Pr
       },
       ...init,
     })
-  } catch {
+  } catch (error) {
+    if (init?.signal?.aborted) throw error
     throw new ApiError(0, 'Сервер не ответил. Запустите API или обновите страницу.')
   }
   if (!res.ok) {
@@ -152,10 +153,11 @@ export const api = {
     }),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   dashboard: () => request<DashboardSummary>('/dashboard/summary'),
-  staff: (params?: { q?: string; level?: number }) => {
+  staff: (params?: { unassigned?: boolean; q?: string; level?: number }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
     if (params?.level != null) q.set('level', String(params.level))
+    if (params?.unassigned) q.set('unassigned', 'true')
     const s = q.toString()
     return request<StaffResponse>(`/staff${s ? `?${s}` : ''}`)
   },
@@ -176,94 +178,15 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
-  academyMeta: () => request<AcademyMeta>('/academy/meta'),
-  academySummary: () => request<AcademySummary>('/academy/summary'),
-  academyRoster: (includeLeft?: boolean) =>
-    request<{ members: AcademyCadet[] }>(`/academy/roster${includeLeft ? '?include_left=true' : ''}`),
-  academyMine: () => request<{ members: AcademyCadet[] }>('/academy/mine'),
-  academyMentors: () => request<{ mentors: { vk_id: number; nickname: string }[] }>('/academy/mentors'),
-  academyReserve: () => request<{ members: AcademyCadet[] }>('/academy/reserve'),
-  academyReviews: () => request<{ items: AcademyReviewItem[] }>('/academy/reviews'),
-  academyCadet: (vkId: number) => request<AcademyCadetDetail>(`/academy/cadets/${vkId}`),
-  academyEnroll: (body: AcademyEnrollBody) =>
-    request<AcademyCadet>('/academy/cadets', { method: 'POST', body: JSON.stringify(body) }),
-  academyPatchCadet: (vkId: number, body: AcademyCadetPatch) =>
-    request<AcademyCadet>(`/academy/cadets/${vkId}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  academyGraduate: (vkId: number, body?: { mentor_score?: number | null; comment?: string }) =>
-    request<AcademyCadet>(`/academy/cadets/${vkId}/graduate`, {
-      method: 'POST',
-      body: JSON.stringify({
-        mentor_score: body?.mentor_score ?? null,
-        comment: body?.comment ?? '',
-      }),
-    }),
-  academyComment: (vkId: number, body: string) =>
-    request<{ ok: boolean }>(`/academy/cadets/${vkId}/comments`, {
-      method: 'POST',
-      body: JSON.stringify({ body }),
-    }),
-  academyWarning: (vkId: number, body: string) =>
-    request<{ ok: boolean }>(`/academy/cadets/${vkId}/warnings`, {
-      method: 'POST',
-      body: JSON.stringify({ body }),
-    }),
-  academyUploadMaterial: async (file: File) => {
-    const form = new FormData()
-    form.append('file', file)
-    const res = await fetch(`${API}/academy/materials/upload`, {
-      method: 'POST',
-      credentials: 'include',
-      body: form,
-    })
-    if (!res.ok) {
-      let detail = res.statusText
-      try {
-        const body = await res.json()
-        detail = formatApiDetail(body.detail) || detail
-      } catch {
-        /* ignore */
-      }
-      throw new ApiError(res.status, detail)
-    }
-    return res.json() as Promise<{ url: string; filename: string; size: number }>
-  },
-  academyTemplates: () => request<{ templates: AcademyTemplate[] }>('/academy/templates'),
-  academyCreateTemplate: (body: AcademyTemplateBody) =>
-    request<AcademyTemplate>('/academy/templates', { method: 'POST', body: JSON.stringify(body) }),
-  academyUpdateTemplate: (id: number, body: AcademyTemplateBody) =>
-    request<AcademyTemplate>(`/academy/templates/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  academyAssignments: () => request<{ assignments: AcademyAssignment[] }>('/academy/assignments'),
-  academyCreateAssignment: (body: AcademyAssignmentBody) =>
-    request<AcademyAssignment>('/academy/assignments', { method: 'POST', body: JSON.stringify(body) }),
-  academySubmitReport: (assignmentId: number, body: { body?: string; proof_urls?: string[] }) =>
-    request<AcademyReport>(`/academy/assignments/${assignmentId}/submit`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-  academyReviewReport: (
-    assignmentId: number,
-    vkId: number,
-    body: { action: string; score?: number; comment?: string },
-  ) =>
-    request<AcademyReport>(`/academy/assignments/${assignmentId}/review/${vkId}`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
-  academySessions: () => request<{ sessions: AcademySession[] }>('/academy/sessions'),
-  academyCreateSession: (body: AcademySessionBody) =>
-    request<AcademySession>('/academy/sessions', { method: 'POST', body: JSON.stringify(body) }),
-  academySetAttendance: (sessionId: number, marks: Record<number, string>) =>
-    request<{ ok: boolean }>(`/academy/sessions/${sessionId}/attendance`, {
-      method: 'PUT',
-      body: JSON.stringify({ marks }),
-    }),
-  leaders: (params?: { q?: string; inactive?: boolean }) => {
+  leaders: (params?: { q?: string; inactive?: boolean; unassigned?: boolean }) => {
     const q = new URLSearchParams()
     if (params?.q) q.set('q', params.q)
+    if (params?.unassigned) q.set('unassigned', 'true')
     const s = q.toString()
     const path = params?.inactive ? '/staff/leaders/inactive' : '/staff/leaders'
     return request<LeadersResponse>(`${path}${s ? `?${s}` : ''}`)
   },
+  profileChats: (vkId: number) => request<{ chats: { peer_id: number; label: string; present: boolean | null }[] }>(`/staff/${vkId}/chats`),
   leaderMember: (vkId: number) => request<LeaderMemberDetail>(`/staff/leaders/${vkId}`),
   judges: (params?: { q?: string; inactive?: boolean }) => {
     const q = new URLSearchParams()
@@ -346,11 +269,6 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ discord_id }),
     }),
-  projects: (spheres?: string[]) =>
-    request<{ projects: Project[]; permissions?: { can_create: boolean } }>(withSpheres('/projects', spheres)),
-  project: (id: number) => request<ProjectDetail>(`/projects/${id}`),
-  createProject: (data: { title: string; description?: string }, sphere?: string) =>
-    request<Project>(withSphere('/projects', sphere), { method: 'POST', body: JSON.stringify(data) }),
   issuance: (kind: IssuanceKind) =>
     request<IssuanceListResponse>(`/issuance?kind=${encodeURIComponent(kind)}`),
   createIssuance: (body: IssuanceBody) =>
@@ -376,7 +294,7 @@ export const api = {
     q?: string
     include_drafts?: boolean
     spheres?: string[]
-  }) => {
+  }, signal?: AbortSignal) => {
     const q = new URLSearchParams()
     if (params?.category) q.set('category', params.category)
     if (params?.q) q.set('q', params.q)
@@ -389,7 +307,7 @@ export const api = {
       articles: KnowledgeArticleListItem[]
       categories: { id: string; label: string }[]
       permissions: KnowledgePermissions
-    }>(`/knowledge${qs ? `?${qs}` : ''}`)
+    }>(`/knowledge${qs ? `?${qs}` : ''}`, { signal })
   },
   knowledgeArticle: (id: number) =>
     request<KnowledgeArticleDetail>(`/knowledge/${id}`),
@@ -405,7 +323,6 @@ export const api = {
   tasks: (params?: {
     view?: string
     mine?: boolean
-    project_id?: number
     assignee_vk_id?: number
     priority?: string
     status?: string
@@ -416,7 +333,6 @@ export const api = {
     const q = new URLSearchParams()
     if (params?.view) q.set('view', params.view)
     if (params?.mine) q.set('mine', 'true')
-    if (params?.project_id != null) q.set('project_id', String(params.project_id))
     if (params?.assignee_vk_id != null) q.set('assignee_vk_id', String(params.assignee_vk_id))
     if (params?.priority) q.set('priority', params.priority)
     if (params?.status) q.set('status', params.status)
@@ -625,6 +541,14 @@ export const api = {
   },
   clearDevErrors: () => request<{ ok: boolean; deleted: number }>('/dev/errors', { method: 'DELETE' }),
   devCases: () => request<{ cases: LootCase[] }>('/dev/cases'),
+  caseInventory: (allGrants = false, offset = 0, status?: string) => request<{ items: CaseGrant[]; total: number; can_grant: boolean; available_count: number }>(`/cases?all_grants=${allGrants}&offset=${offset}${status ? `&status=${status}` : ''}`),
+  caseTemplates: () => request<{ cases: LootCase[] }>('/cases/templates'),
+  grantCase: (body: { case_id: number; recipient_vk_id: number; request_key: string }) => request<CaseGrant>('/cases/grants', { method: 'POST', body: JSON.stringify(body) }),
+  caseGrant: (id: number) => request<CaseGrant>(`/cases/grants/${id}`),
+  openCaseGrant: (id: number) => request<LootCaseSpinResult>(`/cases/grants/${id}/open`, { method: 'POST' }),
+  revokeCaseGrant: (id: number) => request<CaseGrant>(`/cases/grants/${id}/revoke`, { method: 'POST' }),
+  caseRewards: (offset = 0) => request<{ items: CaseReward[]; total: number }>(`/issuance/cases?offset=${offset}`),
+  reviewCaseReward: (id: number, action: 'issue' | 'reject' | 'unissue' | 'unreject') => request<CaseReward>(`/issuance/cases/${id}/${action}`, { method: 'POST' }),
   devCase: (id: number) => request<LootCaseDetail>(`/dev/cases/${id}`),
   createDevCase: (body: LootCaseCreateBody) =>
     request<LootCaseDetail>('/dev/cases', { method: 'POST', body: JSON.stringify(body) }),
@@ -713,6 +637,7 @@ export interface AuthConfig {
 }
 
 export interface UserProfile {
+  additional_roles?: string[]
   vk_id: number
   public_id?: string
   nickname: string | null
@@ -782,12 +707,12 @@ export interface DevErrorListResponse {
 export interface DashboardSummary {
   my_open_tasks: number
   overdue_tasks: number
-  active_projects: number
   staff_count: number
   recent_tasks: { id: number; title: string; status: string; updated_at: string }[]
 }
 
 export interface StaffMember {
+  additional_roles?: string[]
   vk_id: number
   public_id?: string
   nickname: string
@@ -813,8 +738,6 @@ export interface StaffMember {
   // Senior-following fields
   is_senior?: boolean
   senior_spheres?: string[]
-  is_academy?: boolean
-  academy?: StaffAcademyBrief | null
   /** false = карточка открыта, но человека нет в реестре следящих */
   in_registry?: boolean
 }
@@ -845,12 +768,15 @@ export interface StaffAssignBody {
 }
 
 export interface StaffMemberDetail extends StaffMember {
+  current_assignment?: { kind?: string; position?: string; org_tag?: string }
+  appointment_history?: { id: number; kind: string; position: string; org_tag?: string; granted_at?: string; closed_at: string }[]
   server_id?: number
   panel_role?: string
   permissions: StaffMemberPermissions
 }
 
 export interface StaffMemberUpdateBody {
+  reason?: string
   nickname?: string | null
   nickname_tag?: string | null
   access_level?: number
@@ -880,6 +806,8 @@ export interface StaffResponse {
 }
 
 export interface LeaderMember {
+  granted_at?: string | null
+  promoted_at?: string | null
   vk_id: number
   public_id?: string
   nickname: string
@@ -919,6 +847,7 @@ export interface LeaderMemberDetail extends LeaderMember {
 }
 
 export interface LeaderMemberUpdateBody {
+  reason?: string
   nickname?: string | null
   position?: string | null
   note?: string | null
@@ -959,20 +888,6 @@ export interface DevLeadershipResponse {
   members: LeadershipCandidate[]
 }
 
-export interface Project {
-  id: number
-  title: string
-  description: string
-  status: string
-  owner_vk_id: number
-  sphere?: string
-  task_count?: number
-}
-
-export interface ProjectDetail extends Project {
-  tasks: { id: number; title: string; status: string; priority: string }[]
-}
-
 export interface Task {
   id?: number
   title: string
@@ -984,8 +899,6 @@ export interface Task {
   assignee_vk_ids?: number[]
   assignee_names?: string[]
   reporter_vk_id?: number
-  project_id?: number | null
-  project_title?: string | null
   sphere?: string
   audience?: string | null
   audience_label?: string | null
@@ -1011,7 +924,6 @@ export interface TaskRecurrence {
   priority?: string
   task_type?: string
   labels?: TaskLabel[]
-  project_id?: number | null
   server_id?: number
   sphere: string
   audience?: string | null
@@ -1039,7 +951,6 @@ export interface TaskRecurrenceCreate {
   priority?: string
   task_type?: string
   labels?: TaskLabel[]
-  project_id?: number | null
   audience?: string | null
   assignee_mode?: string
   assignee_vk_ids?: number[]
@@ -1407,12 +1318,15 @@ export interface DevPortalInfo {
 }
 
 export interface DevForumStatus {
+  library?: { version: string | null; revision: string | null }
+  queue_policy?: { interval_seconds: number; max_requests: number; window_seconds: number } | null
+  last_check?: { checked_at: string; operation: string; duration_ms: number; http_status: number | null; path: string | null; http_duration_ms: number | null; error_kind: string | null; ok: boolean } | null
   configured: boolean
   connected: boolean
   logged_in: boolean
   username?: string | null
   error?: string | null
-  error_kind?: 'authentication' | 'connection' | 'storage' | 'validation' | 'dependency' | null
+  error_kind?: 'authentication' | 'connection' | 'storage' | 'validation' | 'dependency' | 'timeout' | null
   applied?: boolean | null
   ok?: boolean
   cookies?: {
@@ -1504,6 +1418,7 @@ export interface DevChatUpdate {
 }
 
 export interface AssignBody {
+  reason?: string
   role_type: AssignRoleType
   vk_id: string
   discord_id?: string
@@ -1532,6 +1447,9 @@ export interface AssignResult {
 }
 
 export interface ActivityLogItem {
+  actor_role?: string
+  sentence_verb?: string
+  sentence_tail?: string
   id: number
   action: string
   action_label: string
@@ -1608,281 +1526,25 @@ export interface LootCasePrizeBody {
   rarity_label?: string
 }
 
+export interface CaseReward {
+  id: number; grant_id: number; recipient_vk_id: number; recipient_name: string
+  case_title: string; prize: LootCasePrize; status: 'pending' | 'issued' | 'rejected'
+  created_at: string; reviewed_at: string | null; reviewed_by_vk_id: number | null; reviewed_by_name: string | null
+  history: { action: string; from: string; to: string; actor_vk_id: number; actor_name?: string; at: string }[]; can_review: boolean
+}
+export interface CaseGrant {
+  id: number; case_id: number; recipient_vk_id: number; recipient_name: string
+  granted_by_vk_id: number; granted_by_name: string; snapshot: LootCaseDetail
+  status: 'available' | 'opened' | 'revoked'; created_at: string; opened_at: string | null; revoked_at: string | null
+  can_open: boolean; can_revoke: boolean; reward: CaseReward | null
+}
 export interface LootCaseSpinResult {
+  reward_id?: number
+  already_opened?: boolean
   spin_token: string
   spin_duration_ms: number
   prize: LootCasePrize
   prizes: LootCasePrize[]
-}
-
-export interface AcademyLabel {
-  value: string
-  label: string
-}
-
-export interface AcademyMeta {
-  directions: AcademyLabel[]
-  stages: AcademyLabel[]
-  statuses: AcademyLabel[]
-  recommendations: AcademyLabel[]
-  categories: AcademyLabel[]
-  reviewer_kinds: AcademyLabel[]
-  proof_kinds: AcademyLabel[]
-  events: Record<string, string>
-  report_statuses?: AcademyLabel[]
-}
-
-export interface AcademySummary {
-  cadets: number
-  mentors: number
-  ready_for_attestation: number
-  graduates_month: number
-  pending_reviews: number
-  is_lead: boolean
-  is_mentor: boolean
-  is_cadet: boolean
-  can_enroll: boolean
-}
-
-export interface StaffAcademyBrief {
-  id: number
-  direction: string
-  stage: string
-  status: string
-  display_status: string
-  mentor_vk_id: number | null
-  enrolled_at: string | null
-  expected_end_at: string | null
-  recommendation: string
-}
-
-export interface AcademyMetrics {
-  assignments_done: number
-  assignments_total: number
-  required_done: number
-  required_total: number
-  average_score: number | null
-  overdue: number
-  practical_checks: number
-  errors: number
-  warnings: number
-  activity: number | null
-  rating: number
-  progress: number
-  stage_ready: boolean
-  stage_required_done: number
-  stage_required_total: number
-  sessions_total: number
-  sessions_present: number
-  sessions_absent: number
-  attendance_pct: number | null
-}
-
-export interface AcademyCadet {
-  id: number
-  vk_id: number
-  nickname: string
-  avatar_url?: string | null
-  direction: string
-  direction_label: string
-  stage: string
-  stage_label: string
-  status: string
-  display_status: string
-  mentor_vk_id: number | null
-  mentor_name: string | null
-  enrolled_at: string | null
-  enrolled_by: number | null
-  expected_end_at: string | null
-  left_at: string | null
-  attestation_theory: number | null
-  attestation_practice: number | null
-  attestation_period: number | null
-  attestation_mentor: number | null
-  attestation_total: number | null
-  recommendation: string
-  recommendation_label: string
-  points_adjust: number
-  note: string
-  metrics: AcademyMetrics | null
-  pending_reviews?: number
-}
-
-export interface AcademyEvent {
-  id: number
-  action: string
-  actor_vk_id: number
-  actor_name: string
-  detail: Record<string, unknown> | null
-  created_at: string | null
-}
-
-export interface AcademyCadetDetail extends AcademyCadet {
-  events: AcademyEvent[]
-  warnings: { id: number; author_vk_id: number; body: string; created_at: string | null }[]
-  attestation_suggest: { theory: number; practice: number; period: number }
-  can_manage: boolean
-  is_self: boolean
-  assignments: AcademyAssignment[]
-}
-
-export interface AcademyEnrollBody {
-  vk_id: number
-  direction?: string
-  stage?: string
-  mentor_vk_id?: number | null
-  enrolled_at?: string | null
-  expected_end_at?: string | null
-  note?: string
-}
-
-export interface AcademyCadetPatch {
-  direction?: string
-  stage?: string
-  status?: string
-  mentor_vk_id?: number | null
-  clear_mentor?: boolean
-  expected_end_at?: string | null
-  clear_expected_end?: boolean
-  note?: string
-  points_adjust?: number
-  attestation_theory?: number
-  attestation_practice?: number
-  attestation_period?: number
-  attestation_mentor?: number
-  recommendation?: string
-}
-
-export interface AcademyMaterial {
-  title: string
-  url: string
-}
-
-export interface AcademyTemplate {
-  id: number
-  title: string
-  category: string
-  category_label: string
-  stage: string
-  stage_label: string
-  max_points: number
-  due_days: number
-  required: boolean
-  description: string
-  materials: AcademyMaterial[]
-  proof_kinds: string[]
-  reviewer_kind: string
-  reviewer_kind_label?: string
-  is_active: boolean
-  sort_order: number
-}
-
-export interface AcademyTemplateBody {
-  title: string
-  category: string
-  stage: string
-  max_points: number
-  due_days: number
-  required: boolean
-  description: string
-  materials: AcademyMaterial[]
-  proof_kinds: string[]
-  reviewer_kind: string
-  is_active: boolean
-  sort_order: number
-}
-
-export interface AcademyReport {
-  id: number
-  vk_id: number
-  nickname?: string | null
-  body: string
-  proof_urls: string[]
-  status: string
-  status_label?: string
-  score: number | null
-  reviewer_vk_id: number | null
-  review_comment: string
-  submitted_at: string | null
-  reviewed_at: string | null
-}
-
-export interface AcademyAssignment {
-  id: number
-  title: string
-  category: string
-  category_label: string
-  stage: string
-  stage_label: string
-  max_points: number
-  required: boolean
-  description: string
-  materials: AcademyMaterial[]
-  proof_kinds: string[]
-  reviewer_kind: string
-  assignee_vk_ids: number[]
-  due_at: string | null
-  created_by: number
-  created_at: string | null
-  pending_count: number
-  viewer_status?: string | null
-  viewer_status_label?: string | null
-  reports: (AcademyReport | null)[]
-}
-
-export interface AcademyReviewItem {
-  assignment_id: number
-  title: string
-  max_points: number
-  due_at: string | null
-  vk_id: number
-  nickname: string
-  avatar_url?: string | null
-  status: string
-  status_label: string
-  body: string
-  proof_urls: string[]
-  submitted_at: string | null
-  stage_label?: string | null
-  cadet_stage_label?: string | null
-}
-
-export interface AcademyAssignmentBody {
-  template_id?: number | null
-  title?: string
-  category?: string
-  stage?: string
-  max_points?: number
-  required?: boolean
-  description?: string
-  materials?: AcademyMaterial[] | null
-  proof_kinds?: string[]
-  reviewer_kind?: string
-  assignee_vk_ids?: number[]
-  all_active?: boolean
-  all_mentees?: boolean
-  due_at?: string
-  due_days?: number
-}
-
-export interface AcademySession {
-  id: number
-  title: string
-  notes: string
-  held_at: string | null
-  status: string
-  created_by: number
-  attendance: Record<string, string>
-  present: number
-  absent: number
-}
-
-export interface AcademySessionBody {
-  title: string
-  held_at?: string
-  notes?: string
-  status?: string
-  attendance?: Record<number, string>
 }
 
 export type IssuanceKind = 'az' | 'virts'

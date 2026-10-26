@@ -8,6 +8,8 @@ export function ProfilePage() {
   return (
     <ProfileView
       profile={{
+        public_id: user.public_id,
+        additional_roles: user.additional_roles,
         vk_id: user.vk_id,
         nickname: user.bot_nickname ?? user.nickname,
         username: user.username,

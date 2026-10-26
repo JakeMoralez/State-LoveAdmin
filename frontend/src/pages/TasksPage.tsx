@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ClipboardList, type LucideIcon } from 'lucide-react'
-import { api, STATUS_LABELS, normalizeTaskStatus, type Project, type StaffMember, type TaskDetail } from '../api'
+import { api, STATUS_LABELS, normalizeTaskStatus, type StaffMember, type TaskDetail } from '../api'
 import { pickDefaultCreateSphere } from '../components/CreateSphereField'
 import { PageHeader } from '../components/PageHeader'
 import { SphereTabs, useWorkSphereQuery } from '../components/SphereTabs'
@@ -44,7 +44,6 @@ function getInitialTaskView(): TaskViewMode {
 }
 
 interface TasksWorkspaceProps {
-  projectId?: number
   spheres?: string[]
   apiSpheres?: string[]
   createSphere?: string
@@ -61,7 +60,6 @@ interface TasksWorkspaceProps {
 }
 
 export function TasksWorkspace({
-  projectId,
   spheres,
   apiSpheres,
   createSphere,
@@ -91,14 +89,12 @@ export function TasksWorkspace({
       overdue: searchParams.get('overdue') === '1',
       assigneeVkId: '',
       priority: '',
-      projectId: projectId ? String(projectId) : '',
       view,
     }
   })
   const [listTasks, setListTasks] = useState<TaskDetail[]>([])
   const [columns, setColumns] = useState<Record<string, TaskDetail[]>>({})
   const [staff, setStaff] = useState<StaffMember[]>([])
-  const [projects, setProjects] = useState<Project[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [createPreferRepeat, setCreatePreferRepeat] = useState(false)
   const [activeId, setActiveId] = useState<number | null>(null)
@@ -126,8 +122,6 @@ export function TasksWorkspace({
     const p: Parameters<typeof api.tasks>[0] = {
       view: filters.view === 'list' ? 'list' : 'kanban',
     }
-    if (projectId != null) p.project_id = projectId
-    else if (filters.projectId) p.project_id = parseInt(filters.projectId, 10)
     if (filters.mine) p.mine = true
     else if (filters.assigneeVkId && filters.assigneeVkId !== 'none') {
       p.assignee_vk_id = parseInt(filters.assigneeVkId, 10)
@@ -136,7 +130,7 @@ export function TasksWorkspace({
     if (apiSpheres?.length) p.spheres = apiSpheres
     if (showGovAudiences && audience) p.audience = audience
     return p
-  }, [filters, projectId, apiSpheres, showGovAudiences, audience])
+  }, [filters, apiSpheres, showGovAudiences, audience])
 
   const filterTasks = useCallback((items: TaskDetail[]) => {
     let next = items
@@ -195,7 +189,6 @@ export function TasksWorkspace({
   useEffect(() => {
     if (!spheres?.length && (workSpheres?.length ?? 0) > 0) return
     api.staff().then((r) => setStaff(r.members))
-    api.projects(apiSpheres).then((r) => setProjects(r.projects))
   }, [apiSpheres, spheres, workSpheres])
 
   useEffect(() => {
@@ -335,7 +328,6 @@ export function TasksWorkspace({
           description: payload.description,
           priority: payload.priority,
           labels: payload.labels,
-          project_id: payload.project_id ?? projectId ?? null,
           audience: payload.audience,
           assignee_mode: 'explicit',
           assignee_vk_ids: payload.assignee_vk_ids || [],
@@ -358,7 +350,6 @@ export function TasksWorkspace({
       await api.createTask(
         {
           ...payload,
-          project_id: payload.project_id ?? projectId ?? null,
         },
         sphere,
       )
@@ -440,10 +431,8 @@ export function TasksWorkspace({
           })
         }}
         staff={staff}
-        projects={projects}
         shown={allTasks.length}
         total={allTasks.length}
-        hideProjectFilter={projectId != null}
         onCreate={() => openCreate(filters.view === 'repeats')}
         showRepeatsTab={canManageRepeats}
         createLabel={filters.view === 'repeats' ? 'Шаблон' : 'Задача'}
@@ -533,8 +522,6 @@ export function TasksWorkspace({
         }}
         onCreate={createTask}
         staff={staff}
-        projects={projects}
-        defaultProjectId={projectId}
         workSpheres={workSpheres}
         createSphereIds={spheres ?? []}
         createSphere={createSphere}
@@ -548,7 +535,6 @@ export function TasksWorkspace({
         <TaskDrawer
           taskId={drawerId}
           staff={staff}
-          projects={projects}
           onClose={closeTask}
           onUpdate={load}
         />

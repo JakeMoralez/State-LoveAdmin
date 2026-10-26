@@ -232,6 +232,10 @@ class ChatSettingsUpdate(BaseModel):
 
 @router.get("/system")
 async def get_dev_system(_user: dict = Depends(require_dev_user)):
+    return await _get_system_info(include_bot=True)
+
+
+async def _get_system_info(*, include_bot: bool):
     bot_db_exists: bool | None = None
     bot_db_label = BOT_DATABASE_URL
     if is_sqlite_url(BOT_DATABASE_URL):
@@ -250,7 +254,7 @@ async def get_dev_system(_user: dict = Depends(require_dev_user)):
         staff_count = await count_staff(DEFAULT_SERVER_ID)
     except Exception:
         staff_count = -1
-    bot_ok, bot_error = await ping_bot()
+    bot_ok, bot_error = await ping_bot() if include_bot else (False, None)
     settings = await list_settings()
     return {
         "server_id": DEFAULT_SERVER_ID,
@@ -280,7 +284,7 @@ class PortalSettingsUpdate(BaseModel):
 
 @router.get("/portal")
 async def get_dev_portal(_user: dict = Depends(require_dev_user)):
-    data = await get_dev_system(_user)
+    data = await _get_system_info(include_bot=False)
     return {
         "server_id": data["server_id"],
         "bot_db": data["bot_db"],

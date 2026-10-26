@@ -36,6 +36,7 @@ export function LootCaseSpinPage() {
         </Link>
       </div>
 
+      <p className="staff-profile-hint px-4">Тестовое открытие: экземпляры не расходуются, запись на выдачу приза не создаётся.</p>
       <div className="case-spin-stage">
         <CaseRoulette caseId={caseId} caseTitle={caseTitle} />
       </div>

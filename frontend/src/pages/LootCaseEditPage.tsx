@@ -270,10 +270,10 @@ export function LootCaseEditPage() {
               to={`/dev/cases/${caseId}/spin`}
               className={`btn-primary btn-sm ${!data.can_spin ? 'pointer-events-none opacity-50' : ''}`}
               aria-disabled={!data.can_spin}
-              title={data.can_spin ? 'Открыть режим прокрутки' : 'Нужно минимум 2 приза'}
+              title={data.can_spin ? 'Тестовое открытие без выдачи приза' : 'Нужно минимум 2 приза'}
             >
               <Play size={16} />
-              Прокрутка
+              Тестовое открытие
             </Link>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void saveCase()} disabled={saving}>
               <Save size={16} />

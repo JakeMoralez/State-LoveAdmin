@@ -169,6 +169,7 @@ export function previewStaffNickname(
 ): string {
   const clean = stripStaffNicknameTags(cleanName).trim()
   if (!clean) return ''
+  if (accessLevel < 1) return clean
   if (nicknamePreviewNeedsSpheres(accessLevel) && !spheres.length) return ''
   return formatStaffNickname(clean, accessLevel, spheres, customTag, isSenior, seniorSpheres)
 }

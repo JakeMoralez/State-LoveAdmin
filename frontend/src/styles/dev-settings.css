@@ -377,3 +377,11 @@
   color: rgb(255 255 255 / 0.35);
   font-size: 0.8125rem;
 }
+
+.dev-settings-tabs { display:flex; flex-wrap:wrap; gap:6px; padding:6px; border:1px solid var(--sl-border); border-radius:12px; background:var(--sl-surface); }
+.dev-settings-tabs > button { flex:1 0 auto; min-height:38px; border-radius:8px; padding:8px 12px; }
+.dev-settings-setup { display:grid; gap:10px; padding:16px; margin-top:20px; border:1px solid var(--sl-border); border-radius:10px; background:rgb(255 255 255 / .02); }
+.dev-settings-setup h4 { margin:0; font-size:13px; }
+.dev-settings-setup p { margin:0; color:#a0a1aa; font-size:12px; line-height:1.7; }
+.dev-settings-block [aria-invalid="true"] { border-color:#e8a5a5; }
+@media(max-width:600px) { .dev-settings-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); } .dev-settings-tabs > button { min-width:0; } }

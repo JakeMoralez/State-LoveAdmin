@@ -25,7 +25,6 @@ export function DashboardPage() {
   const cards = [
     { label: 'Мои открытые задачи', value: data.my_open_tasks, to: '/tasks?mine=1', warn: false },
     { label: 'Просрочено', value: data.overdue_tasks, to: '/tasks?overdue=1', warn: data.overdue_tasks > 0 },
-    { label: 'Активные проекты', value: data.active_projects, to: '/projects', warn: false },
     { label: 'Следящие', value: data.staff_count, to: '/staff', warn: false },
   ]
 
@@ -52,9 +51,6 @@ export function DashboardPage() {
       <div className="action-row">
         <Link to="/tasks" className="btn btn-gold no-underline">
           Задачи
-        </Link>
-        <Link to="/checklist" className="btn btn-secondary no-underline">
-          Чеклист
         </Link>
       </div>
 

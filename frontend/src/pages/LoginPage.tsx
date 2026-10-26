@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { lazy, Suspense, useEffect, useId, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../api'
 import { BrandLogo } from '../components/BrandLogo'
@@ -9,6 +9,8 @@ import { filterSpheresForLevel, sphereOptionsForLevel } from '../lib/spheres'
 import { useAuth } from '../context/AuthContext'
 import { ACCESS_LEVEL_OPTIONS, mergeAccessLevelOptions } from '../lib/accessLevels'
 import { Alert } from '../components/ui/Alert'
+
+const ShapeWaves = lazy(() => import('../components/backgrounds/ShapeWaves'))
 
 const LOGIN_ERRORS: Record<string, string> = {
   not_linked:
@@ -27,7 +29,7 @@ const LOGIN_REASONS: Record<string, string> = {
 function formatAuthError(message: string): string {
   const m = message.toLowerCase()
   if (m.includes('bad gateway') || m.includes('502')) {
-    return 'Сервер API недоступен (502). Перезапустите backend на :8013.'
+    return 'Сервер API недоступен (502). Перезапустите backend на :8012.'
   }
   if (m.includes('failed to fetch') || m.includes('network')) {
     return 'Нет связи с API. Проверьте, что backend запущен.'
@@ -40,6 +42,7 @@ function formatAuthError(message: string): string {
 
 export function LoginPage() {
   const { user, loading, error, refresh } = useAuth()
+  const [backgroundFailed, setBackgroundFailed] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [busy, setBusy] = useState(false)
@@ -160,6 +163,9 @@ export function LoginPage() {
 
   return (
     <div className="login-shell">
+      <div className="login-backdrop" data-background-state={backgroundFailed ? 'fallback' : 'active'} aria-hidden="true">
+        {!backgroundFailed && <Suspense fallback={null}><ShapeWaves text="" fontFamily='Geist, "Geist Sans", system-ui, sans-serif' fontWeight={500} textSize={0.6} shapes="mixed" cellSize={10} dotSize={0.75} color="#c9a227" hoverColor="#e8d48c" backgroundColor="#060608" speed={1} scale={1} contrast={1} brightness={0.4} flow={0} direction={0} fade={0.25} interactive splashRadius={40} splashStrength={0.4} glow={0.22} intro introDuration={1.6} paused={false} onError={error => { setBackgroundFailed(true); if (import.meta.env.DEV) console.debug('ShapeWaves:', error.message) }} /></Suspense>}
+      </div>
       <div className="login-vignette" aria-hidden />
       <div className="login-card">
         <div className="login-auth-card">

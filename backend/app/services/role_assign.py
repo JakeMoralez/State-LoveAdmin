@@ -12,7 +12,9 @@ from app.services.bot_users import ensure_bot_user, ensure_server_access
 from app.services.display_names import invalidate_display_names
 from app.services.discord_links import set_discord_link
 from app.services.leader_nickname import format_leadership_nickname, validate_org_tag
-from app.services.staff import _persist_member_nickname, assign_staff_member
+from app.services.staff import _persist_member_nickname, assign_staff_member, validate_member_nickname, MSK
+from app.services.appointments import archive_appointment, appointment_snapshot
+from app.services.bot_users import update_server_access
 
 RoleType = Literal["staff", "judge", "congress", "leader", "deputy", "minister", "advisor"]
 CongressRole = Literal["speaker", "vice"]
@@ -191,6 +193,12 @@ async def assign_congress(
 
     _, created = await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     fields = {field: True}
+    current = await UserServerAccess.get(user_id=vk_id, server_id=server_id)
+    if current.access_level == 0:
+        fields["is_leader"] = True
+        note, _ = await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id)
+        note.leader_position = CONGRESS_ROLES[role]
+        await note.save(update_fields=["leader_position", "updated_at"])
     if created and granted_at is not None:
         fields["granted_at"] = granted_at
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(**fields)
@@ -281,22 +289,34 @@ async def assign_leadership(
         advisors=advisors,
     )
 
+    await validate_member_nickname(vk_id, server_id, nick)
     forum = ""
     if (forum_account or "").strip():
         forum = await _apply_forum_account(vk_id, forum_account)
     else:
         await ensure_bot_user(vk_id, username=str(vk_id))
 
+    previous = await appointment_snapshot(server_id, vk_id)
+    same_date = not granted_at or (previous.get("granted_at") and datetime.fromisoformat(previous["granted_at"]).astimezone(MSK).date() == granted_at.astimezone(MSK).date())
+    if previous.get("kind") == "leader" and previous.get("nickname") == nick and previous.get("position") == position and same_date:
+        await _link_discord(vk_id, discord_id, granted_by)
+        return {"role_type": role_type, "vk_id": vk_id, "nickname": nick, "forum_account": forum, "position": position, "org_tag": tag}
+    await archive_appointment(server_id, vk_id, granted_by)
     await ensure_server_access(vk_id, server_id, granted_by=granted_by)
     appointed = granted_at or datetime.now(UTC)
     await UserServerAccess.filter(user_id=vk_id, server_id=server_id).update(
         is_leader=True,
+        access_level=0,
+        has_ca_access=False,
+        ca_auto_peer_id=None,
         granted_by=granted_by,
         granted_at=appointed,
     )
+    await update_server_access(vk_id, server_id, is_senior=False, senior_spheres=[])
     await StaffNote.get_or_create(vk_id=vk_id, server_id=server_id, defaults={})
     await StaffNote.filter(vk_id=vk_id, server_id=server_id).update(
         leader_position=position,
+        spheres=[],
         updated_by=granted_by,
         updated_at=datetime.now(UTC),
     )

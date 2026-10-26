@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from app.models.bot import UserServerAccess
 from app.services import messages
-from app.services.activity_log import staff_assign_detail
 from app.services.audit import log_audit
+from app.services.appointments import appointment_snapshot
+from app.services.access import get_access_level
 from app.services.role_assign import assign_staff_with_profile
 from app.services.staff_permissions import (
     ASSIGN_STAFF_MIN_LEVEL,
@@ -36,8 +36,8 @@ async def assign_staff_from_bot(
     if actor_vk_id == vk_id:
         raise PermissionError("Нельзя назначить себя")
 
-    target_access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
-    target_level = target_access.access_level if target_access else 0
+    target_level = await get_access_level(vk_id, server_id)
+    before = await appointment_snapshot(server_id, vk_id)
     if target_level > 0:
         from app.services.staff import get_staff_member
 
@@ -54,7 +54,7 @@ async def assign_staff_from_bot(
         actor_level=actor_level,
         actor_panel_role="member",
         target_vk_id=vk_id,
-        target_level=0,
+        target_level=target_level,
         actor_spheres=list(actor_spheres or []),
         target_spheres=[],
         dev_persona=False,
@@ -67,7 +67,7 @@ async def assign_staff_from_bot(
         actor_level=actor_level,
         new_level=access_level,
         target_vk_id=vk_id,
-        target_level=0,
+        target_level=target_level,
         dev_persona=False,
     )
     assert_can_set_nickname(actor_level)
@@ -94,17 +94,11 @@ async def assign_staff_from_bot(
         granted_by=actor_vk_id,
     )
 
-    await log_audit(
-        actor_vk_id,
-        "staff_assign",
-        "staff",
-        vk_id,
-        staff_assign_detail(
-            target_vk_id=vk_id,
-            nickname=nickname,
-            access_level=access_level,
-            spheres=list(normalized_spheres),
-        ),
-    )
+    await log_audit(actor_vk_id, "staff_transfer" if before else "staff_assign", "staff", vk_id, {
+        "target_vk_id": vk_id, "target_nickname": result.get("nickname") or nickname,
+        "source": "bot", "server_id": server_id, "appointment_before": before,
+        "appointment_after": await appointment_snapshot(server_id, vk_id),
+        "reason": "Назначение командой /reg",
+    })
 
     return result

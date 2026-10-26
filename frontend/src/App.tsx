@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-
 import { Layout } from './components/Layout'
 import { AuthProvider, RequireAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
-import { ChecklistPage } from './pages/ChecklistPage'
+import { ChecklistArchivedPage } from './pages/ChecklistArchivedPage'
 import { CongressPage } from './pages/CongressPage'
 import { ForumFormattingPage } from './pages/ForumFormattingPage'
 import { JudgeForumListPage } from './pages/JudgeForumListPage'
@@ -18,18 +18,16 @@ import { DevSettingsPage } from './pages/DevSettingsPage'
 import { DevLeadershipPage } from './pages/DevLeadershipPage'
 import { LootCasesPage } from './pages/LootCasesPage'
 import { LootCaseEditPage } from './pages/LootCaseEditPage'
+import { MyCasesPage } from './pages/MyCasesPage'
+import { GrantedCasePage } from './pages/GrantedCasePage'
 import { LootCaseSpinPage } from './pages/LootCaseSpinPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PersonProfilePage } from './pages/PersonProfilePage'
-import { ProjectDetailPage } from './pages/ProjectDetailPage'
-import { ProjectsPage } from './pages/ProjectsPage'
 import { StaffPage } from './pages/StaffPage'
 import { LeadersPage } from './pages/LeadersPage'
 import { TasksPage } from './pages/TasksPage'
-import { AcademyPage } from './pages/AcademyPage'
-import { AcademyCadetPage } from './pages/AcademyCadetPage'
 import { IssuancePage } from './pages/IssuancePage'
 import { KnowledgePage } from './pages/KnowledgePage'
 import { KnowledgeArticlePage } from './pages/KnowledgeArticlePage'
@@ -38,6 +36,11 @@ import { profilePath } from './lib/profileLinks'
 function RedirectToProfile() {
   const { vkId } = useParams()
   return <Navigate to={vkId ? profilePath(vkId) : '/profile'} replace />
+}
+
+function RedirectLegacyProjectTask() {
+  const { taskId } = useParams()
+  return <Navigate to={taskId ? `/tasks/${taskId}` : "/tasks"} replace />
 }
 
 function AppRoutes() {
@@ -58,9 +61,7 @@ function AppRoutes() {
           <Route path="/judges/:vkId" element={<RedirectToProfile />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/tasks/:taskId" element={<TasksPage />} />
-          <Route path="/academy" element={<AcademyPage />} />
-          <Route path="/academy/:vkId" element={<AcademyCadetPage />} />
-          <Route path="/checklist" element={<ChecklistPage />} />
+          <Route path="/checklist" element={<ChecklistArchivedPage />} />
           <Route path="/question-banks" element={<QuestionBanksPage />} />
           <Route path="/question-banks/review" element={<QuestionBankReviewPage />} />
           <Route path="/question-banks/:id" element={<QuestionBankDetailPage />} />
@@ -69,12 +70,14 @@ function AppRoutes() {
           <Route path="/forum/judge-list" element={<JudgeForumListPage />} />
           <Route path="/forum/formatting" element={<ForumFormattingPage />} />
           <Route path="/forum/judge-assign" element={<Navigate to="/assign?type=judge" replace />} />
+          <Route path="/cases" element={<MyCasesPage />} />
+          <Route path="/cases/:id/open" element={<GrantedCasePage />} />
           <Route path="/issuance" element={<IssuancePage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/knowledge/:id" element={<KnowledgeArticlePage />} />
-          <Route path="/projects" element={<ProjectsPage />} />
-          <Route path="/projects/:id" element={<ProjectDetailPage />} />
-          <Route path="/projects/:id/tasks/:taskId" element={<ProjectDetailPage />} />
+          <Route path="/projects" element={<Navigate to="/tasks" replace />} />
+          <Route path="/projects/:id" element={<Navigate to="/tasks" replace />} />
+          <Route path="/projects/:id/tasks/:taskId" element={<RedirectLegacyProjectTask />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:profileId" element={<PersonProfilePage />} />
           <Route path="/dev" element={<DevPage />} />

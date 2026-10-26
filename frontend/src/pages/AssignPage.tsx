@@ -86,6 +86,7 @@ export function AssignPage() {
   const [forumTouched, setForumTouched] = useState(false)
   const [vkTouched, setVkTouched] = useState(false)
   const [discordTouched, setDiscordTouched] = useState(false)
+  const [currentPosition, setCurrentPosition] = useState('')
   const [nickname, setNickname] = useState('')
   const [accessLevel, setAccessLevel] = useState('1')
   const [spheres, setSpheres] = useState<string[]>([])
@@ -150,14 +151,12 @@ export function AssignPage() {
     const id = Number(raw)
     if (!Number.isFinite(id) || id <= 0) return
     let cancelled = false
-    api
-      .staffInactive()
-      .then((res) => {
+    setVkInput(String(id))
+    api.staffMember(id)
+      .then((m) => {
         if (cancelled) return
-        const m = res.members.find((row) => row.vk_id === id)
-        if (!m) return
-        setRoleType('staff')
         setVkInput(String(m.vk_id))
+        setCurrentPosition(m.current_assignment?.position ? `${m.current_assignment.position} ${m.current_assignment.org_tag || ''}`.trim() : '')
         setVkTouched(true)
         const rawNick = m.bot_nickname || m.nickname || ''
         const nick = stripStaffNicknameTags(rawNick).trim()
@@ -176,7 +175,7 @@ export function AssignPage() {
           setForumAccount('')
           setForumTouched(false)
         }
-        setRestoreLocked(true)
+        setRestoreLocked(false)
       })
       .catch(() => {
         if (!cancelled) setRestoreLocked(false)
@@ -394,7 +393,7 @@ export function AssignPage() {
     <div className="page-stack page-stack--assign">
       <PageHeader
         section="Команда"
-        title="Назначить"
+        title={currentPosition ? 'Перевести' : 'Назначить'}
         icon={UserPlus}
         shrink
         subtitle={
@@ -558,7 +557,10 @@ export function AssignPage() {
                   <label className="assign-label">Уровень доступа</label>
                   <Select
                     value={accessLevel}
-                    onChange={setAccessLevel}
+                    onChange={(value) => {
+                      if ((Number(accessLevel) === 2) !== (Number(value) === 2)) { setSeniorSpheres([]); setIsSenior(false) }
+                      setAccessLevel(value)
+                    }}
                     options={levelOptions}
                     disabled={saving}
                   />
@@ -650,7 +652,8 @@ export function AssignPage() {
           )}
 
           <div className="assign-footer">
-            {error && (
+            {currentPosition && <p className="staff-profile-hint">Текущая должность: <strong>{currentPosition}</strong>. При переводе прежнее назначение будет закрыто и сохранено в истории.</p>}
+      {error && (
               <p className="assign-error" role="alert">
                 {error}
               </p>
@@ -669,7 +672,7 @@ export function AssignPage() {
               disabled={saving}
               onClick={() => void handleSubmit()}
             >
-              {saving ? 'Назначение…' : 'Назначить'}
+              {saving ? 'Сохранение…' : currentPosition ? 'Перевести' : 'Назначить'}
             </button>
           </div>
         </div>

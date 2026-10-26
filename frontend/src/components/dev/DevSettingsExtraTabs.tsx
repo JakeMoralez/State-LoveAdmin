@@ -14,6 +14,7 @@ import { Alert } from '../ui/Alert'
 import { Select } from '../ui/Select'
 import { ACCESS_LEVEL_SHORT } from '../../lib/accessLevels'
 import { cn } from '../../lib/utils'
+import { useSettingsSection } from './SettingsSection'
 
 function formatError(e: unknown): string {
   if (e instanceof ApiError) return e.message
@@ -34,6 +35,7 @@ export function ForumSettingsTab() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [xfUser, setXfUser] = useState('')
   const [xfSession, setXfSession] = useState('')
   const [xfTfa, setXfTfa] = useState('')
@@ -44,17 +46,21 @@ export function ForumSettingsTab() {
   )
 
   const load = async () => {
-    setError(null)
+    setError(null); setLoading(true)
     try {
       setStatus(await api.devForum())
     } catch (e) {
       setError(formatError(e))
-    }
+    } finally { setLoading(false) }
   }
 
+  // Start this tab's external resource on its first mount or explicit refresh.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [])
+
+  useSettingsSection(!!(xfUser || xfSession || xfTfa || forumProxy || clearForumProxy || browserUserAgent !== navigator.userAgent), busy || loading)
 
   const run = async (fn: () => Promise<unknown>, okMsg: string): Promise<boolean> => {
     setBusy(true)
@@ -108,7 +114,7 @@ export function ForumSettingsTab() {
       <section className="glass-card dev-settings-block">
         <div className="dev-settings-block-head">
           <h3 className="dev-settings-block-title">Сессия форума</h3>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void load()}>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy || loading} onClick={() => void load()}>
             <RefreshCw size={14} />
             Проверить
           </button>
@@ -148,13 +154,13 @@ export function ForumSettingsTab() {
             </div>
           </dl>
         ) : (
-          <p className="text-white/40 text-sm">Загрузка…</p>
+          <p className="dev-settings-hint">{loading ? 'Загрузка…' : 'Состояние форума получить не удалось. Проверьте интеграцию с ботом и повторите запрос.'}</p>
         )}
         <div className="dev-settings-actions-row">
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            disabled={busy}
+            disabled={busy || loading}
             onClick={() => void run(() => api.forumReconnect(), 'Переподключение выполнено')}
           >
             Reconnect
@@ -162,7 +168,7 @@ export function ForumSettingsTab() {
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            disabled={busy}
+            disabled={busy || loading}
             onClick={() =>
               void run(async () => {
                 const r = await api.forumSyncJudges()
@@ -178,6 +184,19 @@ export function ForumSettingsTab() {
         </div>
       </section>
 
+      <section className="glass-card dev-settings-block">
+        <h3 className="dev-settings-block-title">Диагностика подключения</h3>
+        <p className="dev-settings-hint">Фактическая библиотека работающего бота и результат последней проверки. Время операции включает ожидание очереди.</p>
+        <dl className="dev-settings-dl">
+          <div><dt>Библиотека</dt><dd>{status?.library?.version ? `Arizona API ${status.library.version}` : 'Нет данных от бота'}</dd></div>
+          <div><dt>Коммит</dt><dd>{status?.library?.revision?.slice(0, 12) || 'Не сообщён'}</dd></div>
+          <div><dt>Ограничения очереди</dt><dd>{status?.queue_policy ? `${status.queue_policy.interval_seconds} сек между запросами; ${status.queue_policy.max_requests} запросов за ${status.queue_policy.window_seconds} сек` : 'Не сообщены библиотекой'}</dd></div>
+          <div><dt>Последняя проверка</dt><dd>{status?.last_check ? new Date(status.last_check.checked_at).toLocaleString('ru-RU') : 'Ещё нет данных'}</dd></div>
+          <div><dt>Результат</dt><dd>{status?.last_check ? !status.configured ? 'Подключение не настроено' : status.last_check.ok ? 'Успешно' : ({ authentication: 'Отказ авторизации', connection: 'Ошибка соединения', storage: 'Ошибка сохранения', validation: 'Ошибка параметров', dependency: 'Библиотека недоступна', timeout: 'Истекло время ожидания', cancelled: 'Проверка отменена' }[status.last_check.error_kind || ''] || (status.connected ? 'Нет подтверждённой авторизации' : 'Соединение не открыто')) : '—'}</dd></div>
+          <div><dt>HTTP-ответ</dt><dd>{status?.last_check?.http_status ?? 'Не получен'}{status?.last_check?.path ? ` · ${status.last_check.path}` : ''}</dd></div>
+          <div><dt>Время операции</dt><dd>{status?.last_check ? `${(status.last_check.duration_ms / 1000).toFixed(2)} сек` : '—'}</dd></div>
+        </dl>
+      </section>
       <section className="glass-card dev-settings-block">
         <h3 className="dev-settings-block-title">Заменить cookies</h3>
         <p className="dev-settings-hint">
@@ -278,6 +297,8 @@ export function IntegrationsSettingsTab() {
   const [data, setData] = useState<DevIntegrationsInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  useSettingsSection(false, !data && !error)
+
   useEffect(() => {
     void api
       .devIntegrations()
@@ -301,11 +322,11 @@ export function IntegrationsSettingsTab() {
             </dd>
           </div>
           <div>
-            <dt>Internal URL</dt>
+            <dt>Адрес API бота</dt>
             <dd>{data.sled_url}</dd>
           </div>
           <div>
-            <dt>SLED secret</dt>
+            <dt>Секрет связи с ботом</dt>
             <dd>{data.sled_secret_configured ? 'задан' : 'не задан'}</dd>
           </div>
           <div>
@@ -327,7 +348,7 @@ export function IntegrationsSettingsTab() {
             </dd>
           </div>
         </dl>
-        <p className="dev-settings-hint">Секреты из UI не редактируются — только статус.</p>
+        <div className="dev-settings-setup"><h4>Как подключить сервисы</h4><p>Для связи с ботом задайте одинаковый SLED_BOT_SECRET с обеих сторон и доступный SLED_INTERNAL_URL в конфигурации панели.</p><p>Discord OAuth требует настроенных client ID, secret и адреса callback. VK service token используется для данных профилей.</p><p>После изменения серверной конфигурации перезапустите соответствующий сервис и повторите проверку. Значения секретов сюда вводить не нужно.</p></div>
       </section>
     </div>
   )
@@ -340,6 +361,9 @@ export function PortalSettingsTab() {
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const dirty = !!settings && settings.dev_error_retention_days !== data?.settings.dev_error_retention_days
+  useSettingsSection(dirty, saving || !data && !error)
+
   useEffect(() => {
     void api
       .devPortal()
@@ -350,14 +374,15 @@ export function PortalSettingsTab() {
       .catch((e) => setError(formatError(e)))
   }, [])
 
-  if (error) return <Alert>{error}</Alert>
+  if (error && !data) return <Alert>{error}</Alert>
   if (!data || !settings) return <p className="text-white/40 text-sm">Загрузка…</p>
 
   return (
     <div className="dev-settings-system">
+      {error && <Alert>{error}</Alert>}
       {notice ? <p className="assign-success">{notice}</p> : null}
       <section className="glass-card dev-settings-block">
-        <h3 className="dev-settings-block-title">Портал (read-only)</h3>
+        <h3 className="dev-settings-block-title">Сведения о портале</h3>
         <dl className="dev-settings-dl">
           <div>
             <dt>Сервер</dt>
@@ -368,11 +393,11 @@ export function PortalSettingsTab() {
             <dd>{data.dev_mode ? 'вкл' : 'выкл'}</dd>
           </div>
           <div>
-            <dt>Idle сессии</dt>
+            <dt>Срок неактивности сессии</dt>
             <dd>{data.session_idle_hours ?? data.session_ttl_hours} ч</dd>
           </div>
           <div>
-            <dt>Absolute сессии</dt>
+            <dt>Предельный срок сессии</dt>
             <dd>{data.session_absolute_hours ?? '—'} ч</dd>
           </div>
           <div>
@@ -394,7 +419,7 @@ export function PortalSettingsTab() {
       </section>
 
       <section className="glass-card dev-settings-block">
-        <h3 className="dev-settings-block-title">Runtime</h3>
+        <h3 className="dev-settings-block-title">Параметры панели</h3>
         <div className="dev-settings-form-grid">
           <label className="staff-profile-field">
             <span className="staff-profile-label">Хранение логов ошибок (записей)</span>
@@ -402,19 +427,21 @@ export function PortalSettingsTab() {
               className="control w-full"
               type="number"
               min={50}
+              aria-invalid={!Number.isInteger(settings.dev_error_retention_days) || settings.dev_error_retention_days < 50}
               value={settings.dev_error_retention_days}
               onChange={(e) =>
                 setSettings((s) =>
-                  s ? { ...s, dev_error_retention_days: Number(e.target.value) || 50 } : s,
+                  s ? { ...s, dev_error_retention_days: Number(e.target.value) } : s,
                 )
               }
             />
           </label>
         </div>
+        {(!Number.isInteger(settings.dev_error_retention_days) || settings.dev_error_retention_days < 50) && <p role="alert" className="staff-profile-error">Укажите целое число записей, не меньше 50.</p>}
         <button
           type="button"
           className="btn btn-gold btn-sm"
-          disabled={saving}
+          disabled={saving || !dirty || !Number.isInteger(settings.dev_error_retention_days) || settings.dev_error_retention_days < 50}
           onClick={() => {
             setSaving(true)
             setError(null)
@@ -424,6 +451,7 @@ export function PortalSettingsTab() {
               })
               .then((r) => {
                 setSettings(r.settings)
+                setData(d => d ? { ...d, settings: r.settings } : d)
                 setNotice('Сохранено')
               })
               .catch((e) => setError(formatError(e)))
@@ -438,23 +466,28 @@ export function PortalSettingsTab() {
 }
 
 export function NotificationsSettingsTab() {
+  const [baseline, setBaseline] = useState<PanelRuntimeSettings | null>(null)
   const [settings, setSettings] = useState<PanelRuntimeSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const dirty = !!settings && (settings.task_reminders_enabled !== baseline?.task_reminders_enabled || settings.task_reminder_interval_sec !== baseline?.task_reminder_interval_sec)
+  useSettingsSection(dirty, saving || !settings && !error)
+
   useEffect(() => {
     void api
       .devPortal()
-      .then((r) => setSettings(r.settings))
+      .then((r) => { setSettings(r.settings); setBaseline(r.settings) })
       .catch((e) => setError(formatError(e)))
   }, [])
 
-  if (error) return <Alert>{error}</Alert>
+  if (error && !settings) return <Alert>{error}</Alert>
   if (!settings) return <p className="text-white/40 text-sm">Загрузка…</p>
 
   return (
     <div className="dev-settings-system">
+      {error && <Alert>{error}</Alert>}
       {notice ? <p className="assign-success">{notice}</p> : null}
       <section className="glass-card dev-settings-block">
         <h3 className="dev-settings-block-title">Напоминания по задачам</h3>
@@ -474,10 +507,12 @@ export function NotificationsSettingsTab() {
             className="control w-full"
             type="number"
             min={300}
+            max={86400}
+            aria-invalid={!Number.isInteger(settings.task_reminder_interval_sec) || settings.task_reminder_interval_sec < 300 || settings.task_reminder_interval_sec > 86400}
             value={settings.task_reminder_interval_sec}
             onChange={(e) =>
               setSettings((s) =>
-                s ? { ...s, task_reminder_interval_sec: Number(e.target.value) || 300 } : s,
+                s ? { ...s, task_reminder_interval_sec: Number(e.target.value) } : s,
               )
             }
           />
@@ -485,16 +520,16 @@ export function NotificationsSettingsTab() {
         <button
           type="button"
           className="btn btn-gold btn-sm"
-          disabled={saving}
+          disabled={saving || !dirty || !Number.isInteger(settings.task_reminder_interval_sec) || settings.task_reminder_interval_sec < 300 || settings.task_reminder_interval_sec > 86400}
           onClick={() => {
-            setSaving(true)
+            setSaving(true); setError(null); setNotice(null)
             void api
               .updateDevPortal({
                 task_reminders_enabled: settings.task_reminders_enabled,
                 task_reminder_interval_sec: settings.task_reminder_interval_sec,
               })
               .then((r) => {
-                setSettings(r.settings)
+                setSettings(r.settings); setBaseline(r.settings)
                 setNotice('Сохранено')
               })
               .catch((e) => setError(formatError(e)))
@@ -503,8 +538,9 @@ export function NotificationsSettingsTab() {
         >
           Сохранить
         </button>
+        {(!Number.isInteger(settings.task_reminder_interval_sec) || settings.task_reminder_interval_sec < 300 || settings.task_reminder_interval_sec > 86400) && <p role="alert" className="staff-profile-error">Интервал должен быть целым числом от 300 до 86400 секунд.</p>}
         <p className="dev-settings-hint">
-          Личные prefs (задачи / назначения) — в{' '}
+          Личные уведомления о задачах и назначениях — в{' '}
           <Link to="/profile" className="link-gold">
             профиле
           </Link>
@@ -521,19 +557,24 @@ export function CommandsSettingsTab() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const dirty = items.some(item => item.overridable && draft[item.key] !== item.min_level)
+  useSettingsSection(dirty, saving || loading)
 
   const load = async () => {
-    setError(null)
+    setError(null); setLoading(true)
     try {
       const data = await api.commandAccess()
       setItems(data.items)
       setDraft(Object.fromEntries(data.items.map((i) => [i.key, i.min_level])))
     } catch (e) {
       setError(formatError(e))
-    }
+    } finally { setLoading(false) }
   }
 
+  // Start this tab's external resource on its first mount or explicit refresh.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load()
   }, [])
 
@@ -575,12 +616,14 @@ export function CommandsSettingsTab() {
     }
   }
 
+  if (loading) return <p role="status" className="dev-settings-hint">Загрузка прав команд…</p>
   if (error && !items.length) return <Alert>{error}</Alert>
 
   return (
     <div className="dev-settings-system">
       {error ? <Alert>{error}</Alert> : null}
       {notice ? <p className="assign-success">{notice}</p> : null}
+      {!items.length && <div className="staff-registry-empty">Бот не вернул доступные команды.</div>}
       {grouped.map(([category, rows]) => (
         <section key={category} className="glass-card dev-settings-block">
           <h3 className="dev-settings-block-title">{category}</h3>
@@ -594,6 +637,7 @@ export function CommandsSettingsTab() {
                 {row.overridable ? (
                   <div className="dev-settings-command-controls">
                     <Select
+                      aria-label={`Уровень команды /${row.key}`}
                       value={String(draft[row.key] ?? row.min_level)}
                       onChange={(v) => setDraft((d) => ({ ...d, [row.key]: Number(v) }))}
                       options={LEVEL_OPTIONS}
@@ -617,7 +661,7 @@ export function CommandsSettingsTab() {
           </div>
         </section>
       ))}
-      <button type="button" className="btn btn-gold btn-sm" disabled={saving || !items.length} onClick={() => void save()}>
+      <button type="button" className="btn btn-gold btn-sm" disabled={saving || !items.length || !dirty} onClick={() => void save()}>
         Сохранить права
       </button>
     </div>

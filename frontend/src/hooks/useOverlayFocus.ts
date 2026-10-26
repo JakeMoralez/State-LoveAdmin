@@ -34,6 +34,7 @@ export function useOverlayFocus(
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return
       if (e.key === 'Escape') {
         if (!onEscapeRef.current) return
         e.preventDefault()
@@ -61,9 +62,9 @@ export function useOverlayFocus(
       }
     }
 
-    document.addEventListener('keydown', onKeyDown, true)
+    document.addEventListener('keydown', onKeyDown)
     return () => {
-      document.removeEventListener('keydown', onKeyDown, true)
+      document.removeEventListener('keydown', onKeyDown)
       if (prev && document.contains(prev)) prev.focus()
     }
     // onEscape через ref — иначе каждый рендер родителя (ввод в поле) снова фокусит первый элемент

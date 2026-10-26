@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type LeaderMemberDetail } from '../../api'
 import { useAuth } from '../../context/AuthContext'
@@ -27,7 +27,8 @@ import {
 import { canEditLeaderRegistry, effectiveLeaderPermissions } from '../../lib/leaderPermissions'
 import { staffLabel } from '../../lib/staff'
 import { Select } from '../ui/Select'
-import { ModalViewport } from '../ui/ModalViewport'
+import { ProfileEditorViewport } from './ProfileEditorViewport'
+import { useProfileDraft } from '../../hooks/useProfileDraft'
 
 const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
 
@@ -40,6 +41,7 @@ function formatError(e: unknown): string {
 export interface LeaderProfileModalProps {
   member: LeaderMemberDetail | null
   open: boolean
+  inline?: boolean
   onClose: () => void
   onSaved: (result?: { removed?: boolean }) => void
 }
@@ -48,8 +50,10 @@ function memberNickname(member: LeaderMemberDetail): string {
   return member.bot_nickname ?? ''
 }
 
-export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderProfileModalProps) {
+export function LeaderProfileModal({ member, open, onClose, onSaved, inline = false }: LeaderProfileModalProps) {
   const { user } = useAuth()
+  const titleId = useId()
+  const [reason, setReason] = useState('')
   const [nickname, setNickname] = useState('')
   const [orgTag, setOrgTag] = useState('')
   const [forumAccount, setForumAccount] = useState('')
@@ -79,19 +83,18 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     return options
   }, [member?.position])
 
-  useEffect(() => {
-    if (!member) return
-    const rawNick = memberNickname(member)
-    const inferred = inferLeadershipFromNickname(rawNick)
-    setNickname(cleanLeadershipName(rawNick) || rawNick)
-    setOrgTag(member.org_tag || inferred.orgTag || extractLeadershipOrgTag(rawNick))
-    setForumAccount(forumMemberUrl(member.username, member.vk_id))
-    setForumTouched(false)
-    setPosition(normalizeLeaderPosition(member.position) || inferred.position || '')
-    setNote(member.note ?? '')
-    setDiscordId(member.discord_id ?? '')
-    setError(null)
-  }, [member])
+  const rawNick = member ? memberNickname(member) : ''
+  const inferred = inferLeadershipFromNickname(rawNick)
+  const initial = { reason: '', nickname: cleanLeadershipName(rawNick) || rawNick,
+    orgTag: member?.org_tag || inferred.orgTag || extractLeadershipOrgTag(rawNick),
+    forumAccount: member ? forumMemberUrl(member.username, member.vk_id) : '',
+    position: normalizeLeaderPosition(member?.position) || inferred.position || '', note: member?.note ?? '', discordId: member?.discord_id ?? '' }
+  const draft = useProfileDraft(inline && user && member ? `${user.vk_id}:${member.server_id ?? 30}:${member.vk_id}:leader` : undefined,
+    initial, { reason, nickname, orgTag, forumAccount, position, note, discordId }, d => {
+      setReason(d.reason); setNickname(d.nickname); setOrgTag(d.orgTag); setForumAccount(d.forumAccount)
+      setPosition(d.position); setNote(d.note); setDiscordId(d.discordId); setForumTouched(false); setError(null)
+    })
+
 
   if (!open || !member) return null
 
@@ -141,7 +144,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
 
   const handleSave = async () => {
     if (!hasChanges) {
-      onClose()
+      if (!inline) onClose()
       return
     }
 
@@ -157,7 +160,7 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     setSaving(true)
     setError(null)
     try {
-      const body: Record<string, unknown> = {}
+      const body: Record<string, unknown> = { reason }
       if (nickChanged) {
         if (position && !looksLikeRpName(nickname)) {
           setError('Ник: латиница, одно подчёркивание. Например Kyo_Parker')
@@ -185,8 +188,9 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
       }
 
       await api.updateLeader(member.vk_id, body)
+      draft.clear()
       onSaved()
-      onClose()
+      if (!inline) onClose()
     } catch (e: unknown) {
       setError(formatError(e))
     } finally {
@@ -200,8 +204,9 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     setError(null)
     try {
       await api.updateLeader(member.vk_id, { clear_nickname: true })
+      draft.clear()
       onSaved()
-      onClose()
+      if (!inline) onClose()
     } catch (e: unknown) {
       setError(formatError(e))
     } finally {
@@ -214,9 +219,10 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     setSaving(true)
     setError(null)
     try {
-      const res = await api.updateLeader(member.vk_id, { remove_from_registry: true })
+      const res = await api.updateLeader(member.vk_id, { remove_from_registry: true, reason })
+      draft.clear()
       onSaved({ removed: res.removed })
-      onClose()
+      if (!inline) onClose()
     } catch (e: unknown) {
       setError(formatError(e))
     } finally {
@@ -224,8 +230,16 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
     }
   }
 
+  const requestClose = () => {
+    if (saving) return
+    if (!draft.dirty || window.confirm('Есть несохранённые изменения. Закрыть без сохранения?')) {
+      draft.discard()
+      onClose()
+    }
+  }
+
   return (
-    <ModalViewport open={open} onBackdropClick={onClose}>
+    <ProfileEditorViewport inline={inline} open={open} onClose={requestClose} titleId={titleId}>
       <div
         className="glass-card staff-profile-modal staff-profile-modal--leader modal-pop relative z-10 flex w-full max-w-md flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -234,13 +248,13 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-lg font-semibold">
+              <h2 id={titleId} className="m-0 truncate text-lg font-semibold">
                 {canEditAnything ? 'Настройки' : 'Просмотр'} · {displayName}
               </h2>
               <p className="m-0 mt-0.5 text-xs text-white/40">Руководство</p>
             </div>
           </div>
-          <button type="button" className="btn-icon shrink-0" onClick={onClose} aria-label="Закрыть">
+          <button type="button" className="btn-icon shrink-0" onClick={requestClose} aria-label="Закрыть">
             <X size={18} />
           </button>
         </div>
@@ -464,8 +478,12 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
         </div>
 
         <div className="staff-profile-footer">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
-            {hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
+          {canEditAnything && <label className="staff-profile-field">Причина изменения
+            <input className="control w-full" value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} placeholder="Необязательно" disabled={saving} />
+          </label>}
+          <div className="staff-profile-footer-actions">
+          <button type="button" className="btn btn-secondary" onClick={requestClose} disabled={saving}>
+            {inline ? 'Сбросить изменения' : hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
           </button>
           {canEditAnything &&
             (canEditRegistry || perms.edit_discord) && (
@@ -478,8 +496,9 @@ export function LeaderProfileModal({ member, open, onClose, onSaved }: LeaderPro
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </button>
             )}
+          </div>
         </div>
       </div>
-    </ModalViewport>
+    </ProfileEditorViewport>
   )
 }

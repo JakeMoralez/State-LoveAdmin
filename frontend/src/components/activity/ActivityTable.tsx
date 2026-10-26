@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom'
 import type { ActivityLogItem } from '../../api'
 import { activityVerb, formatStaffUpdateDetail, staffUpdateVerb } from '../../lib/activityLabels'
 import { profilePath } from '../../lib/profileLinks'
-import { parseStaffNick } from '../../lib/staff'
-import { rewriteLegacyNicknameTags } from '../../lib/staffNickname'
+import { stripStaffNicknameTags } from '../../lib/staffNickname'
+import { activityChanges } from '../../lib/activityPresentation'
 import { cn } from '../../lib/utils'
 import { Select } from '../ui/Select'
 import { PageSkeleton } from '../ui/LoadingState'
@@ -42,6 +42,7 @@ export function ActivityToolbar({
           value={q}
           onChange={(e) => onQuery(e.target.value)}
           placeholder="Поиск по действиям…"
+          aria-label="Поиск по журналу"
         />
       </label>
       {children}
@@ -70,8 +71,8 @@ export function formatActivityStamp(iso: string): { date: string; time: string }
   if (Number.isNaN(d.getTime())) return { date: iso, time: '' }
   const pad = (n: number) => String(n).padStart(2, '0')
   return {
-    date: `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`,
-    time: `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`,
+    date: d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
   }
 }
 
@@ -130,8 +131,8 @@ export function formatActivityDetail(detail: Record<string, unknown>, action: st
 }
 
 function ActivityNick({ label, to }: { label: string; to?: string | null }) {
-  const { name } = parseStaffNick(rewriteLegacyNicknameTags(label))
-  const inner = <span className="activity-nick-name">{name.replaceAll(' ', '_')}</span>
+  const name = stripStaffNicknameTags(label) || label
+  const inner = <span className="activity-nick-name">{name}</span>
   if (!to) return inner
   return (
     <Link to={to} className="activity-row-link">
@@ -141,14 +142,11 @@ function ActivityNick({ label, to }: { label: string; to?: string | null }) {
 }
 
 function actorPath(vkId: number) {
-  return profilePath(vkId)
+  return vkId > 0 ? profilePath(vkId) : undefined
 }
 
 function targetPath(item: ActivityLogItem): string | null {
   if (item.target_vk_id == null) return null
-  if (item.entity_type === 'academy_cadet' || item.action.startsWith('academy_')) {
-    return `/academy/${item.target_vk_id}`
-  }
   return profilePath(item.target_vk_id)
 }
 
@@ -161,13 +159,14 @@ export function pageWindow(current: number, last: number): number[] {
 }
 
 function ActivityActionLine({ item }: { item: ActivityLogItem }) {
-  const extra = formatActivityDetail(item.detail ?? {}, item.action)
-  const verb =
+  const extra = item.sentence_tail ?? formatActivityDetail(item.detail ?? {}, item.action)
+  const verb = item.sentence_verb ?? (
     item.action === 'staff_update'
       ? staffUpdateVerb(item.detail ?? {})
-      : activityVerb(item.action, item.action_label)
+      : activityVerb(item.action, item.action_label))
   return (
     <p className="activity-action">
+      {item.actor_role ? <span>{item.actor_role} </span> : null}
       <ActivityNick label={item.actor_name} to={actorPath(item.actor_vk_id)} />{' '}
       <span className="activity-action-verb">{verb}</span>
       {item.target_name ? (
@@ -178,12 +177,24 @@ function ActivityActionLine({ item }: { item: ActivityLogItem }) {
       ) : null}
       {extra ? (
         <>
-          {' '}
+          {/^[.,:;!?]/.test(extra) ? '' : ' '}
           <span className="activity-action-extra">{extra}</span>
         </>
       ) : null}
     </p>
   )
+}
+
+function EventDetails({ item }: { item: ActivityLogItem }) {
+  const changes = activityChanges(item.detail)
+  const reason = typeof item.detail.reason === 'string' ? item.detail.reason.trim() : ''
+  const comparison = <dl className="activity-changes">{changes.map(change => <div key={change.field}>
+    <dt>{change.label}</dt><dd><span className="activity-change-before">{change.before}</span><span className="activity-change-arrow" aria-label="стало">→</span><strong>{change.after}</strong></dd>
+  </div>)}</dl>
+  return <>
+    {changes.length === 1 ? comparison : changes.length > 1 ? <details className="activity-change-disclosure"><summary>Изменено полей: {changes.length} · Показать изменения</summary>{comparison}</details> : null}
+    {reason && <p className="activity-event-reason"><strong>Причина:</strong> {reason}</p>}
+  </>
 }
 
 export function ActivityTable({
@@ -217,49 +228,17 @@ export function ActivityTable({
 
   return (
     <>
-      <div className="activity-table-wrap">
-        <table className="activity-table">
-          <thead>
-            <tr>
-              <th scope="col" className="activity-col-date">
-                Дата
-              </th>
-              <th scope="col">Действие</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && items.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="activity-table-empty activity-table-empty--skeleton">
-                  <PageSkeleton variant="table" label="Загрузка журнала" />
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="activity-table-empty">
-                  {empty}
-                </td>
-              </tr>
-            ) : (
-              items.map((item) => {
-                const stamp = formatActivityStamp(item.created_at)
-                return (
-                  <tr key={item.id}>
-                    <td className="activity-col-date">
-                      <time dateTime={item.created_at} className="activity-stamp">
-                        <span>{stamp.date}</span>
-                        {stamp.time ? <span>{stamp.time}</span> : null}
-                      </time>
-                    </td>
-                    <td>
-                      <ActivityActionLine item={item} />
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
+      <div className="activity-feed" aria-busy={!!loading}>
+        {loading && items.length === 0 ? <PageSkeleton variant="list" label="Загрузка журнала" /> : items.length === 0 ?
+          <p className="activity-feed-empty">{empty}</p> : <ol className="activity-events">{items.map(item => {
+            const date = new Date(item.created_at)
+            const validDate = !Number.isNaN(date.getTime())
+            const source = item.detail.source === 'bot' ? 'Бот' : item.detail.source === 'panel' ? 'Панель' : item.detail.source === 'system' ? 'Система' : ''
+            return <li key={item.id}><article className="activity-event">
+              <div className="activity-event-meta"><time dateTime={item.created_at}>{validDate ? date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Дата не сохранена'}{validDate && <><span aria-hidden> · </span>{date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</>}</time>{source && <span className="activity-event-source">{source}</span>}</div>
+              <ActivityActionLine item={item} /><EventDetails item={item} />
+            </article></li>
+          })}</ol>}
       </div>
       <div className="activity-table-foot">
         <p className="activity-table-range">

@@ -6,19 +6,18 @@ import random
 import uuid
 
 from fastapi import HTTPException
+from types import SimpleNamespace
 
 from app.models.panel import LootCase, LootCasePrize
 
 MIN_PRIZES_FOR_SPIN = 2
-DEFAULT_SPIN_DURATION_MS = 28000
-LEGACY_SPIN_DURATION_MS = 12000
-LEGACY_SPIN_DURATION_MS_V2 = 20000
+DEFAULT_SPIN_DURATION_MS = 14000
 MIN_SPIN_DURATION_MS = 3000
 MAX_SPIN_DURATION_MS = 45000
 
 
 def normalize_spin_duration_ms(value: int | None) -> int:
-    if value is None or int(value) in (LEGACY_SPIN_DURATION_MS, LEGACY_SPIN_DURATION_MS_V2):
+    if value is None:
         return DEFAULT_SPIN_DURATION_MS
     return max(MIN_SPIN_DURATION_MS, min(MAX_SPIN_DURATION_MS, int(value)))
 
@@ -114,14 +113,15 @@ def _prize_copies(prize: LootCasePrize) -> int:
     return max(1, int(getattr(prize, "weight", 1) or 1))
 
 
-def pick_weighted_prize(prizes: list[LootCasePrize]) -> LootCasePrize:
+def pick_weighted_prize(prizes: list[LootCasePrize], *, rarity_weights: dict | None = None) -> LootCasePrize:
     buckets: dict[str, list[LootCasePrize]] = {}
     for prize in prizes:
         rarity = normalize_rarity(prize.rarity_label)
         buckets.setdefault(rarity, []).append(prize)
     keys = list(buckets)
-    rarity_weights = [RARITY_DROP_WEIGHT.get(key, RARITY_DROP_WEIGHT[""]) for key in keys]
-    rarity = random.choices(keys, weights=rarity_weights, k=1)[0]
+    policy = RARITY_DROP_WEIGHT if rarity_weights is None else rarity_weights
+    bucket_weights = [policy.get(key, policy[""]) for key in keys]
+    rarity = random.choices(keys, weights=bucket_weights, k=1)[0]
     pool = buckets[rarity]
     return random.choices(pool, weights=[_prize_copies(p) for p in pool], k=1)[0]
 
@@ -136,3 +136,9 @@ async def spin_case(case_id: int) -> dict:
         "prize": serialize_prize(winner),
         "prizes": [serialize_prize(p) for p in prizes],
     }
+
+
+def pick_snapshot_prize(prizes: list[dict], rarity_weights: dict | None = None) -> dict:
+    # Reuse exactly the same rarity-then-weight selection as the template preview.
+    winner = pick_weighted_prize([SimpleNamespace(**prize) for prize in prizes], rarity_weights=rarity_weights)
+    return next(prize for prize in prizes if prize["id"] == winner.id)

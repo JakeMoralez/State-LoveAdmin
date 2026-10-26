@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import {
   Bug,
   Gift,
@@ -26,6 +26,8 @@ import { useAuth } from '../context/AuthContext'
 import { DEFAULT_TAG_SPHERES } from '../lib/leaderNickname'
 import { SPHERE_OPTIONS } from '../lib/spheres'
 import { PageSkeleton } from '../components/ui/LoadingState'
+import { SettingsSection, useSettingsSection } from '../components/dev/SettingsSection'
+import { useUnsavedNavigationGuard } from '../hooks/useProfileDraft'
 
 const SPHERE_SELECT_OPTIONS = SPHERE_OPTIONS.filter((s) => s.value !== 'server').map((s) => ({
   value: s.value,
@@ -135,6 +137,7 @@ function ChatEditor({
     rejoin !== chat.kick_on_rejoin ||
     mute !== chat.auto_mute_on_join
 
+  useSettingsSection(dirty, saving, `chat-${chat.peer_id}`)
   return (
     <div className="dev-settings-chat-edit">
       <div className="assign-grid">
@@ -486,52 +489,62 @@ function TagListEditor({
 
 export function DevSettingsPage() {
   const { user, loading: authLoading } = useAuth()
-  const [tab, setTab] = useState<SettingsTab>('chats')
+  const [params, setParams] = useSearchParams()
+  const tab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') as SettingsTab : 'chats'
+  const [visited, setVisited] = useState<SettingsTab[]>([tab])
+  const loadedSections = useRef(new Set<SettingsTab>())
+  const [refreshes, setRefreshes] = useState<Record<string, number>>({})
+  const [sectionState, setSectionState] = useState<Record<string, { dirty: boolean; busy: boolean }>>({})
+  const onReport = useCallback((key: string, dirty: boolean, busy: boolean) => setSectionState(old => old[key]?.dirty === dirty && old[key]?.busy === busy ? old : { ...old, [key]: { dirty, busy } }), [])
+  const [loads, setLoads] = useState<Record<string, boolean>>({})
+  const [errors, setErrors] = useState<Record<string, string | null>>({})
+  const [notices, setNotices] = useState<Record<string, string | null>>({})
+  const [catalogBaseline, setCatalogBaseline] = useState('')
   const [chats, setChats] = useState<DevChat[]>([])
   const [kinds, setKinds] = useState<DevChatKind[]>([])
   const [openPeer, setOpenPeer] = useState<number | null>(null)
   const [catalog, setCatalog] = useState<DevCatalog | null>(null)
-  const [loading, setLoading] = useState(true)
+  const loading = !!loads[tab] || Object.entries(sectionState).some(([key, state]) => key.startsWith(tab + ':') && state.busy)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const error = errors[tab]
+  const notice = notices[tab]
+  const setError = (value: string | null) => setErrors(old => ({ ...old, [tab]: value }))
+  const setNotice = (value: string | null) => setNotices(old => ({ ...old, [tab]: value }))
+  const catalogDirty = !!catalog && JSON.stringify(catalog) !== catalogBaseline
+  const anyDirty = catalogDirty || Object.values(sectionState).some(s => s.dirty)
+  useUnsavedNavigationGuard(anyDirty, 'Есть несохранённые настройки. Уйти со страницы и потерять изменения?')
 
-  const loadChats = async () => {
+  const loadChats = useCallback(async () => {
     const data = await api.devChats()
     setChats(data.chats.map(normalizeDevChat))
     setKinds(visibleChatKinds(data.kinds))
-  }
-
-  const load = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const catalogData = await api.devCatalog()
-      setCatalog({
-        ...catalogData,
-        tag_spheres: Object.fromEntries(
-          Object.entries({ ...DEFAULT_TAG_SPHERES, ...(catalogData.tag_spheres ?? {}) }).map(
-            ([tag, sphere]) => [tag, sphere === 'server' ? 'gov_structures' : sphere],
-          ),
-        ),
-      })
-      try {
-        await loadChats()
-      } catch (e) {
-        setChats([])
-        setKinds([])
-        if (tab === 'chats') setError(formatError(e))
-      }
-    } catch (e) {
-      setError(formatError(e))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    void load()
   }, [])
+
+  const load = useCallback(async (section: SettingsTab) => {
+    setLoads(old => ({ ...old, [section]: true }))
+    setErrors(old => ({ ...old, [section]: null }))
+    try {
+      if (section === 'chats') await loadChats()
+      else if (section === 'catalog') {
+        const data = await api.devCatalog()
+        const normalized = { ...data, tag_spheres: Object.fromEntries(Object.entries({ ...DEFAULT_TAG_SPHERES, ...(data.tag_spheres ?? {}) }).map(([tag, sphere]) => [tag, sphere === 'server' ? 'gov_structures' : sphere])) }
+        setCatalog(normalized); setCatalogBaseline(JSON.stringify(normalized))
+      } else setRefreshes(old => ({ ...old, [section]: (old[section] || 0) + 1 }))
+    } catch (e) { setErrors(old => ({ ...old, [section]: formatError(e) })) }
+    finally { setLoads(old => ({ ...old, [section]: false })) }
+  }, [loadChats])
+  useEffect(() => {
+    if (loadedSections.current.has(tab)) return
+    loadedSections.current.add(tab)
+    // Lazily mount each settings resource once; hidden panels retain their forms.
+    setVisited(old => old.includes(tab) ? old : [...old, tab])
+    if (tab === 'chats' || tab === 'catalog') void load(tab)
+  }, [tab, load])
+  const refreshActive = () => {
+    const dirty = tab === 'catalog' ? catalogDirty : Object.entries(sectionState).some(([key, state]) => key.startsWith(tab + ':') && state.dirty)
+    if (dirty && !window.confirm('Обновить данные этой вкладки? Несохранённые правки могут быть сброшены.')) return
+    void load(tab)
+  }
 
   const sortedChats = useMemo(
     () => [...chats].sort((a, b) => a.kind_label.localeCompare(b.kind_label, 'ru') || a.peer_id - b.peer_id),
@@ -548,28 +561,36 @@ export function DevSettingsPage() {
         section="Разработка"
         title="Настройки"
         icon={Settings}
-        subtitle="Беседы, форум, интеграции, права команд и runtime-настройки"
+        subtitle="Беседы, справочники, подключения и параметры портала"
         shrink
         actions={
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => void load()} disabled={loading}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={refreshActive} disabled={loading || saving}>
             <RefreshCw size={15} className={loading ? 'animate-spin' : undefined} />
             Обновить
           </button>
         }
       />
 
-      <div className="sphere-tabs" role="tablist" aria-label="Настройки">
+      <div className="dev-settings-tabs" role="tablist" aria-label="Настройки">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
+            id={`settings-tab-${item.id}`}
+            aria-controls={`settings-panel-${item.id}`}
+            tabIndex={tab === item.id ? 0 : -1}
             aria-selected={tab === item.id}
+            disabled={saving}
+            onKeyDown={e => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+              e.preventDefault(); const i = TABS.findIndex(t => t.id === tab)
+              const next = e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + TABS.length) % TABS.length
+              setParams({ tab: TABS[next].id }); document.getElementById(`settings-tab-${TABS[next].id}`)?.focus()
+            }}
             className={tab === item.id ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
             onClick={() => {
-              setTab(item.id)
-              setError(null)
-              setNotice(null)
+              setParams({ tab: item.id })
             }}
           >
             {item.label}
@@ -580,7 +601,7 @@ export function DevSettingsPage() {
       {error ? <Alert>{error}</Alert> : null}
       {notice ? <p className="assign-success">{notice}</p> : null}
 
-      {tab === 'chats' && (
+      <SettingsSection key={`chats-${refreshes['chats'] || 0}`} id="chats" active={tab === 'chats'} visited={visited.includes('chats')} onReport={onReport}>
         <div className="dev-settings-chats">
           {loading && !chats.length ? <PageSkeleton variant="list" label="Загрузка бесед" /> : null}
           {!loading && !chats.length && !error ? (
@@ -604,7 +625,7 @@ export function DevSettingsPage() {
                 </div>
                 <span className="dev-settings-chat-toggle">{openPeer === chat.peer_id ? 'Свернуть' : 'Настроить'}</span>
               </button>
-              {openPeer === chat.peer_id ? (
+              <div hidden={openPeer !== chat.peer_id}>
                 <ChatEditor
                   chat={chat}
                   kinds={kinds}
@@ -625,13 +646,14 @@ export function DevSettingsPage() {
                       .finally(() => setSaving(false))
                   }}
                 />
-              ) : null}
+              </div>
             </article>
           ))}
         </div>
-      )}
+      </SettingsSection>
 
-      {tab === 'catalog' && catalog && (
+      <SettingsSection key={`catalog-${refreshes['catalog'] || 0}`} id="catalog" active={tab === 'catalog'} visited={visited.includes('catalog')} onReport={onReport}>
+{catalog && <>
         <div className="dev-settings-catalog">
           <Alert>
             Новая фракция здесь появится в «Назначить». В /snick бота её нужно добавить отдельно.
@@ -671,7 +693,7 @@ export function DevSettingsPage() {
           <button
             type="button"
             className="btn btn-gold"
-            disabled={saving}
+            disabled={saving || !catalogDirty}
             onClick={() => {
               setSaving(true)
               setError(null)
@@ -680,6 +702,7 @@ export function DevSettingsPage() {
                 .saveDevCatalog(catalog)
                 .then((saved) => {
                   setCatalog(saved)
+                  setCatalogBaseline(JSON.stringify(saved))
                   setNotice('Справочники сохранены')
                 })
                 .catch((e) => setError(formatError(e)))
@@ -689,15 +712,16 @@ export function DevSettingsPage() {
             {saving ? 'Сохранение…' : 'Сохранить справочники'}
           </button>
         </div>
-      )}
+</>}
+      </SettingsSection>
 
-      {tab === 'forum' ? <ForumSettingsTab /> : null}
-      {tab === 'integrations' ? <IntegrationsSettingsTab /> : null}
-      {tab === 'portal' ? <PortalSettingsTab /> : null}
-      {tab === 'notifications' ? <NotificationsSettingsTab /> : null}
-      {tab === 'commands' ? <CommandsSettingsTab /> : null}
+      <SettingsSection key={`forum-${refreshes['forum'] || 0}`} id="forum" active={tab === 'forum'} visited={visited.includes('forum')} onReport={onReport}><ForumSettingsTab /></SettingsSection>
+      <SettingsSection key={`integrations-${refreshes['integrations'] || 0}`} id="integrations" active={tab === 'integrations'} visited={visited.includes('integrations')} onReport={onReport}><IntegrationsSettingsTab /></SettingsSection>
+      <SettingsSection key={`portal-${refreshes['portal'] || 0}`} id="portal" active={tab === 'portal'} visited={visited.includes('portal')} onReport={onReport}><PortalSettingsTab /></SettingsSection>
+      <SettingsSection key={`notifications-${refreshes['notifications'] || 0}`} id="notifications" active={tab === 'notifications'} visited={visited.includes('notifications')} onReport={onReport}><NotificationsSettingsTab /></SettingsSection>
+      <SettingsSection key={`commands-${refreshes['commands'] || 0}`} id="commands" active={tab === 'commands'} visited={visited.includes('commands')} onReport={onReport}><CommandsSettingsTab /></SettingsSection>
 
-      {tab === 'system' && (
+      <SettingsSection key={`system-${refreshes['system'] || 0}`} id="system" active={tab === 'system'} visited={visited.includes('system')} onReport={onReport}>
         <div className="dev-settings-system">
           <section className="glass-card dev-settings-block">
             <h3 className="dev-settings-block-title">Другие экраны</h3>
@@ -706,7 +730,7 @@ export function DevSettingsPage() {
                 <ListChecks size={16} /> Список судей на форуме
               </Link>
               <Link to="/checklist" className="dev-settings-link no-underline">
-                <ListChecks size={16} /> Чеклист
+                <ListChecks size={16} /> Чек-листы · архив
               </Link>
               <Link to="/dev/leadership" className="dev-settings-link no-underline">
                 <Shield size={16} /> Флаги is_leader (не реестр)
@@ -723,7 +747,8 @@ export function DevSettingsPage() {
             </div>
           </section>
         </div>
-      )}
+      </SettingsSection>
+
     </div>
   )
 }

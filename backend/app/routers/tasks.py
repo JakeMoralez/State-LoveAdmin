@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
 from app.config import DEFAULT_SERVER_ID
-from app.models.panel import Project, Task, TaskAttachment, TaskComment, TaskRecurrence
+from app.models.panel import Task, TaskAttachment, TaskComment, TaskRecurrence
 from app.services.audit import log_audit
 from app.services.auth import require_ca_user
 from app.services import messages
@@ -229,7 +229,6 @@ class TaskCreate(BaseModel):
     task_type: str = "assignment"
     assignee_vk_id: int | None = None
     assignee_vk_ids: list[int] = Field(default_factory=list)
-    project_id: int | None = None
     due_date: str | date | None = None
     labels: list = []
     sphere: str | None = None
@@ -252,7 +251,6 @@ class TaskUpdate(BaseModel):
     task_type: str | None = None
     assignee_vk_id: int | None = None
     assignee_vk_ids: list[int] | None = None
-    project_id: int | None = None
     due_date: str | date | None = None
     labels: list | None = None
     audience: str | None = None
@@ -271,7 +269,6 @@ class RecurrenceCreate(BaseModel):
     priority: str = "medium"
     task_type: str = "assignment"
     labels: list = []
-    project_id: int | None = None
     sphere: str | None = None
     audience: str | None = None
     assignee_mode: str = "explicit"
@@ -294,7 +291,6 @@ class RecurrenceUpdate(BaseModel):
     priority: str | None = None
     task_type: str | None = None
     labels: list | None = None
-    project_id: int | None = None
     audience: str | None = None
     assignee_mode: str | None = None
     assignee_vk_ids: list[int] | None = None
@@ -388,7 +384,6 @@ def _serialize_task(t: Task) -> dict:
         "assignee_vk_id": t.assignee_vk_id,
         "assignee_vk_ids": ids,
         "reporter_vk_id": t.reporter_vk_id,
-        "project_id": t.project_id,
         "server_id": t.server_id,
         "sphere": getattr(t, "sphere", None) or DEFAULT_WORK_SPHERE,
         "audience": aud,
@@ -419,7 +414,6 @@ async def list_task_audiences(user: dict = Depends(require_ca_user)):
 async def list_tasks(
     view: str = Query("list"),
     server_id: int = DEFAULT_SERVER_ID,
-    project_id: int | None = None,
     assignee_vk_id: int | None = None,
     status: str | None = None,
     priority: str | None = None,
@@ -431,14 +425,7 @@ async def list_tasks(
     await migrate_legacy_task_statuses()
     spheres = resolve_work_spheres(user, sphere)
     sphere_clause = work_item_sphere_filter(spheres)
-    visible_project_ids = await Project.filter(
-        server_id=server_id,
-    ).filter(sphere_clause).values_list("id", flat=True)
-    qs = Task.filter(server_id=server_id).filter(
-        sphere_clause | Q(project_id__in=list(visible_project_ids)),
-    )
-    if project_id is not None:
-        qs = qs.filter(project_id=project_id)
+    qs = Task.filter(server_id=server_id).filter(sphere_clause)
     if status:
         qs = qs.filter(status=normalize_task_status(status))
     if priority:
@@ -452,12 +439,6 @@ async def list_tasks(
     elif assignee_vk_id is not None:
         tasks = [t for t in tasks if assignee_vk_id in _assignee_ids(t)]
 
-    project_ids = {t.project_id for t in tasks if t.project_id}
-    project_titles: dict[int, str] = {}
-    if project_ids:
-        for p in await Project.filter(id__in=list(project_ids)):
-            project_titles[p.id] = p.title
-
     vk_ids = set()
     for t in tasks:
         vk_ids.update(_assignee_ids(t))
@@ -467,8 +448,6 @@ async def list_tasks(
 
     def enrich(t: Task) -> dict:
         data = _serialize_task(t)
-        if t.project_id:
-            data["project_title"] = project_titles.get(t.project_id)
         ids = _assignee_ids(t)
         data["assignee_names"] = [names.get(vid) or f"id{vid}" for vid in ids]
         if ids:
@@ -526,7 +505,6 @@ async def create_task(
         assignee_vk_id=assignee_ids[0] if assignee_ids else None,
         assignee_vk_ids=assignee_ids,
         reporter_vk_id=user["vk_id"],
-        project_id=body.project_id,
         server_id=server_id,
         sphere=sphere,
         audience=audience,
@@ -610,7 +588,6 @@ async def create_recurrence(
         priority=body.priority,
         task_type=body.task_type,
         labels=_normalize_labels(body.labels),
-        project_id=body.project_id,
         server_id=server_id,
         sphere=sphere,
         audience=aud,
@@ -747,11 +724,6 @@ async def get_task(task_id: int, user: dict = Depends(require_ca_user)):
         raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     comments = await TaskComment.filter(task_id=task_id).order_by("created_at")
     attachments = await TaskAttachment.filter(task_id=task_id)
-    project_title = None
-    if task.project_id:
-        p = await Project.get_or_none(id=task.project_id)
-        project_title = p.title if p else None
-
     vk_ids = {task.reporter_vk_id}
     vk_ids.update(_assignee_ids(task))
     vk_ids |= {c.author_vk_id for c in comments}
@@ -760,7 +732,6 @@ async def get_task(task_id: int, user: dict = Depends(require_ca_user)):
 
     return {
         **_serialize_task(task),
-        "project_title": project_title,
         "assignee_names": [names.get(vid) or f"id{vid}" for vid in _assignee_ids(task)],
         "assignee_name": names.get(task.assignee_vk_id) if task.assignee_vk_id else None,
         "reporter_name": names.get(task.reporter_vk_id),
@@ -806,7 +777,6 @@ async def update_task(
     old_priority = task.priority
     old_type = task.task_type
     old_assignees = set(_assignee_ids(task))
-    old_project_id = task.project_id
     old_due = format_due_display(task.due_date, task.due_time) if task.due_date else ""
     old_labels = _label_names(task.labels)
 
@@ -826,8 +796,6 @@ async def update_task(
         _sync_assignees(task, body.assignee_vk_ids)
     elif body.assignee_vk_id is not None:
         _sync_assignees(task, [body.assignee_vk_id] if body.assignee_vk_id else [])
-    if body.project_id is not None:
-        task.project_id = body.project_id
     if body.due_date is not None:
         due_d, due_t = _parse_due(body.due_date)
         task.due_date = due_d
@@ -875,12 +843,6 @@ async def update_task(
     new_labels = _label_names(task.labels)
     if new_labels != old_labels:
         details.append(f"Метки: {new_labels}")
-    if task.project_id != old_project_id:
-        if task.project_id:
-            project = await Project.get_or_none(id=task.project_id)
-            details.append(f"Проект: {project.title if project else f'#{task.project_id}'}")
-        else:
-            details.append("Проект снят")
     if added or removed:
         names = await resolve_display_names(new_assignees)
         if new_assignees:

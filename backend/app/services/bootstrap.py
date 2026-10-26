@@ -326,12 +326,16 @@ async def ensure_defaults() -> None:
     if await _table_exists("loot_cases") and not await _column_exists("loot_cases", "spin_duration_ms"):
         conn = Tortoise.get_connection("default")
         await conn.execute_query(
-            "ALTER TABLE loot_cases ADD COLUMN spin_duration_ms INTEGER NOT NULL DEFAULT 12000"
+            "ALTER TABLE loot_cases ADD COLUMN spin_duration_ms INTEGER NOT NULL DEFAULT 14000"
         )
+
+    if await _table_exists("loot_cases"):
+        from app.config import BASE_DIR, PANEL_DATABASE_URL
+        from app.services.case_duration_migration import migrate_case_duration
+        await migrate_case_duration(PANEL_DATABASE_URL, BASE_DIR / "data" / "backups")
 
     _sphere_tables = (
         "tasks",
-        "projects",
         "checklist_cells",
         "checklist_tasks",
         "checklist_week_tasks",
@@ -358,14 +362,14 @@ async def ensure_defaults() -> None:
 
 
 async def _migrate_work_item_spheres_v1(conn) -> None:
-    """Нормализовать sphere у задач, проектов и банков (legacy → central_apparatus и т.д.)."""
+    """Нормализовать sphere у задач и банков (legacy → central_apparatus и т.д.)."""
     from app.services.sphere_work import normalize_stored_work_sphere
 
     key = "work_item_spheres_v1"
     if await _migration_done(conn, key):
         return
 
-    for table in ("tasks", "projects", "question_banks"):
+    for table in ("tasks", "question_banks"):
         if not await _table_exists(table):
             continue
         if not await _column_exists(table, "sphere"):
@@ -418,7 +422,7 @@ async def _migrate_work_item_spheres_v2(conn) -> None:
         return
 
     allowed = set(WORK_SPHERE_KEYS)
-    for table in ("tasks", "projects", "question_banks"):
+    for table in ("tasks", "question_banks"):
         if not await _table_exists(table):
             continue
         if not await _column_exists(table, "sphere"):

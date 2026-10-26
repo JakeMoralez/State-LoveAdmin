@@ -8,7 +8,7 @@
 
 **State Love Admin** — веб-портал для «следящей администрации» игрового
 сообщества. Управление штатом (staff), доступами, задачами, чек-листами, банками
-вопросов, кейсами-рулетками, проектами, форумными списками судей и т.п.
+вопросов, кейсами-рулетками, форумными списками судей и т.п.
 
 Работает в связке с **State-LoveBot** (соседний репозиторий `../State-LoveBot`,
 VK-бот + Discord-привязка). Панель читает/пишет staff-доступы в БД бота и
@@ -76,7 +76,7 @@ State-LoveAdmin/
 |---|---|---|---|
 | `users`, `user_server_access` (уровень, флаги ролей, nick) | `bot.db` | Панель (UI/API) и бот (локальные cmds); схема — только бот | напрямую из своей БД |
 | Сферы следящих (`StaffNote.spheres`) | `panel.db` | Панель | **только HTTP** `GET/PUT /internal/staff-spheres/...` |
-| Задачи, чеклист, академия, audit, DiscordLink | `panel.db` | Панель | HTTP `/internal/*` |
+| Задачи, архив чеклистов, audit, DiscordLink | `panel.db` | Панель | HTTP `/internal/*` |
 | Чаты, command overrides, forum cookies | `bot.db` / файлы бота | Бот (+ DevSettings proxy) | локально |
 | Каталог уровней 1–11 | `backend/app/domain/access_levels.py` | — | зеркало `database/access_levels.py` |
 | Правила выдачи сфер | `backend/app/domain/sphere_grant_rules.py` | — | зеркало `database/sphere_grant_rules.py` |
@@ -91,11 +91,10 @@ State-LoveAdmin/
 
 ### Таблицы `panel.py` (владеет панель)
 Сессии JWT (`sled_session` cookie) + `PanelLoginToken`, `PanelAuditLog`, `DiscordLink`, `StaffNote`, `DevErrorLog`,
-`Project`/`ProjectMember`, `Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`/
+`Task`/`TaskComment`/`TaskAttachment`/`TaskNotificationLog`/
 `TaskRecurrence`,
-чек-лист (`Checklist*`), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`),
-академия (`AcademyCadet`, `AcademyEvent`, `AcademyWarning`, `AcademyAssignment*`,
-`AcademyReport`, `AcademySession`, `AcademyAttendance`), `PanelSettings`.
+архив чек-листов (`Checklist*`, данные сохранены), банки вопросов (`QuestionBank*`), кейсы (`LootCase*`),
+`PanelSettings`.
 
 ## 5. Backend: роутеры → сервисы
 
@@ -110,9 +109,7 @@ State-LoveAdmin/
 | `spheres` | `/api/spheres` | `staff_spheres`, `sphere_work` |
 | `assign` | `/api/assign` | `staff_assign`, `role_assign`, `internal_assign` |
 | `tasks` | `/api/tasks` | `task_helpers`, `task_notifications`, `vk_notify` |
-| `academy` | `/api/academy` | `academy` (зачисление, этапы, задания, занятия, резерв) |
-| `projects` | `/api/projects` | (модели `Project*`) |
-| `checklist` | `/api/checklist` | (модели `Checklist*`) |
+| `checklist_archived` | `/api/checklist` | Архив: все операции возвращают HTTP 410; исходный `checklist.py` сохранён |
 | `question_banks` | `/api/question-banks` | `question_banks` |
 | `cases` | `/api/dev/cases` | `cases`, `gallery_viewer` |
 | `forum_judge_list` | `/api/forum` | `forum_judge_list` |
@@ -155,7 +152,7 @@ State-LoveAdmin/
 `frontend/src/lib/spheres.ts` (+ backend `staff_spheres`): `central_apparatus`,
 `justice`, `defense`, `health`, `gov_structures`, `illegal_structures`, `server`.
 Многие таблицы панели скоупятся по паре **`(server_id, sphere)`** (задачи, чек-лист,
-банки вопросов, проекты). API часто принимает `?sphere=` (см. `withSphere` в `api.ts`).
+банки вопросов). API часто принимает `?sphere=` (см. `withSphere` в `api.ts`).
 
 ## 7. Auth-поток
 
@@ -178,9 +175,8 @@ State-LoveAdmin/
 `/login` и `/congress`.
 
 `/dashboard` · `/access` · `/staff` · `/leaders` · `/profile` (+ `/profile/:vkId`) ·
-`/tasks` (+ `:taskId`) · `/academy` (+ `/:vkId`) · `/checklist` · `/question-banks` (+ `/review`, `/:id`) ·
+`/tasks` (+ `:taskId`) · `/checklist` · `/question-banks` (+ `/review`, `/:id`) ·
 `/assign` · `/activity` · `/forum/judge-list` · `/forum/formatting` ·
-`/projects` (+ `/:id`, `/:id/tasks/:taskId`) ·
 `/dev` · `/dev/leadership` (bulk `is_leader` only) · `/dev/cases` (+ `/:id`, `/:id/spin`).
 
 Карточка человека: канон **`/profile/{public_id}`** (не vk_id; старые `/staff/:vkId`,
@@ -220,7 +216,7 @@ npm run dev                                          # http://localhost:5173 (pr
   `python backend/scripts/check_sphere_grant_rules_parity.py`.
 - **Схема bot.db:** не генерировать из панели; колонки senior — через бот/скрипты
   (`ensure_user_server_access_senior_columns` — осознанный ALTER, не Tortoise schemas).
-- **Скоуп по сферам:** при работе с задачами/чек-листом/банками/проектами почти
+- **Скоуп по сферам:** при работе с задачами/чек-листом/банками почти
   всегда учитывай `(server_id, sphere)`; не забывай прокидывать `?sphere=`.
 - **`DEFAULT_SERVER_ID`** (по умолч. 30) — продукт **single-server**: почти все API
   завязаны на этот id; UI-свитчера серверов нет (кроме отдельных форумных страниц).
@@ -250,7 +246,54 @@ npm run dev                                          # http://localhost:5173 (pr
 | Добавить страницу | `pages/*.tsx` + маршрут в `App.tsx` + вызовы в `api.ts` |
 | Env-переменные | `backend/app/config.py` + `.env.example` |
 | Логику сфер | `services/staff_spheres.py`, `lib/spheres.ts` |
-| Академию следящих | `services/academy.py`, `routers/academy.py`, `/academy`, LoveBot `/academy` |
 | Деплой/прод | `deploy/` (`README.md`, nginx, systemd, Docker) |
 | Решения по ТЗ | `docs/decisions.md` |
 | Dev Settings / форум / права команд | `pages/DevSettingsPage.tsx`, `routers/dev.py`, LoveBot `command_catalog.py` + `sled_internal_api.py` |
+
+## Очистка разделов
+
+Проекты удалены. Старые страницы перенаправляются к задачам. Миграция `backend/scripts/retire_projects.py` по умолчанию показывает отчёт; `--apply` создаёт полную резервную копию, сохраняет задачи/повторы и их сферы, затем удаляет проектные таблицы и связи. Для PostgreSQL нужен `pg_dump`. Выполнять при остановленном backend.
+
+## Профили и назначения
+
+Текущее оформление и жёлтый акцент сохранены; отдельного прототипа и оценок дизайна нет. Правила и проверки описаны в `docs/staff-appointments.md`. `services/appointments.py` сохраняет закрытые назначения в `StaffAppointmentArchive` (БД панели), `services/bot_appointments.py` обслуживает явное изменение ника ботом. GET реестров не меняет должности. Участники бесед без назначения отображаются отдельно. Старшинство уровня 2 и дополнительные обязанности уровней 3–7 не переносятся автоматически друг в друга.
+
+
+### UI профиля и проверка интерфейса (октябрь 2026)
+
+- `ProfileView` использует вкладки `overview`, `history`, `actions`, `manage` через `?tab=`.
+  `StaffProfileModal` / `LeaderProfileModal` принимают `inline` для общей формы во вкладке управления.
+- `useProfileDraft` сохраняет черновик в sessionStorage по пользователю, серверу и профилю;
+  очищается при сохранении, явном отказе и выходе. Навигация с черновиком требует подтверждения.
+- Общий `Select` сохраняет фокус на combobox; меню в диалоге портируется в его overlay.
+  Escape обрабатывается сначала селектом, затем `useOverlayFocus`.
+- События изменения cookies и редактирования кейсов не записываются в аудит и скрываются
+  при чтении старых записей. `loot_case_spin` остаётся в ленте с результатом.
+- Стандарт рулетки — 14000 мс; одноразовая миграция с полной резервной копией описана
+  в `backend/MIGRATIONS_README.md`. Выбор победителя остаётся на сервере.
+- Проверки: `frontend/scripts/test-interface-logic.mjs` (чистая логика),
+  `check-staff-interface.mjs`, `check-search-navigation.mjs`, `check-roulette.mjs` (Chrome).
+  Браузерные проверки используют dev-вход; прокрутка тестирует подменённый API без выдачи призов.
+
+
+### Выдаваемые кейсы, настройки и фон входа
+
+- `/cases` — собственные экземпляры; `/cases/:id/open` — открытие и восстановление результата.
+  Выдавать и отзывать неоткрытые копии могут уровни 5+; получатели — активные staff 1+.
+  Выдача себе и подтверждение своего выигрыша разрешены. Редактор `/dev/cases` остаётся dev-only.
+- `services/case_grants.py` владеет операциями с `LootCaseGrant` / `LootCaseReward` в panel.db.
+  Снимок включает призы, веса редкостей и длительность. Открытие, выигрыш и audit атомарны;
+  уникальная связь grant → reward исключает повторный выигрыш. Bot DB здесь только читается.
+- `/api/issuance/cases` и вкладка «Кейсы» отделены от денежных выдач. Получатель видит свои
+  выигрыши, 5+ — все и решения. Никаких автоматических игровых начислений.
+- `case_inventory_v1`: полный backup `data/backups/case-inventory/` ДО генерации новых таблиц,
+  запись в panel_migrations после неё. Подробнее: `docs/case-inventory.md`.
+- DevSettings: `?tab=chats|catalog|forum|integrations|portal|notifications|commands|system`.
+  Посещённые панели остаются смонтированными; `SettingsSection` сообщает dirty/busy.
+  Общая кнопка обновляет текущую панель. Секретные поля хранятся только в памяти страницы.
+  Настройки `/dev/portal` не пингуют бота.
+- Login ShapeWaves — исходник React Bits с MIT + Commons Clause, лицензия рядом с файлом.
+  Фон лениво загружается, WebGPU, с reduced motion / hidden pause и графитовым fallback.
+  Палитра совпадает с сайтом, декоративный canvas не перехватывает ввод.
+- Новые проверки: `test_case_inventory.py`, `test_forum19_compat.py`,
+  `frontend/scripts/check-case-inventory.mjs`, `check-settings-login.mjs`.

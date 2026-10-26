@@ -85,7 +85,7 @@ export function createRouletteSound() {
   }
 
   const stop = () => {
-    /* nothing looping */
+    if (ctx?.state === 'running') void ctx.suspend().catch(() => {})
   }
 
   return { unlock, start, setSpeed, tick: tick, land: landFn, stop }

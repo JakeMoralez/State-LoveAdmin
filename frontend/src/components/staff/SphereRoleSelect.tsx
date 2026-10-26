@@ -1,3 +1,4 @@
+import { Select } from '../ui/Select'
 import {
   sphereOptionsForLevel,
   toggleSphere,
@@ -87,12 +88,12 @@ export function SphereRoleSelect({
   const extraChip =
     accessLevel <= 2
       ? { label: 'Старший', title: 'Старший следящий' }
-      : { label: 'Следящий', title: 'Следящий' }
+      : { label: 'Дополнительно следит', title: 'Дополнительные обязанности следящего' }
 
   const canToggle = (key: string) => {
     if (disabled) return false
     if (locked.includes(key)) return false
-    if (grantable && grantable.length > 0 && !grantable.includes(key)) return false
+    if (grantable && !grantable.includes(key)) return false
     return true
   }
 
@@ -106,7 +107,7 @@ export function SphereRoleSelect({
 
   const toggleExtra = (key: SphereKey) => {
     const nextSenior = toggleSphere(seniorSpheres, key)
-    const nextSpheres = nextSenior.includes(key) && !spheres.includes(key)
+    const nextSpheres = accessLevel === 2 && nextSenior.includes(key) && !spheres.includes(key)
       ? withLocked([...spheres, key], locked)
       : withLocked(spheres, locked)
     onChange(emit(nextSpheres, nextSenior))
@@ -125,6 +126,19 @@ export function SphereRoleSelect({
       if (toggleDisabled) return
       if (chips.primary) togglePrimary(key)
       else if (chips.extra) toggleExtra(key)
+    }
+    if (accessLevel === 2) {
+      const state = extraOn ? 'senior' : primaryOn ? 'ordinary' : 'none'
+      return <div key={key} className={cn('sphere-role-row', rowOn && 'sphere-role-row--on')}>
+        <span className="sphere-role-name">{opt.label}</span>
+        <Select className="sphere-assignment-select" aria-label={`Назначение: ${opt.label}`} value={state} disabled={toggleDisabled}
+          options={[{value:'none',label:'Не назначен'},{value:'ordinary',label:'Следящий'},{value:'senior',label:'Старший следящий'}]}
+          onChange={(value) => {
+            const next = value === 'none' ? spheres.filter(s => s !== key) : [...new Set([...spheres, key])]
+            const seniors = value === 'senior' ? [...new Set([...seniorSpheres, key])] : seniorSpheres.filter(s => s !== key)
+            onChange(emit(withLocked(next, locked), seniors))
+          }} />
+      </div>
     }
     return (
       <div
@@ -173,6 +187,9 @@ export function SphereRoleSelect({
           {primaryOptions.map((opt) => renderRow(opt, { primary: true, extra: true }))}
         </div>
       )}
+      <p className="staff-profile-hint m-0 mt-2">{accessLevel === 2
+        ? 'Полномочия старшего действуют только в выбранной сфере. Ограничения по уровню доступа сохраняются.'
+        : 'Дополнительные обязанности выбираются отдельно от основной должности и не означают старшинство.'}</p>
       {locked.length > 0 && (
         <p className="staff-profile-hint m-0 mt-2">Серые сферы можно менять только у руководства выше вас.</p>
       )}

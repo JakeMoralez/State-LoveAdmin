@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Copy, ExternalLink, Gift, MoreHorizontal, Plus } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ApiError, api, type IssuanceBody, type IssuanceItem, type IssuanceKind, type IssuanceLineItem } from '../api'
 import { PageHeader } from '../components/PageHeader'
 import { FieldReq } from '../components/ui/FormField'
@@ -18,12 +18,8 @@ import {
   issuanceStatusLabel,
   issuanceTotalPrefix,
 } from '../lib/issuance'
+import { CaseRewardsView } from '../components/cases/CaseRewardsView'
 import { cn } from '../lib/utils'
-
-const KINDS: { id: IssuanceKind; label: string }[] = [
-  { id: 'virts', label: 'Вирты' },
-  { id: 'az', label: 'АЗ' },
-]
 
 const EMPTY_FORM = {
   role_title: '',
@@ -34,8 +30,18 @@ const EMPTY_FORM = {
 }
 
 export function IssuancePage() {
+  const [params] = useSearchParams()
   const { user } = useAuth()
-  const [searchParams, setSearchParams] = useSearchParams()
+  if (params.get('kind') === 'cases' || (user?.access_level ?? 0) < 3) return <div className="page-stack"><PageHeader section="Работа" title="Выдачи" icon={Gift} /><IssuanceSectionTabs kind="cases" /><CaseRewardsView /></div>
+  return <MoneyIssuancePage />
+}
+function IssuanceSectionTabs({ kind }: { kind: string }) {
+  const { user } = useAuth()
+  return <div className="sphere-tabs" aria-label="Раздел выдач">{[...((user?.access_level ?? 0) >= 3 ? [{ id: 'virts', label: 'Вирты' }, { id: 'az', label: 'АЗ' }] : []), { id: 'cases', label: 'Кейсы' }].map(item => <Link key={item.id} className={`sphere-tab${kind === item.id ? ' sphere-tab--active' : ''}`} aria-current={kind === item.id ? 'page' : undefined} to={`/issuance?kind=${item.id}`}>{item.label}</Link>)}</div>
+}
+function MoneyIssuancePage() {
+  const { user } = useAuth()
+  const [searchParams] = useSearchParams()
   const kindParam = searchParams.get('kind')
   const kind: IssuanceKind = kindParam === 'az' ? 'az' : 'virts'
   const canOpen = (user?.access_level ?? 0) >= ISSUANCE_CREATE_MIN_LEVEL
@@ -72,14 +78,6 @@ export function IssuancePage() {
     } catch {
       setError('Не удалось скопировать')
     }
-  }
-
-  const setKind = (next: IssuanceKind) => {
-    setMenuId(null)
-    setLineMenuId(null)
-    setCopied(null)
-    setNotice(null)
-    setSearchParams(next === 'virts' ? {} : { kind: next }, { replace: true })
   }
 
   const load = ({ silent = false } = {}) => {
@@ -242,27 +240,14 @@ export function IssuancePage() {
         }
       />
 
-      <div className="sphere-tabs" role="tablist" aria-label="Тип выдачи">
-        {KINDS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={kind === tab.id}
-            className={cn('sphere-tab', kind === tab.id && 'sphere-tab--active')}
-            onClick={() => setKind(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <IssuanceSectionTabs kind={kind} />
 
       {error ? <Alert>{error}</Alert> : null}
       {notice ? <Alert variant="success">{notice}</Alert> : null}
 
       <ModalViewport open={modalOpen} onBackdropClick={closeModal}>
         <form
-          className="glass-card academy-modal academy-modal--assign modal-pop relative z-10 flex w-full flex-col issuance-modal"
+          className="glass-card modal-pop relative z-10 flex w-full flex-col issuance-modal"
           onSubmit={(e) => void submit(e)}
           onClick={(e) => e.stopPropagation()}
         >

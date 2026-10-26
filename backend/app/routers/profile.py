@@ -53,7 +53,8 @@ async def get_profile(user: dict = Depends(require_ca_user)):
 async def patch_profile(body: ProfileUpdate, user: dict = Depends(require_ca_user)):
     vk_id = int(user["vk_id"])
     server_id = int(user.get("server_id") or DEFAULT_SERVER_ID)
-    changed: list[str] = []
+    from app.services.access import get_user_profile
+    before = {**await get_user_profile(vk_id, server_id), **await _notify_prefs_payload(vk_id)}
 
     fields_set = body.model_fields_set
 
@@ -72,7 +73,6 @@ async def patch_profile(body: ProfileUpdate, user: dict = Depends(require_ca_use
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        changed.append("nickname")
 
     if "discord_id" in fields_set:
         try:
@@ -80,7 +80,6 @@ async def patch_profile(body: ProfileUpdate, user: dict = Depends(require_ca_use
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         await set_discord_link(vk_id=vk_id, discord_id=discord_id, actor_vk_id=vk_id)
-        changed.append("discord")
 
     if "forum_account" in fields_set:
         from app.services.role_assign import _apply_forum_account
@@ -92,7 +91,6 @@ async def patch_profile(body: ProfileUpdate, user: dict = Depends(require_ca_use
             await _apply_forum_account(vk_id, raw)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        changed.append("forum")
 
     if "notify_tasks" in fields_set or "notify_assign" in fields_set:
         row, _ = await UserNotifyPrefs.get_or_create(
@@ -104,13 +102,15 @@ async def patch_profile(body: ProfileUpdate, user: dict = Depends(require_ca_use
         if "notify_assign" in fields_set and body.notify_assign is not None:
             row.notify_assign = bool(body.notify_assign)
         await row.save()
-        changed.append("notify")
-
-    if changed:
-        await log_audit(vk_id, "profile_update", "profile", vk_id, {"fields": changed})
-
-    from app.services.access import get_user_profile
 
     payload = await get_user_profile(vk_id, server_id)
     prefs = await _notify_prefs_payload(vk_id)
+    after = {**payload, **prefs}
+    detail = {"target_vk_id": vk_id, "target_nickname": before.get("bot_nickname") or before.get("nickname"), "server_id": server_id}
+    for key in ("bot_nickname", "username", "discord_id", "notify_tasks", "notify_assign"):
+        if before.get(key) != after.get(key):
+            detail["nickname" if key == "bot_nickname" else key] = {"from": before.get(key), "to": after.get(key)}
+    if any(isinstance(v, dict) and "from" in v for v in detail.values()):
+        action = "settings_profile_update" if set(detail) - {"target_vk_id", "target_nickname", "server_id", "notify_tasks", "notify_assign"} == set() else "profile_update"
+        await log_audit(vk_id, action, "profile", vk_id, detail)
     return {**payload, **prefs}

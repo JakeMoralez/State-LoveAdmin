@@ -6,10 +6,8 @@ from datetime import date
 
 from fastapi import APIRouter, Depends
 
-from tortoise.expressions import Q
-
 from app.config import DEFAULT_SERVER_ID
-from app.models.panel import Project, Task
+from app.models.panel import Task
 from app.services.auth import require_ca_user
 from app.services.sphere_work import resolve_work_spheres, work_item_sphere_filter
 from app.services.staff import list_staff
@@ -27,12 +25,9 @@ async def dashboard_summary(
     open_statuses = ["todo", "in_progress", "backlog", "review"]
     spheres = resolve_work_spheres(user, None)
     sphere_clause = work_item_sphere_filter(spheres)
-    visible_project_ids = await Project.filter(server_id=server_id).filter(sphere_clause).values_list(
-        "id", flat=True
-    )
     open_tasks = (
         await Task.filter(server_id=server_id, status__in=open_statuses)
-        .filter(sphere_clause | Q(project_id__in=list(visible_project_ids)))
+        .filter(sphere_clause)
         .all()
     )
     today = date.today()
@@ -49,18 +44,16 @@ async def dashboard_summary(
         ):
             overdue += 1
 
-    active_projects = await Project.filter(server_id=server_id, status="active").count()
     staff_count = len(await list_staff(server_id))
     recent = (
         await Task.filter(server_id=server_id)
-        .filter(sphere_clause | Q(project_id__in=list(visible_project_ids)))
+        .filter(sphere_clause)
         .order_by("-updated_at")
         .limit(8)
     )
     return {
         "my_open_tasks": my_open,
         "overdue_tasks": overdue,
-        "active_projects": active_projects,
         "staff_count": staff_count,
         "recent_tasks": [
             {

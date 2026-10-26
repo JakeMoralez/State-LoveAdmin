@@ -224,10 +224,6 @@
   min-width: 0;
 }
 
-.staff-col-nick .academy-chip--inline {
-  flex-shrink: 0;
-}
-
 .staff-col-nick .staff-settings-btn {
   margin-left: auto;
 }
@@ -520,4 +516,24 @@
     width: 1.75rem;
     height: 1.75rem;
   }
+}
+
+.staff-profile-modal { background: var(--card-solid, #12141c); }
+/* Appointment controls use the existing portal palette and surfaces. */
+.sphere-role-row select { width: min(100%, 17rem); min-width: 0; font-size: .85rem; }
+.profile-conversations summary { cursor: pointer; font-weight: 600; }
+.profile-conversations ul { padding: 0; list-style: none; }
+.profile-conversations li { display: flex; justify-content: space-between; gap: 1rem; padding: .5rem 0; font-size: .8rem; border-bottom: 1px solid var(--border-color, #ffffff14); }
+.activity-event-reason { margin: .5rem 0; font-size: .8rem; color: var(--text-secondary, #bbb); }
+.activity-event-details { margin: .5rem 0; font-size: .8rem; }
+.activity-event-details summary { cursor: pointer; color: var(--text-secondary, #bbb); }
+.activity-event-details dl > div { display: grid; grid-template-columns: minmax(8rem, 1fr) 2fr; gap: .5rem; padding: .3rem 0; }
+.activity-event-details dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .staff-profile-footer { flex-wrap: wrap; }
+  .staff-profile-footer > label { flex-basis: 100%; }
+  .staff-profile-footer > button { flex: 1; }
+  .sphere-role-row:has(select) { align-items: stretch; flex-direction: column; gap: .5rem; }
+  .sphere-role-row select { width: 100%; }
+  .activity-event-details dl > div { grid-template-columns: 1fr; }
 }

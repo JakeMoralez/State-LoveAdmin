@@ -119,10 +119,10 @@ export function QuestionBanksPage() {
           {loading && <PageSkeleton variant="cards" label="Загрузка банков" />}
 
           {!loading && !error && (
-            <div className="qb-bank-grid">
+            <div className="qb-bank-grid resource-grid">
               {banks.map((bank) => (
-                <Link key={bank.id} to={`/question-banks/${bank.id}`} className="qb-bank-card">
-                  <BankIcon iconKey={bank.emoji} size={18} boxed className="qb-bank-card-icon" />
+                <Link key={bank.id} to={`/question-banks/${bank.id}`} className="qb-bank-card resource-card">
+                  <BankIcon iconKey={bank.emoji} size={20} boxed className="qb-bank-card-icon resource-card-icon" />
                   <div className="qb-bank-card-body">
                     <h3 className="qb-bank-card-title">{bank.title}</h3>
                     {showSphereBadge && bank.sphere && <SphereBadge sphereId={bank.sphere} className="mt-1.5" />}
@@ -130,26 +130,26 @@ export function QuestionBanksPage() {
                     <div className="qb-bank-card-meta">
                       {(permissions.can_review || bank.contributor_visibility === 'all_confirmed') ? (
                         <>
-                          <span>{bank.question_count} подтверждённых</span>
+                          <span>Подтверждено: {bank.question_count}</span>
                           {(bank.pending_count ?? 0) > 0 && (
-                            <span className="qb-pending-badge">{bank.pending_count} на проверке</span>
+                            <span className="qb-pending-badge">На проверке: {bank.pending_count}</span>
                           )}
                         </>
                       ) : bank.contributor_visibility === 'own_all' ? (
                         <>
-                          <span>{bank.question_count} моих одобрено</span>
+                          <span>Мои одобренные: {bank.question_count}</span>
                           {(bank.pending_count ?? 0) > 0 && (
-                            <span className="qb-pending-badge">{bank.pending_count} в работе</span>
+                            <span className="qb-pending-badge">В работе: {bank.pending_count}</span>
                           )}
                         </>
                       ) : (bank.pending_count ?? 0) > 0 ? (
-                        <span>{bank.pending_count} моих в работе</span>
+                        <span>Мои в работе: {bank.pending_count}</span>
                       ) : (
                         <span className="text-white/40">Нет ваших вопросов</span>
                       )}
                     </div>
                     <div className="qb-bank-card-foot">
-                      <span>Смотреть: {bank.min_view_level_label ?? `ур. ${bank.min_view_level ?? 1}`}</span>
+                      <span>Просмотр: {bank.min_view_level_label ?? `ур. ${bank.min_view_level ?? 1}`}</span>
                       <span>Добавлять: {bank.min_submit_level_label ?? `ур. ${bank.min_submit_level}`}</span>
                       <span>Подтверждать: {bank.min_approve_level_label ?? `ур. ${bank.min_approve_level}`}</span>
                     </div>

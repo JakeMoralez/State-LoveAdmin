@@ -11,8 +11,6 @@ from app.services.staff_spheres import effective_grantable_sphere_keys
 LEADER_REGISTRY_EDIT_MIN_LEVEL = AccessLevel.SUPERVISOR
 # Новые следящие (/assign staff, /reg) — ЗГС (3)+
 ASSIGN_STAFF_MIN_LEVEL = AccessLevel.ZGS
-# Зачисление в академию — Следящий структуры (5)+
-ACADEMY_ENROLL_MIN_LEVEL = AccessLevel.STRUCTURE_SUPERVISOR
 
 
 def can_manage_leadership_registry(
@@ -196,16 +194,12 @@ def staff_edit_permissions(
     edit_level = actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor
     edit_ca = actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor
     edit_spheres = actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor
-    edit_sphere_legacy = actor_level >= AccessLevel.CURATOR or actor_panel_role in ("owner", "lead")
-    edit_discord = (
-        is_self
-        or actor_level >= AccessLevel.ZGS
-        or actor_panel_role in ("owner", "lead")
-    )
+    edit_sphere_legacy = (actor_level >= AccessLevel.CURATOR or actor_panel_role in ("owner", "lead")) and can_edit_target and not target_above_actor
+    edit_discord = is_self or (actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor)
     edit_forum_account = (
         is_self
         or (actor_level >= AccessLevel.ZGS and can_edit_target and not target_above_actor)
-        or actor_panel_role in ("owner", "lead")
+        or (actor_panel_role in ("owner", "lead") and can_edit_target and not target_above_actor)
     )
     revoke_staff = (
         edit_level

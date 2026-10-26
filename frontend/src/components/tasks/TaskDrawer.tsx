@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Link2, Paperclip, Trash2, X } from 'lucide-react'
 import {
   PRIORITY_LABELS,
@@ -7,7 +6,6 @@ import {
   TASK_FORM_STATUSES,
   api,
   normalizeTaskStatus,
-  type Project,
   type StaffMember,
   type TaskDetail,
 } from '../../api'
@@ -36,13 +34,11 @@ function assigneeIdsFromTask(task: TaskDetail): number[] {
 export function TaskDrawer({
   taskId,
   staff,
-  projects,
   onClose,
   onUpdate,
 }: {
   taskId: number
   staff: StaffMember[]
-  projects: Project[]
   onClose: () => void
   onUpdate: () => void
 }) {
@@ -53,7 +49,6 @@ export function TaskDrawer({
   const titleFieldId = useId()
   const descFieldId = useId()
   const priorityFieldId = useId()
-  const projectFieldId = useId()
 
   const [tab, setTab] = useState<DrawerTab>('details')
   const [task, setTask] = useState<TaskDetail | null>(null)
@@ -63,7 +58,6 @@ export function TaskDrawer({
   const [priority, setPriority] = useState('medium')
   const [taskType, setTaskType] = useState('assignment')
   const [assigneeVkIds, setAssigneeVkIds] = useState<number[]>([])
-  const [projectId, setProjectId] = useState('')
   const [dueDate, setDueDate] = useState<string | null>(null)
   const [labels, setLabels] = useState<TaskLabel[]>([])
   const [attachUrl, setAttachUrl] = useState('')
@@ -91,7 +85,6 @@ export function TaskDrawer({
     setPriority(task.priority || 'medium')
     setTaskType(task.task_type || 'assignment')
     setAssigneeVkIds(assigneeIdsFromTask(task))
-    setProjectId(task.project_id ? String(task.project_id) : '')
     setDueDate(task.due_date || null)
     setLabels(normalizeLabels(task.labels))
   }, [task])
@@ -106,11 +99,10 @@ export function TaskDrawer({
       priority !== (task.priority || 'medium') ||
       taskType !== (task.task_type || 'assignment') ||
       JSON.stringify(assigneeVkIds) !== JSON.stringify(origIds) ||
-      projectId !== (task.project_id ? String(task.project_id) : '') ||
       dueDate !== (task.due_date || null) ||
       JSON.stringify(labels) !== JSON.stringify(normalizeLabels(task.labels))
     )
-  }, [task, title, description, status, priority, taskType, assigneeVkIds, projectId, dueDate, labels])
+  }, [task, title, description, status, priority, taskType, assigneeVkIds, dueDate, labels])
 
   const tryClose = useCallback(() => {
     if (dirty && !window.confirm('Есть несохранённые изменения. Закрыть без сохранения?')) return
@@ -131,7 +123,6 @@ export function TaskDrawer({
         task_type: taskType,
         assignee_vk_ids: assigneeVkIds,
         assignee_vk_id: assigneeVkIds[0] ?? null,
-        project_id: projectId ? parseInt(projectId, 10) : null,
         due_date: dueDate,
         labels,
       })
@@ -224,11 +215,6 @@ export function TaskDrawer({
             <h2 id={drawerTitleId} className="text-lg font-bold mt-0.5 truncate">
               {task.title}
             </h2>
-            {task.project_title && task.project_id && (
-              <Link to={`/projects/${task.project_id}`} className="text-xs link-gold">
-                {task.project_title}
-              </Link>
-            )}
           </div>
           <div className="flex items-center gap-1">
             {canDelete && (
@@ -333,21 +319,6 @@ export function TaskDrawer({
                 />
               </div>
 
-              <div>
-                <label className="text-caption mb-1.5 block" htmlFor={projectFieldId}>
-                  Проект
-                </label>
-                <Select
-                  id={projectFieldId}
-                  value={projectId}
-                  onChange={setProjectId}
-                  placeholder="Без проекта"
-                  options={[
-                    { value: '', label: 'Без проекта' },
-                    ...projects.map((p) => ({ value: String(p.id), label: p.title })),
-                  ]}
-                />
-              </div>
 
               <div>
                 <label className="text-caption mb-1.5 block">Исполнители</label>

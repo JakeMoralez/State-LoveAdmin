@@ -50,21 +50,6 @@ export const ACTIVITY_VERBS: Record<string, string> = {
   loot_case_prize_delete: 'удалил приз из кейса',
   loot_case_prize_bulk: 'импортировал призы в кейс',
   loot_case_prize_shuffle: 'перемешал призы в кейсе',
-  academy_enroll: 'зачислил в академию',
-  academy_updated: 'изменил карточку академика',
-  academy_stage_changed: 'сменил этап академии',
-  academy_graduated: 'выпустил академика',
-  academy_expelled: 'отчислил из академии',
-  academy_frozen: 'заморозил академика',
-  academy_comment: 'оставил комментарий в академии',
-  academy_warning: 'выдал предупреждение академии',
-  academy_template_create: 'создал шаблон задания академии',
-  academy_template_update: 'изменил шаблон задания академии',
-  academy_assignment_create: 'выдал задание академии',
-  academy_report_submit: 'сдал отчёт академии',
-  academy_report_review: 'проверил отчёт академии',
-  academy_session_create: 'создал занятие академии',
-  academy_attendance: 'отметил посещаемость академии',
   question_bank_create: 'создал банк вопросов',
   obzvon_question_create: 'создал вопрос обзвона',
   obzvon_session_create: 'начал сессию обзвона',
@@ -112,7 +97,6 @@ const ACTION_TOKEN_RU: Record<string, string> = {
   staff: 'штат',
   task: 'задачу',
   project: 'проект',
-  academy: 'академию',
   issuance: 'выдачу',
   forum: 'форум',
   catalog: 'справочник',
@@ -147,7 +131,6 @@ export function activityVerb(action: string, fallback?: string | null): string {
   if (key.startsWith('loot_case_')) return 'изменил кейс'
   if (key.startsWith('leader_')) return 'изменил карточку руководства'
   if (key.startsWith('dev_')) return 'обновил настройки'
-  if (key.startsWith('academy_')) return 'изменил академию'
   if (key.startsWith('obzvon_')) return humanizeActionKey(key)
   if (key.startsWith('question_bank_')) return 'изменил банк вопросов'
   if (key.startsWith('arz_')) return 'обновил Arizona Leaders'
@@ -172,7 +155,7 @@ function verbsWithPrefix(prefix: string): string[] {
 }
 
 export const ACTION_FILTERS: { id: string; label: string; actions: string[] }[] = [
-  { id: 'all', label: 'Все действия', actions: [] },
+  { id: 'all', label: 'Люди, задачи и выдачи', actions: [] },
   { id: 'staff', label: 'Следящие', actions: verbsWithPrefix('staff_') },
   { id: 'leaders', label: 'Руководство', actions: verbsWithPrefix('leader_') },
   {
@@ -181,24 +164,25 @@ export const ACTION_FILTERS: { id: string; label: string; actions: string[] }[] 
     actions: ['judge_assign', 'congress_assign', 'judge_forum_template_save'],
   },
   { id: 'tasks', label: 'Задачи', actions: verbsWithPrefix('task_') },
-  { id: 'projects', label: 'Проекты', actions: verbsWithPrefix('project_') },
+  { id: 'materials', label: 'Материалы и регламенты', actions: [] },
+  { id: 'settings', label: 'Настройки', actions: [] },
   { id: 'banks', label: 'Банки вопросов', actions: verbsWithPrefix('qb_') },
   { id: 'cases', label: 'Кейсы', actions: verbsWithPrefix('loot_case_') },
-  { id: 'academy', label: 'Академия', actions: verbsWithPrefix('academy_') },
   { id: 'issuance', label: 'Выдачи', actions: verbsWithPrefix('issuance_') },
 ]
 
 export const ACTION_FILTER_OPTIONS = ACTION_FILTERS.map(({ id, label }) => ({ value: id, label }))
 
 export const ACTION_GROUP_PREFIXES: Record<string, string[]> = {
-  staff: ['staff_'],
+  materials: ['qb_', 'knowledge_', 'regulation_', 'congress_bill_'],
+  settings: ['dev_', 'settings_', 'judge_forum_'],
+  staff: ['staff_', 'profile_'],
   leaders: ['leader_'],
   justice: ['judge_', 'congress_'],
   tasks: ['task_'],
   projects: ['project_'],
   banks: ['qb_'],
   cases: ['loot_case_'],
-  academy: ['academy_'],
   issuance: ['issuance_'],
 }
 

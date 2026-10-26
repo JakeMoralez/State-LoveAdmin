@@ -57,7 +57,7 @@ async def get_user_profile(
     dev_ca: bool | None = None,
     dev_spheres: list[str] | None = None,
 ) -> dict:
-    from app.services.staff import get_staff_member, role_title
+    from app.services.staff import get_staff_member, role_title, additional_roles
     from app.services.staff_spheres import format_spheres_display, has_central_apparatus
 
     user = await User.get_or_none(vk_id=vk_id)
@@ -119,6 +119,7 @@ async def get_user_profile(
         "access_level_name": AccessLevel.title(level),
         "access_role_title": role_title(level),
         "has_ca_access": has_ca,
+        "additional_roles": additional_roles(access),
         "spheres": spheres,
         "sphere": sphere,
         "is_senior": bool(access and getattr(access, "is_senior", False)),

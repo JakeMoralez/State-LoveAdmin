@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ChevronDown, Filter, LayoutGrid, List, Repeat, RotateCcw } from 'lucide-react'
-import { PRIORITY_LABELS, type Project, type StaffMember } from '../../api'
+import { PRIORITY_LABELS, type StaffMember } from '../../api'
 import { staffLabel } from '../../lib/staff'
 import { cn } from '../../lib/utils'
 import { Select } from '../ui/Select'
@@ -13,7 +13,6 @@ export interface TaskFilters {
   overdue: boolean
   assigneeVkId: string
   priority: string
-  projectId: string
   view: TaskViewMode
 }
 
@@ -21,10 +20,8 @@ interface TasksToolbarProps {
   filters: TaskFilters
   onChange: (patch: Partial<TaskFilters>) => void
   staff: StaffMember[]
-  projects: Project[]
   shown: number
   total: number
-  hideProjectFilter?: boolean
   onCreate?: () => void
   showRepeatsTab?: boolean
   createLabel?: string
@@ -34,10 +31,8 @@ export function TasksToolbar({
   filters,
   onChange,
   staff,
-  projects,
   shown,
   total,
-  hideProjectFilter,
   onCreate,
   showRepeatsTab,
   createLabel = 'Задача',
@@ -51,18 +46,12 @@ export function TasksToolbar({
     ...staff.map((s) => ({ value: String(s.vk_id), label: staffLabel(s) })),
   ]
 
-  const projectOptions = [
-    { value: '', label: 'Все проекты' },
-    ...projects.map((p) => ({ value: String(p.id), label: p.title })),
-  ]
-
   const activeCount = useMemo(
     () =>
       Number(filters.mine) +
       Number(filters.overdue) +
       Number(Boolean(filters.assigneeVkId)) +
-      Number(Boolean(filters.priority)) +
-      Number(Boolean(filters.projectId)),
+      Number(Boolean(filters.priority)),
     [filters],
   )
 
@@ -72,7 +61,6 @@ export function TasksToolbar({
       overdue: false,
       assigneeVkId: '',
       priority: '',
-      projectId: hideProjectFilter ? filters.projectId : '',
     })
 
   return (
@@ -178,17 +166,6 @@ export function TasksToolbar({
               ]}
             />
           </div>
-          {!hideProjectFilter && (
-            <div className="tasks-filter-field">
-              <Select
-                size="sm"
-                value={filters.projectId}
-                onChange={(v) => onChange({ projectId: v })}
-                options={projectOptions}
-                aria-label="Проект"
-              />
-            </div>
-          )}
           <button type="button" className="btn-ghost btn-sm tasks-filter-reset" onClick={reset}>
             <RotateCcw size={14} aria-hidden />
             Сброс

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { ExternalLink, HelpCircle, X } from 'lucide-react'
 import { api, ApiError, type StaffMemberDetail, type StaffMemberPermissions } from '../../api'
-import { grantableAccessLevelOptions, ACADEMY_ENROLL_MIN_LEVEL } from '../../lib/accessLevels'
+import { grantableAccessLevelOptions } from '../../lib/accessLevels'
 import { formatSpheresDisplay } from '../../lib/spheres'
 import {
   DEFAULT_DEVELOPER_TAG,
@@ -21,10 +21,9 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { ForumAccountField } from '../ui/ForumAccountField'
 import { Select } from '../ui/Select'
-import { ModalViewport } from '../ui/ModalViewport'
+import { ProfileEditorViewport } from './ProfileEditorViewport'
+import { useProfileDraft } from '../../hooks/useProfileDraft'
 import { DatePicker } from '../ui/DatePicker'
-import { Checkbox } from '../ui/Checkbox'
-import { ACADEMY_DIRECTIONS, ACADEMY_STAGES, academyCanEnrollLevel } from '../../lib/academy'
 import { SphereMultiSelect, filterSpheresForLevel, sphereFieldLabel } from './SphereMultiSelect'
 import { SphereRoleSelect, usesSphereRoles } from './SphereRoleSelect'
 import {
@@ -51,6 +50,7 @@ function spheresEqual(a: string[], b: string[]): boolean {
 export interface StaffProfileModalProps {
   member: StaffMemberDetail | null
   open: boolean
+  inline?: boolean
   onClose: () => void
   onSaved: (result?: { removed?: boolean }) => void
   permissions: StaffMemberPermissions
@@ -65,12 +65,15 @@ const DISCORD_ID_HELP =
 
 export function StaffProfileModal({
   member,
+  inline = false,
   open,
   onClose,
   onSaved,
   permissions,
 }: StaffProfileModalProps) {
   const { user } = useAuth()
+  const titleId = useId()
+  const [reason, setReason] = useState('')
   const [nickname, setNickname] = useState('')
   const [nicknameTag, setNicknameTag] = useState('')
   const [accessLevel, setAccessLevel] = useState('0')
@@ -85,49 +88,26 @@ export function StaffProfileModal({
   const [promotedTouched, setPromotedTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [inAcademy, setInAcademy] = useState(false)
-  const [academyDirection, setAcademyDirection] = useState('general')
-  const [academyStage, setAcademyStage] = useState('theory')
-  const [academyMentor, setAcademyMentor] = useState('')
-  const [academyEnd, setAcademyEnd] = useState<string | null>(null)
-  const [mentors, setMentors] = useState<{ vk_id: number; nickname: string }[]>([])
 
-  useEffect(() => {
-    if (!member) return
-    setNickname(memberCleanName(member))
-    const level = member.access_level
-    setNicknameTag(
-      isDeveloperLevel(level)
-        ? developerTagFromNickname(member.bot_nickname ?? member.nickname ?? '')
-        : extractNicknameTag(member.bot_nickname ?? member.nickname ?? ''),
-    )
-    setAccessLevel(String(member.access_level))
-    setSpheres(member.spheres ?? [])
-    const loadedSenior = member.senior_spheres ?? []
-    setSeniorSpheres(loadedSenior)
-    setIsSenior(Boolean(member.is_senior) && loadedSenior.length > 0)
-    setDiscordId(member.discord_id ?? '')
-    setForumAccount(forumMemberUrl(member.username, member.vk_id))
-    setForumTouched(false)
-    setAppointedAt(isoToDateInput(member.granted_at) || todayDateInputValue())
-    setPromotedAt(
-      isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at) || todayDateInputValue(),
-    )
-    setPromotedTouched(false)
-    setInAcademy(Boolean(member.is_academy))
-    setAcademyDirection(member.academy?.direction || 'general')
-    setAcademyStage(member.academy?.stage || 'theory')
-    setAcademyMentor(member.academy?.mentor_vk_id ? String(member.academy.mentor_vk_id) : '')
-    setAcademyEnd(member.academy?.expected_end_at?.slice(0, 10) || null)
-    setError(null)
-  }, [member])
+  const initial = {
+    reason: '', nickname: member ? memberCleanName(member) : '',
+    nicknameTag: member ? (isDeveloperLevel(member.access_level) ? developerTagFromNickname(member.bot_nickname ?? member.nickname ?? '') : extractNicknameTag(member.bot_nickname ?? member.nickname ?? '')) : '',
+    accessLevel: String(member?.access_level ?? 0), spheres: member?.spheres ?? [],
+    seniorSpheres: member?.senior_spheres ?? [], isSenior: Boolean(member?.is_senior && member.senior_spheres?.length),
+    discordId: member?.discord_id ?? '', forumAccount: member ? forumMemberUrl(member.username, member.vk_id) : '',
+    appointedAt: member ? isoToDateInput(member.granted_at) || todayDateInputValue() : '',
+    promotedAt: member ? isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at) || todayDateInputValue() : '',
+  }
+  const draft = useProfileDraft(inline && user && member ? `${user.vk_id}:${member.server_id ?? 30}:${member.vk_id}:staff` : undefined,
+    initial, { reason, nickname, nicknameTag, accessLevel, spheres, seniorSpheres, isSenior, discordId, forumAccount, appointedAt, promotedAt }, d => {
+      setReason(d.reason); setNickname(d.nickname); setNicknameTag(d.nicknameTag); setAccessLevel(d.accessLevel)
+      setSpheres(d.spheres); setSeniorSpheres(d.seniorSpheres); setIsSenior(d.isSenior); setDiscordId(d.discordId)
+      setForumAccount(d.forumAccount); setAppointedAt(d.appointedAt); setPromotedAt(d.promotedAt)
+      setPromotedTouched(false); setForumTouched(false); setError(null)
+    })
 
-  useEffect(() => {
-    if (!open || (user?.access_level ?? 0) < 3) return
-    api.academyMentors().then((r) => setMentors(r.mentors)).catch(() => undefined)
-  }, [open, user?.access_level])
 
-  const savedSpheres = member?.spheres ?? []
+  const savedSpheres = useMemo(() => member?.spheres ?? [], [member?.spheres])
   const savedAppointedAt = member ? isoToDateInput(member.granted_at) : ''
   const savedPromotedAt = member
     ? isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at)
@@ -158,21 +138,19 @@ export function StaffProfileModal({
     : member?.access_level ?? 0
 
   useEffect(() => {
-    if (!canEditAccessLevel) return
+    if (!draft.ready || !canEditAccessLevel) return
     setSpheres((prev) => filterSpheresForLevel(prev, parsedLevel))
     if (!usesSphereRoles(parsedLevel)) {
       setIsSenior(false)
       setSeniorSpheres([])
     }
-  }, [parsedLevel, canEditAccessLevel])
+  }, [parsedLevel, canEditAccessLevel, draft.ready])
 
   useEffect(() => {
-    if (!member || promotedTouched) return
+    if (!draft.ready || !member || promotedTouched) return
     const rankChanged =
       parseInt(accessLevel, 10) !== member.access_level ||
-      !spheresEqual(spheres, member.spheres ?? []) ||
-      isSenior !== Boolean(member.is_senior) ||
-      !spheresEqual(seniorSpheres, member.senior_spheres ?? [])
+      !spheresEqual(spheres, member.spheres ?? [])
     if (rankChanged) {
       setPromotedAt(todayDateInputValue())
       return
@@ -180,7 +158,7 @@ export function StaffProfileModal({
     setPromotedAt(
       isoToDateInput(member.promoted_at) || isoToDateInput(member.granted_at) || todayDateInputValue(),
     )
-  }, [accessLevel, spheres, isSenior, seniorSpheres, member, promotedTouched])
+  }, [accessLevel, spheres, isSenior, seniorSpheres, member, promotedTouched, draft.ready])
 
   const levelOptions = useMemo(() => {
     const max = permissions.max_access_level
@@ -225,20 +203,13 @@ export function StaffProfileModal({
     member.vk_id !== user?.vk_id &&
     member.access_level < (user?.access_level ?? 0)
 
-  const academyAlready = Boolean(member.is_academy)
-  const canEnrollAcademy =
-    (user?.access_level ?? 0) >= ACADEMY_ENROLL_MIN_LEVEL && academyCanEnrollLevel(member.access_level)
-  const canEditAcademy =
-    ((user?.access_level ?? 0) >= 3 && academyAlready) || canEnrollAcademy
-
   const canEditAnything =
     permissions.edit_nickname ||
     canEditAccessLevel ||
     canEditSpheres ||
     permissions.edit_discord ||
     permissions.edit_forum_account ||
-    canRevokeAccess ||
-    canEditAcademy
+    canRevokeAccess
 
   const savedCleanName = memberCleanName(member)
   const savedNicknameTag = isDeveloperLevel(parsedLevel)
@@ -262,13 +233,7 @@ export function StaffProfileModal({
       forumValidation.ok &&
       forumValidation.memberId !== savedForumId) ||
     (canEditAccessLevel && appointedAt !== savedAppointedAt && appointedAt !== '') ||
-    (canEditAccessLevel && promotedAt !== savedPromotedAt && promotedAt !== '') ||
-    (canEditAcademy &&
-      (inAcademy !== academyAlready ||
-        academyDirection !== (member.academy?.direction || 'general') ||
-        academyStage !== (member.academy?.stage || 'theory') ||
-        academyMentor !== (member.academy?.mentor_vk_id ? String(member.academy.mentor_vk_id) : '') ||
-        (academyEnd || '') !== (member.academy?.expected_end_at?.slice(0, 10) || '')))
+    (canEditAccessLevel && promotedAt !== savedPromotedAt && promotedAt !== '')
 
   const appendNicknameResync = (body: Record<string, unknown>) => {
     const cleanNick = stripStaffNicknameTags(nickname).trim()
@@ -306,7 +271,7 @@ export function StaffProfileModal({
     setSaving(true)
     setError(null)
     try {
-      const body: Record<string, unknown> = {}
+      const body: Record<string, unknown> = { reason }
       const cleanNick = stripStaffNicknameTags(nickname).trim()
 
       if (permissions.edit_nickname && cleanNick !== savedCleanName) {
@@ -354,43 +319,17 @@ export function StaffProfileModal({
         body.promoted_at = promotedAt
       }
 
-      if (canEnrollAcademy && inAcademy !== academyAlready) {
-        if (inAcademy) {
-          await api.academyEnroll({
-            vk_id: member.vk_id,
-            direction: academyDirection,
-            stage: academyStage,
-            mentor_vk_id: academyMentor ? Number(academyMentor) : null,
-            expected_end_at: academyEnd,
-          })
-        }
-      } else if (canEditAcademy && academyAlready && inAcademy) {
-        const academyChanged =
-          academyDirection !== (member.academy?.direction || 'general') ||
-          academyStage !== (member.academy?.stage || 'theory') ||
-          academyMentor !== (member.academy?.mentor_vk_id ? String(member.academy.mentor_vk_id) : '') ||
-          (academyEnd || '') !== (member.academy?.expected_end_at?.slice(0, 10) || '')
-        if (academyChanged) {
-          await api.academyPatchCadet(member.vk_id, {
-            direction: academyDirection,
-            stage: academyStage,
-            mentor_vk_id: academyMentor ? Number(academyMentor) : undefined,
-            clear_mentor: !academyMentor,
-            expected_end_at: academyEnd,
-            clear_expected_end: !academyEnd,
-          })
-        }
-      }
-
       if (Object.keys(body).length === 0) {
-        onSaved()
-        onClose()
+        draft.clear()
+      onSaved()
+        if (!inline) onClose()
         return
       }
 
       await api.updateStaffMember(member.vk_id, body)
+      draft.clear()
       onSaved()
-      onClose()
+      if (!inline) onClose()
     } catch (e: unknown) {
       setError(formatError(e))
     } finally {
@@ -409,9 +348,10 @@ export function StaffProfileModal({
     setSaving(true)
     setError(null)
     try {
-      const res = await api.updateStaffMember(member.vk_id, { revoke_staff_access: true })
+      const res = await api.updateStaffMember(member.vk_id, { revoke_staff_access: true, reason })
+      draft.clear()
       onSaved({ removed: res.removed })
-      onClose()
+      if (!inline) onClose()
     } catch (e: unknown) {
       setError(formatError(e))
     } finally {
@@ -419,8 +359,16 @@ export function StaffProfileModal({
     }
   }
 
+  const requestClose = () => {
+    if (saving) return
+    if (!draft.dirty || window.confirm('Есть несохранённые изменения. Закрыть без сохранения?')) {
+      draft.discard()
+      onClose()
+    }
+  }
+
   return (
-    <ModalViewport open={open} onBackdropClick={onClose}>
+    <ProfileEditorViewport inline={inline} open={open} onClose={requestClose} titleId={titleId}>
       <div
         className="glass-card staff-profile-modal modal-pop relative z-10 flex w-full max-w-xl flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -429,7 +377,7 @@ export function StaffProfileModal({
           <div className="flex min-w-0 items-center gap-3">
             <img src={member.avatar_url || DEFAULT_AVATAR} alt="" className="staff-profile-avatar" />
             <div className="min-w-0">
-              <h2 className="m-0 truncate text-lg font-semibold">
+              <h2 id={titleId} className="m-0 truncate text-lg font-semibold">
                 {canEditAnything ? 'Настройки' : 'Просмотр'} · {headerLabel}
               </h2>
               <p className="m-0 mt-0.5 text-xs text-white/40">
@@ -438,7 +386,7 @@ export function StaffProfileModal({
               </p>
             </div>
           </div>
-          <button type="button" className="btn-icon shrink-0" onClick={onClose} aria-label="Закрыть">
+          <button type="button" className="btn-icon shrink-0" onClick={requestClose} aria-label="Закрыть">
             <X size={18} />
           </button>
         </div>
@@ -542,7 +490,12 @@ export function StaffProfileModal({
                 <label className="staff-profile-label">Уровень доступа</label>
                 <Select
                   value={accessLevel}
-                  onChange={setAccessLevel}
+                  onChange={(value) => {
+                    if ((Number(accessLevel) === 2) !== (Number(value) === 2)) {
+                      setSeniorSpheres([]); setIsSenior(false)
+                    }
+                    setAccessLevel(value)
+                  }}
                   options={levelOptions}
                   disabled={saving}
                 />
@@ -668,57 +621,6 @@ export function StaffProfileModal({
             )}
           </section>
 
-          {(canEditAcademy || academyAlready) && (
-            <section className="staff-profile-section">
-              <h3 className="staff-profile-section-title">Академия</h3>
-              <div className="staff-profile-field">
-                <label className="ui-checkbox-label staff-profile-check">
-                  <Checkbox
-                    checked={inAcademy || academyAlready}
-                    disabled={saving || academyAlready || !canEnrollAcademy}
-                    onChange={setInAcademy}
-                  />
-                  Состоит в Академии
-                </label>
-                {(inAcademy || academyAlready) && canEditAcademy && (
-                  <div className="staff-profile-subfields">
-                    <div className="staff-profile-field">
-                      <label className="staff-profile-label">Направление</label>
-                      <Select
-                        value={academyDirection}
-                        onChange={setAcademyDirection}
-                        options={ACADEMY_DIRECTIONS.map((d) => ({ value: d.value, label: d.label }))}
-                      />
-                    </div>
-                    <div className="staff-profile-field">
-                      <label className="staff-profile-label">Этап</label>
-                      <Select
-                        value={academyStage}
-                        onChange={setAcademyStage}
-                        options={ACADEMY_STAGES.map((d) => ({ value: d.value, label: d.label }))}
-                      />
-                    </div>
-                    <div className="staff-profile-field">
-                      <label className="staff-profile-label">Наставник</label>
-                      <Select
-                        value={academyMentor}
-                        onChange={setAcademyMentor}
-                        options={[
-                          { value: '', label: 'Наставник не назначен' },
-                          ...mentors.map((m) => ({ value: String(m.vk_id), label: m.nickname })),
-                        ]}
-                      />
-                    </div>
-                    <div className="staff-profile-field">
-                      <label className="staff-profile-label">Окончание</label>
-                      <DatePicker value={academyEnd} onChange={setAcademyEnd} showTime={false} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-
           {canRevokeAccess && (
             <div className="staff-profile-danger">
               <div className="staff-profile-danger-title">Действия</div>
@@ -741,8 +643,12 @@ export function StaffProfileModal({
         </div>
 
         <div className="staff-profile-footer">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
-            {hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
+          {canEditAnything && <label className="staff-profile-field">Причина изменения
+            <input className="control w-full" value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} placeholder="Необязательно" disabled={saving} />
+          </label>}
+          <div className="staff-profile-footer-actions">
+          <button type="button" className="btn btn-secondary" onClick={requestClose} disabled={saving}>
+            {inline ? 'Сбросить изменения' : hasChanges && canEditAnything ? 'Отмена' : 'Закрыть'}
           </button>
           {canEditAnything && (
             <button
@@ -754,8 +660,9 @@ export function StaffProfileModal({
               {saving ? 'Сохранение…' : 'Сохранить'}
             </button>
           )}
+          </div>
         </div>
       </div>
-    </ModalViewport>
+    </ProfileEditorViewport>
   )
 }

@@ -1,8 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, FolderKanban, GripVertical, MessageSquare } from 'lucide-react'
+import { AlertTriangle, GripVertical, MessageSquare } from 'lucide-react'
 import { type CSSProperties, type MouseEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { PRIORITY_LABELS, STATUS_LABELS, type Task, type TaskDetail } from '../../api'
 import { normalizeLabels } from '../../lib/labels'
 import { StaffNickInline } from '../staff/StaffNickInline'
@@ -70,12 +69,6 @@ function TaskCardContent({ task }: { task: Task }) {
         <span className={cn('badge-pill text-[10px] shrink-0', priorityBadgeClass(priority))}>
           {PRIORITY_LABELS[priority] || priority}
         </span>
-        {task.project_title && (
-          <span className="badge-pill text-[10px] badge-gold inline-flex max-w-full items-center gap-1 truncate">
-            <FolderKanban size={10} className="shrink-0" />
-            <span className="truncate">{task.project_title}</span>
-          </span>
-        )}
         {task.audience_label && (
           <span className="badge-pill text-[10px] max-w-full truncate bg-sky-500/20 text-sky-100">
             {task.audience_label}
@@ -193,16 +186,6 @@ export function TaskListRow({ task, onSelect }: { task: TaskDetail; onSelect: (t
     >
       <div className="min-w-0">
         <div className="font-medium text-sm truncate">{task.title}</div>
-        {task.project_title && (
-          <Link
-            to={`/projects/${task.project_id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-[var(--accent-gold)]/80 no-underline hover:underline mt-0.5 inline-flex items-center gap-1"
-          >
-            <FolderKanban size={11} />
-            {task.project_title}
-          </Link>
-        )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {commentCount > 0 && (

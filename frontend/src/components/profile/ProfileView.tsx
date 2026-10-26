@@ -1,31 +1,22 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import {
-  Check,
-  ClipboardList,
-  Code2,
-  Copy,
-  ExternalLink,
-  History,
-  ListChecks,
-  Shield,
-  UserRound,
-} from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { api, ApiError, type ActivityLogItem, type DashboardSummary, type ProfileUpdateBody } from '../../api'
+import { Copy, Check, ExternalLink, History, UserRound, Settings2, ListChecks, CalendarDays, ShieldCheck, Layers3, ContactRound } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { api, ApiError, type ActivityLogItem } from '../../api'
 import { useAuth } from '../../context/AuthContext'
-import { looksLikeDiscordId } from '../../lib/discordId'
-import { forumMemberUrl, parseForumMemberUrl } from '../../lib/forumAccount'
-import { ActivityTable, ActivityToolbar } from '../activity/ActivityTable'
+import { confirmProfileNavigation } from '../../hooks/useProfileDraft'
+import { forumMemberUrl } from '../../lib/forumAccount'
 import { formatSpheresDisplay } from '../../lib/spheres'
+import { stripStaffNicknameTags } from '../../lib/staffNickname'
+import { ActivityTable, ActivityToolbar } from '../activity/ActivityTable'
 import { PageHeader } from '../PageHeader'
-import { Checkbox } from '../ui/Checkbox'
-import { ForumAccountField } from '../ui/ForumAccountField'
-
-const DEFAULT_AVATAR = 'https://vk.com/images/camera_100.png'
-const JOURNAL_MIN_LEVEL = 2
-const ACCESS_HISTORY_ACTIONS = 'staff_assign,staff_update,staff_revoke'
+import { ProfileConversations } from './ProfileConversations'
+import { OwnProfileSettings } from './OwnProfileSettings'
 
 export interface ProfileViewData {
+  organization?: string
+  additional_roles?: string[]
+  public_id?: string | number
+  appointment_history?: { id: number; kind: string; position: string; org_tag?: string; granted_at?: string; closed_at: string }[]
   vk_id: number
   nickname: string | null
   username?: string | null
@@ -53,483 +44,138 @@ export interface ProfileViewData {
   in_registry?: boolean
 }
 
-function parseNickname(nickname: string | null, vkId: number) {
-  if (!nickname) {
-    return { tag: null as string | null, title: `id${vkId}`, full: '—' }
-  }
-  const match = nickname.match(/^(\[[^\]]+\])\s*(.+)$/)
-  if (match) {
-    return { tag: match[1], title: match[2].trim() || nickname, full: nickname }
-  }
-  return { tag: null, title: nickname, full: nickname }
-}
 
-function avatarInitial(title: string) {
-  const letter = title.replace(/^\W+/, '').charAt(0)
-  return (letter || '?').toUpperCase()
+type ProfileTab = 'overview' | 'history' | 'actions' | 'manage'
+const TABS = [{ id: 'overview', label: 'Обзор', Icon: UserRound }, { id: 'history', label: 'История', Icon: History },
+  { id: 'actions', label: 'Действия', Icon: ListChecks }, { id: 'manage', label: 'Управление', Icon: Settings2 }] as const
+function dateLabel(value?: string | null) {
+  if (!value) return 'Не указана'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Не сохранена' : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
 }
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
-}
-
-function formatCabinetStamp(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
-}
-
-function formatGrantedAt(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-function discordLabel(profile: ProfileViewData): string | null {
-  const name = profile.discord_display_name || profile.discord_username
-  if (name && profile.discord_id) return `${name} · ${profile.discord_id}`
-  if (name) return name
-  if (profile.discord_id) return profile.discord_id
-  return null
-}
-
-export function ProfileView({
-  profile,
-  showQuickLinks = false,
-  backTo,
-  headerActions,
-}: {
-  profile: ProfileViewData
-  showQuickLinks?: boolean
-  backTo?: { label: string; href: string }
-  headerActions?: ReactNode
+export function ProfileView({ profile: data, showQuickLinks = false, backTo, headerActions, managementContent }: {
+  profile: ProfileViewData; showQuickLinks?: boolean; backTo?: { label: string; href: string }; headerActions?: ReactNode; managementContent?: ReactNode
 }) {
-  const { user, refresh } = useAuth()
+  const { user } = useAuth()
+  const profile: ProfileViewData = user?.vk_id === data.vk_id ? { ...data,
+    username: user.username, discord_id: user.discord_id, discord_username: user.discord_username,
+    discord_display_name: user.discord_display_name, notify_tasks: user.notify_tasks, notify_assign: user.notify_assign,
+  } : data
+  const own = showQuickLinks || user?.vk_id === profile.vk_id
+  const canManage = !!managementContent || own
+  const [params, setParams] = useSearchParams()
+  const tab: ProfileTab = TABS.some(t => t.id === params.get('tab') && (t.id !== 'manage' || canManage)) ? params.get('tab') as ProfileTab : 'overview'
   const [copied, setCopied] = useState(false)
   const [feed, setFeed] = useState<ActivityLogItem[]>([])
-  const [feedTotal, setFeedTotal] = useState(0)
-  const [feedOffset, setFeedOffset] = useState(0)
-  const [feedPageSize, setFeedPageSize] = useState(10)
-  const [feedQ, setFeedQ] = useState('')
-  const [feedReload, setFeedReload] = useState(0)
-  const [feedLoading, setFeedLoading] = useState(true)
-  const [history, setHistory] = useState<ActivityLogItem[]>([])
-  const [feedError, setFeedError] = useState<string | null>(null)
-  const [feedForbidden, setFeedForbidden] = useState(false)
-  const [summary, setSummary] = useState<DashboardSummary | null>(null)
-
-  const parsed = parseNickname(profile.nickname, profile.vk_id)
-  const avatar = profile.avatar_url || DEFAULT_AVATAR
-  const vkUrl = `https://vk.com/id${profile.vk_id}`
-  const roleTitle = profile.access_role_title || profile.access_level_name
-  const spheres = formatSpheresDisplay(profile.spheres)
-  const seniorSpheres = formatSpheresDisplay(profile.senior_spheres)
-  const spheresValue = spheres !== '—' ? spheres : profile.sphere || '—'
-  const discord = discordLabel(profile)
-  const isOwn = showQuickLinks || user?.vk_id === profile.vk_id
-  const canOpenJournal = (user?.access_level ?? 0) >= JOURNAL_MIN_LEVEL
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [discordId, setDiscordId] = useState('')
-  const [forumAccount, setForumAccount] = useState('')
-  const [notifyTasks, setNotifyTasks] = useState(true)
-  const [notifyAssign, setNotifyAssign] = useState(true)
-
-  useEffect(() => {
-    setFeedOffset(0)
-    setFeedQ('')
-  }, [profile.vk_id])
-
-  useEffect(() => {
-    let cancelled = false
-    setFeedLoading(true)
-    setFeedError(null)
-    setFeedForbidden(false)
-    api
-      .activityLog({
-        vk_id: profile.vk_id,
-        q: feedQ || undefined,
-        limit: feedPageSize,
-        offset: feedOffset,
-      })
-      .then((res) => {
-        if (cancelled) return
-        setFeed(res.items)
-        setFeedTotal(res.total)
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return
-        if (e instanceof ApiError && e.status === 403) {
-          setFeed([])
-          setFeedForbidden(true)
-          return
-        }
-        setFeed([])
-        setFeedError(e instanceof Error ? e.message : 'Не удалось загрузить журнал')
-      })
-      .finally(() => {
-        if (!cancelled) setFeedLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [feedOffset, feedPageSize, feedQ, feedReload, profile.vk_id])
-
-  useEffect(() => {
-    let cancelled = false
-    api
-      .activityLog({
-        vk_id: profile.vk_id,
-        limit: 50,
-        offset: 0,
-        actions: ACCESS_HISTORY_ACTIONS,
-        about: true,
-      })
-      .then((res) => {
-        if (!cancelled) setHistory(res.items.filter((item) => item.history_label))
-      })
-      .catch(() => {
-        if (!cancelled) setHistory([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [profile.vk_id])
-
-  useEffect(() => {
-    if (!showQuickLinks) return
-    let cancelled = false
-    api
-      .dashboard()
-      .then((data) => {
-        if (!cancelled) setSummary(data)
-      })
-      .catch(() => {
-        if (!cancelled) setSummary(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [showQuickLinks])
-
-  useEffect(() => {
-    setDiscordId(profile.discord_id ?? '')
-    setForumAccount(forumMemberUrl(profile.username, profile.vk_id))
-    setNotifyTasks(profile.notify_tasks !== false)
-    setNotifyAssign(profile.notify_assign !== false)
-    setSaveError(null)
-  }, [profile])
-
-  const saveOwnProfile = async () => {
-    const forumRaw = forumAccount.trim()
-    if (forumRaw) {
-      const forum = parseForumMemberUrl(forumRaw)
-      if (!forum.ok) {
-        setSaveError(forum.message)
-        return
-      }
-    }
-    if (discordId.trim() && !looksLikeDiscordId(discordId)) {
-      setSaveError('Discord ID — 17–20 цифр')
-      return
-    }
-    setSaving(true)
-    setSaveError(null)
-    const body: ProfileUpdateBody = {
-      discord_id: discordId.trim() || null,
-      notify_tasks: notifyTasks,
-      notify_assign: notifyAssign,
-    }
-    if (forumRaw) body.forum_account = forumRaw
-    try {
-      await api.updateProfile(body)
-      await refresh()
-    } catch (e: unknown) {
-      setSaveError(e instanceof Error ? e.message : 'Не удалось сохранить')
-    } finally {
-      setSaving(false)
-    }
+  const [total, setTotal] = useState(0)
+  const [offset, setOffset] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [q, setQ] = useState('')
+  const [reload, setReload] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const canViewJournal = own || (user?.access_level ?? 0) >= 2
+  const name = stripStaffNicknameTags(profile.nickname || '') || `VK ${profile.vk_id}`
+  const role = profile.access_role_title || profile.access_level_name
+  const active = profile.in_registry !== false && (profile.access_level > 0 || !!profile.organization || role !== 'Без доступа')
+  const scopes = profile.spheres || []
+  const senior = profile.senior_spheres || []
+  const ordinary = profile.access_level === 2 ? scopes.filter(s => !senior.includes(s)) : scopes
+  const forum = forumMemberUrl(profile.username, profile.vk_id)
+  const switchTab = (next: ProfileTab) => {
+    if (next === tab || !confirmProfileNavigation()) return
+    const query = new URLSearchParams(params)
+    if (next === 'overview') query.delete('tab'); else query.set('tab', next)
+    setOffset(0); setQ(''); setFeed([]); setParams(query)
   }
-
-  const copyVkId = async () => {
-    try {
-      await navigator.clipboard.writeText(String(profile.vk_id))
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      /* ignore */
-    }
+  useEffect(() => {
+    if ((tab !== 'history' && tab !== 'actions') || !canViewJournal) return
+    let cancelled = false
+    // Clear the previous query while the external journal request is pending.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true); setError('')
+    api.activityLog({ vk_id: profile.vk_id, about: tab === 'history', q: q || undefined, limit: pageSize, offset })
+      .then(data => { if (!cancelled) { setFeed(data.items); setTotal(data.total) } })
+      .catch(e => { if (!cancelled) { setFeed([]); setTotal(0); setError(e instanceof ApiError && e.status === 403 ? 'Нет доступа к журналу этого профиля' : e instanceof Error ? e.message : 'Не удалось загрузить журнал') } })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [tab, profile.vk_id, q, pageSize, offset, reload, canViewJournal])
+  const copyId = async () => {
+    try { await navigator.clipboard.writeText(String(profile.vk_id)); setCopied(true); window.setTimeout(() => setCopied(false), 1600) } catch { /* clipboard is optional */ }
   }
-
-  const facts: { label: string; value: ReactNode; mono?: boolean }[] = [
-    {
-      label: 'Ник',
-      value: (
-        <span className="lk-nick-fact">
-          {parsed.tag ? <span className="activity-nick-tag">{parsed.tag.replace(/^\[|\]$/g, '')}</span> : null}
-          <span>{parsed.title}</span>
-        </span>
-      ),
-    },
-    { label: 'Должность', value: roleTitle },
-    {
-      label: 'Username',
-      value: profile.username ? `@${profile.username}` : '—',
-      mono: Boolean(profile.username),
-    },
-    { label: 'Портал', value: profile.has_ca_access ? 'Есть доступ' : 'Нет доступа' },
-    ...(discord ? [{ label: 'Discord', value: discord, mono: true as const }] : []),
-    ...(profile.granted_at
-      ? [{ label: 'В составе с', value: formatGrantedAt(profile.granted_at) }]
-      : []),
-    ...((profile.promoted_at || profile.granted_at)
-      ? [{
-          label: 'Повышение',
-          value: formatGrantedAt(profile.promoted_at || profile.granted_at || ''),
-        }]
-      : []),
-  ]
-
-  return (
-    <div className="page-stack page-stack--profile page-stack--lk w-full min-w-0">
-      <PageHeader
-        section={isOwn && !backTo ? 'Кабинет' : 'Аккаунт'}
-        title={isOwn && !backTo ? 'Личный кабинет' : 'Профиль'}
-        icon={UserRound}
-        back={backTo}
-        actions={headerActions}
-      />
-
-      <section className="profile-hero-card glass-card">
-        <div className="profile-hero-glow" aria-hidden />
-        <div className="profile-hero-inner">
-          <div className="profile-avatar-shell">
-            <span className="profile-avatar-ring">
-              <img
-                src={avatar}
-                alt=""
-                className="profile-avatar-img"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                }}
-              />
-              <span className="profile-avatar-fallback hidden" aria-hidden>
-                {avatarInitial(parsed.title)}
-              </span>
-            </span>
-          </div>
-
-          <div className="profile-hero-copy min-w-0">
-            <h2 className="profile-name">{parsed.title}</h2>
-            <p className="profile-subtitle">{roleTitle}</p>
-
-            <div className="profile-badges">
-              {parsed.tag && (
-                <span className="profile-badge profile-badge--gold">
-                  <Shield size={11} aria-hidden />
-                  {parsed.tag.replace(/^\[|\]$/g, '')}
-                </span>
-              )}
-              {profile.dev_persona && (
-                <span className="profile-badge">
-                  <Code2 size={11} aria-hidden />
-                  Разработчик
-                </span>
-              )}
-              {(profile.badges ?? []).map((b) => (
-                <span key={b} className="profile-badge">
-                  {b}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="profile-actions">
-            <a href={vkUrl} target="_blank" rel="noreferrer" className="btn btn-gold btn-sm no-underline">
-              <ExternalLink size={14} />
-              Открыть VK
-            </a>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyVkId()}>
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'Скопировано' : 'VK ID'}
-            </button>
-          </div>
-        </div>
-
-        <dl className="lk-id-strip">
-          <div className="lk-id-chip">
-            <dt>Уровень</dt>
-            <dd>{profile.access_level}</dd>
-          </div>
-          <div className="lk-id-chip">
-            <dt>VK ID</dt>
-            <dd className="font-mono">{profile.vk_id}</dd>
-          </div>
-          <div className="lk-id-chip">
-            <dt>Сервер</dt>
-            <dd>Love [{profile.server_id}]</dd>
-          </div>
-          <div className="lk-id-chip">
-            <dt>Сферы</dt>
-            <dd>{spheresValue}</dd>
-          </div>
-          {profile.is_senior && seniorSpheres !== '—' && (
-            <div className="lk-id-chip">
-              <dt>Ст. След.</dt>
-              <dd>{seniorSpheres}</dd>
-            </div>
-          )}
-        </dl>
-      </section>
-
-      <div className="lk-layout">
-        <aside className="lk-aside">
-          <section className="glass-card lk-card">
-            <h3 className="profile-section-title">Карточка</h3>
-            <dl className="lk-facts">
-              {facts.map((row) => (
-                <div key={row.label} className="lk-fact">
-                  <dt>{row.label}</dt>
-                  <dd className={row.mono ? 'font-mono' : undefined}>{row.value}</dd>
-                </div>
-              ))}
+  return <div className="page-stack profile-v2">
+    <PageHeader section={own ? 'Кабинет' : 'Команда'} title={own && !backTo ? 'Личный кабинет' : 'Профиль'} icon={UserRound} back={backTo} actions={headerActions} />
+    <header className="profile-v2-hero">
+      <div className="profile-v2-avatar" aria-hidden>
+        {profile.avatar_url ? <img src={profile.avatar_url} alt="" onError={e => { e.currentTarget.style.display = 'none' }} /> : <span>{name.charAt(0).toUpperCase()}</span>}
+      </div>
+      <div className="profile-v2-identity">
+        <div className="profile-v2-name-row"><h2>{name}</h2><span className={`profile-status${active ? ' profile-status--active' : ''}`}>{active ? 'В составе' : 'Без назначения'}</span></div>
+        <p className="profile-v2-position">{role}{profile.organization ? ` · ${profile.organization}` : ''}</p>
+        <p className="profile-v2-meta">Профиль #{profile.public_id ?? '—'}<span>·</span>Love [{profile.server_id}]</p>
+      </div>
+      <div className="profile-v2-links">
+        <a className="btn btn-secondary btn-sm" href={`https://vk.com/id${profile.vk_id}`} target="_blank" rel="noreferrer"><ExternalLink size={14} /> VK</a>
+        <button type="button" className="btn btn-secondary btn-sm" aria-label="Скопировать VK ID" onClick={() => void copyId()}>{copied ? <Check size={14} /> : <Copy size={14} />}{copied ? 'Скопировано' : 'VK ID'}</button>
+      </div>
+    </header>
+    <section className="profile-v2-panel">
+      <div className="profile-tab-bar" role="tablist" aria-label="Разделы профиля">
+        {TABS.filter(t => t.id !== 'manage' || canManage).map(({ id, label, Icon }) => <button type="button" key={id} role="tab" id={`profile-tab-${id}`} aria-controls={`profile-panel-${id}`} aria-selected={tab === id}
+          tabIndex={tab === id ? 0 : -1} onClick={() => switchTab(id)} onKeyDown={e => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+            e.preventDefault()
+            const tabs = TABS.filter(t => t.id !== 'manage' || canManage)
+            const index = tabs.findIndex(t => t.id === tab)
+            const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+            switchTab(tabs[next].id); document.getElementById(`profile-tab-${tabs[next].id}`)?.focus()
+          }}><Icon size={16} aria-hidden />{label}</button>)}
+      </div>
+      <div role="tabpanel" id={`profile-panel-${tab}`} aria-labelledby={`profile-tab-${tab}`} className="profile-tab-content">
+        {tab === 'overview' && <div className="profile-overview-cards">
+          <section className="profile-info-card">
+            <h3><CalendarDays size={17} aria-hidden />Назначение</h3>
+            <dl className="profile-info-list">
+              <div><dt>Дата назначения</dt><dd>{dateLabel(profile.granted_at)}</dd></div>
+              <div><dt>Последнее повышение</dt><dd>{dateLabel(profile.promoted_at)}</dd></div>
             </dl>
           </section>
-
-          {history.length > 0 && (
-            <section className="glass-card lk-card">
-              <h3 className="profile-section-title">История доступа</h3>
-              <ol className="lk-history-list">
-                {history.map((item) => (
-                  <li key={item.id} className="lk-history-item">
-                    <span className="lk-history-date">{formatCabinetStamp(item.created_at)}</span>
-                    <span className="lk-history-text">{item.history_label}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
-
-          {showQuickLinks && (
-            <section className="glass-card lk-card">
-              <h3 className="profile-section-title">Настройки</h3>
-              <div className="lk-edit-stack">
-                <ForumAccountField
-                  id="lk-forum"
-                  labelClassName="lk-field-label"
-                  value={forumAccount}
-                  onChange={setForumAccount}
-                />
-                <div className="lk-field">
-                  <label className="lk-field-label" htmlFor="lk-discord">
-                    Discord ID
-                  </label>
-                  <input
-                    id="lk-discord"
-                    className="control w-full"
-                    inputMode="numeric"
-                    value={discordId}
-                    placeholder="123456789012345678"
-                    onChange={(e) => setDiscordId(e.target.value)}
-                  />
-                </div>
-                <div className="lk-field">
-                  <span className="lk-field-label">Уведомления VK</span>
-                  <label className="lk-check">
-                    <Checkbox checked={notifyTasks} onChange={setNotifyTasks} />
-                    <span>Задачи</span>
-                  </label>
-                  <label className="lk-check">
-                    <Checkbox checked={notifyAssign} onChange={setNotifyAssign} />
-                    <span>Назначения</span>
-                  </label>
-                </div>
-                {saveError && <p className="forum-field-error">{saveError}</p>}
-                <button
-                  type="button"
-                  className="btn btn-gold btn-sm lk-edit-save"
-                  disabled={saving}
-                  onClick={() => void saveOwnProfile()}
-                >
-                  {saving ? 'Сохранение…' : 'Сохранить'}
-                </button>
-              </div>
-            </section>
-          )}
-
-          {showQuickLinks && (
-            <section className="glass-card lk-card">
-              <h3 className="profile-section-title">Разделы</h3>
-              <nav className="lk-shortcuts" aria-label="Разделы кабинета">
-                <Link to="/tasks?mine=1" className="lk-shortcut no-underline">
-                  <ClipboardList size={16} aria-hidden />
-                  <span>
-                    <span className="lk-shortcut-title">Мои задачи</span>
-                    <span className="lk-shortcut-hint">
-                      {summary ? `${summary.my_open_tasks} открытых` : 'Канбан и дедлайны'}
-                    </span>
-                  </span>
-                </Link>
-                <Link to="/checklist" className="lk-shortcut no-underline">
-                  <ListChecks size={16} aria-hidden />
-                  <span>
-                    <span className="lk-shortcut-title">Чеклист</span>
-                    <span className="lk-shortcut-hint">Недельная слежка</span>
-                  </span>
-                </Link>
-                {canOpenJournal && (
-                  <Link to="/activity" className="lk-shortcut no-underline">
-                    <History size={16} aria-hidden />
-                    <span>
-                      <span className="lk-shortcut-title">Журнал</span>
-                      <span className="lk-shortcut-hint">Все действия панели</span>
-                    </span>
-                  </Link>
-                )}
-              </nav>
-            </section>
-          )}
-        </aside>
-
-        <section className="activity-table-card lk-feed" aria-label="Последние действия">
-          <ActivityToolbar
-            q={feedQ}
-            onQuery={(value) => {
-              setFeedQ(value)
-              setFeedOffset(0)
-            }}
-            pageSize={feedPageSize}
-            onPageSize={(value) => {
-              setFeedPageSize(value)
-              setFeedOffset(0)
-            }}
-            loading={feedLoading}
-            onRefresh={() => setFeedReload((n) => n + 1)}
-          />
-
-          {feedForbidden ? (
-            <p className="lk-feed-empty">Журнал по этому аккаунту доступен с уровня Следящий.</p>
-          ) : feedError ? (
-            <p className="lk-feed-empty">{feedError}</p>
-          ) : (
-            <ActivityTable
-              items={feed}
-              loading={feedLoading}
-              empty={
-                feedQ
-                  ? 'Ничего не найдено. Измените поиск.'
-                  : 'Пока нет записей. Назначения, смены должности и правки карточки появятся здесь.'
-              }
-              total={feedTotal}
-              offset={feedOffset}
-              pageSize={feedPageSize}
-              onPage={(page) => setFeedOffset((page - 1) * feedPageSize)}
-              pagerLabel="Страницы действий профиля"
-            />
-          )}
-        </section>
+          <section className="profile-info-card">
+            <h3><ShieldCheck size={17} aria-hidden />Доступы</h3>
+            <dl className="profile-info-list">
+              <div><dt>Портал</dt><dd><span className={`profile-access-status${profile.access_level >= 1 ? ' is-enabled' : ''}`}>{profile.access_level >= 1 ? 'Есть доступ' : 'Нет доступа'}</span></dd></div>
+              <div><dt>Центральный аппарат</dt><dd><span className={`profile-access-status${profile.has_ca_access ? ' is-enabled' : ''}`}>{profile.has_ca_access ? 'Есть доступ' : 'Нет доступа'}</span></dd></div>
+            </dl>
+          </section>
+          <section className="profile-info-card">
+            <h3><Layers3 size={17} aria-hidden />Обязанности</h3>
+            <dl className="profile-info-list profile-info-list--stacked">
+              <div><dt>{profile.access_level === 2 ? 'Следит за сферами' : 'Основные сферы'}</dt><dd>{formatSpheresDisplay(ordinary)}</dd></div>
+              {!!senior.length && <div><dt>{profile.access_level === 2 ? 'Старший следящий' : 'Дополнительно следит'}</dt><dd className="profile-seniority">{formatSpheresDisplay(senior)}</dd></div>}
+              {!!profile.additional_roles?.length && <div><dt>Дополнительные роли</dt><dd>{profile.additional_roles.join(' · ')}</dd></div>}
+            </dl>
+          </section>
+          <section className="profile-info-card">
+            <h3><ContactRound size={17} aria-hidden />Контакты</h3>
+            <dl className="profile-info-list profile-info-list--stacked">
+              <div><dt>Форум</dt><dd>{forum ? <a href={forum} target="_blank" rel="noreferrer">Открыть профиль <ExternalLink size={12} /></a> : 'Не указан'}</dd></div>
+              <div><dt>Discord</dt><dd>{[profile.discord_display_name || profile.discord_username, profile.discord_id].filter(Boolean).join(' · ') || 'Не указан'}</dd></div>
+            </dl>
+          </section>
+          <div className="profile-overview-chats"><ProfileConversations key={profile.vk_id} vkId={profile.vk_id} /></div>
+        </div>}
+        {tab === 'history' && !!profile.appointment_history?.length && <section className="profile-overview-section"><h3 className="profile-section-heading">Завершённые назначения</h3>
+          <ol className="profile-appointment-history">{profile.appointment_history.map(item => <li key={item.id}><strong>{item.position} {item.org_tag || ''}</strong><span>{dateLabel(item.granted_at)} — {dateLabel(item.closed_at)}</span></li>)}</ol>
+        </section>}
+        {(tab === 'history' || tab === 'actions') && <section aria-label={tab === 'history' ? 'История профиля' : 'Действия сотрудника'}>
+          <header className="profile-feed-heading"><h3 className="profile-section-heading">{tab === 'history' ? 'Изменения профиля' : 'Действия сотрудника'}</h3><p>{tab === 'history' ? 'Назначения, изменения должности, сфер и сведений.' : 'Действия, которые выполнил этот сотрудник.'}</p></header>
+          {!canViewJournal ? <p className="profile-empty">Нет доступа к журналу этого профиля.</p> : <>
+            <ActivityToolbar q={q} onQuery={v => { setQ(v); setOffset(0) }} pageSize={pageSize} onPageSize={v => { setPageSize(v); setOffset(0) }} loading={loading} onRefresh={() => setReload(v => v + 1)} />
+            {error ? <p role="alert" className="staff-profile-error">{error}</p> : <ActivityTable items={feed} loading={loading} empty={q ? 'Ничего не найдено' : 'Записей пока нет'} total={total} offset={offset} pageSize={pageSize} onPage={page => setOffset((page - 1) * pageSize)} />}
+          </>}
+        </section>}
+        {tab === 'manage' && (canManage ? <>{managementContent}{own && <OwnProfileSettings key={profile.vk_id} profile={profile} contacts={!managementContent} />}</> : <p className="profile-empty">Нет прав на изменение этого профиля.</p>)}
       </div>
-    </div>
-  )
+    </section>
+  </div>
 }

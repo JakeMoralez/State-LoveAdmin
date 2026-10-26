@@ -18,7 +18,10 @@ async def init_db() -> None:
     # Только panel (default) — bot.db владеет LoveBot
     from tortoise.utils import generate_schema_for_client
 
+    from app.services.case_inventory_migration import prepare_inventory_schema, finish_inventory_schema
+    await prepare_inventory_schema()
     await generate_schema_for_client(Tortoise.get_connection("default"), safe=True)
+    await finish_inventory_schema()
 
 
 async def close_db() -> None:

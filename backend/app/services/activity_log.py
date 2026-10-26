@@ -13,21 +13,24 @@ from app.services.staff_spheres import format_spheres_display
 VIEW_MIN_LEVEL = AccessLevel.SUPERVISOR
 
 ACTION_GROUP_PREFIXES: dict[str, tuple[str, ...]] = {
-    "staff": ("staff_",),
+    "main": ("staff_", "leader_", "judge_", "congress_", "profile_", "task_", "issuance_"),
+    "materials": ("qb_", "knowledge_", "regulation_", "congress_bill_"),
+    "settings": ("dev_", "settings_", "judge_forum_"),
+    "staff": ("staff_", "profile_"),
     "leaders": ("leader_",),
     "justice": ("judge_", "congress_"),
     "tasks": ("task_",),
     "projects": ("project_",),
     "banks": ("qb_",),
     "cases": ("loot_case_",),
-    "academy": ("academy_",),
     "issuance": ("issuance_",),
 }
 
 ACTION_MESSAGES: dict[str, str] = {
     # Следящие и назначения
     "staff_assign": "назначил следящим",
-    "staff_update": "изменил должность",
+    "staff_update": "обновил профиль",
+    "staff_transfer": "перевёл",
     "staff_revoke": "снял доступ следящего",
     "profile_update": "обновил кабинет",
     "judge_assign": "назначил судьёй",
@@ -72,26 +75,15 @@ ACTION_MESSAGES: dict[str, str] = {
     "loot_case_update": "изменил кейс",
     "loot_case_delete": "удалил кейс",
     "loot_case_spin": "открыл кейс",
+    "issuance_case_issue": "выдал выигрыш",
+    "issuance_case_reject": "отклонил выдачу выигрыша",
+    "issuance_case_unissue": "отменил выдачу выигрыша",
+    "issuance_case_unreject": "вернул выигрыш на выдачу",
     "loot_case_prize_create": "добавил приз в кейс",
     "loot_case_prize_update": "изменил приз в кейсе",
     "loot_case_prize_delete": "удалил приз из кейса",
     "loot_case_prize_bulk": "импортировал призы в кейс",
     "loot_case_prize_shuffle": "перемешал призы в кейсе",
-    "academy_enroll": "зачислил в академию",
-    "academy_updated": "изменил карточку академика",
-    "academy_stage_changed": "сменил этап академии",
-    "academy_graduated": "выпустил академика",
-    "academy_expelled": "отчислил из академии",
-    "academy_frozen": "заморозил академика",
-    "academy_comment": "оставил комментарий в академии",
-    "academy_warning": "выдал предупреждение академии",
-    "academy_template_create": "создал шаблон задания академии",
-    "academy_template_update": "изменил шаблон задания академии",
-    "academy_assignment_create": "выдал задание академии",
-    "academy_report_submit": "сдал отчёт академии",
-    "academy_report_review": "проверил отчёт академии",
-    "academy_session_create": "создал занятие академии",
-    "academy_attendance": "отметил посещаемость академии",
     "question_bank_create": "создал банк вопросов",
     "obzvon_question_create": "создал вопрос обзвона",
     "obzvon_session_create": "начал сессию обзвона",
@@ -140,7 +132,6 @@ _ACTION_TOKEN_RU = {
     "staff": "штат",
     "task": "задачу",
     "project": "проект",
-    "academy": "академию",
     "issuance": "выдачу",
     "forum": "форум",
     "catalog": "справочник",
@@ -168,8 +159,6 @@ def action_label(action: str) -> str:
         return "изменил карточку руководства"
     if action.startswith("dev_"):
         return "обновил настройки"
-    if action.startswith("academy_"):
-        return "изменил академию"
     if action.startswith("obzvon_"):
         return humanize_action_key(action)
     if action.startswith("question_bank_"):
@@ -532,6 +521,13 @@ def _format_staff_update(
 
 def history_label(action: str, detail: dict | None) -> str | None:
     detail = detail or {}
+    if action == "staff_transfer":
+        return f"{appointment_label(detail.get('appointment_before') or {})} → {appointment_label(detail.get('appointment_after') or {})}"
+    if action in ("staff_assign", "leader_assign", "judge_assign", "congress_assign") and detail.get("appointment_after"):
+        return appointment_label(detail["appointment_after"])
+    if action == "leader_update" and isinstance(detail.get("position"), dict):
+        change = detail["position"]
+        return f"{change.get('from') or 'Ранее не указано'} → {change.get('to') or 'Без должности'}"
     if action == "staff_assign":
         level = detail.get("access_level_name") or AccessLevel.title(
             int(detail.get("access_level") or 0)
@@ -577,7 +573,7 @@ def _detail_target_vk(detail: dict, row: PanelAuditLog) -> int | None:
             return int(raw)
         except (TypeError, ValueError):
             continue
-    if row.entity_type in ("staff", "user", "leader"):
+    if row.entity_type in ("staff", "user", "leader", "profile"):
         try:
             return int(row.entity_id)
         except (TypeError, ValueError):
@@ -593,13 +589,73 @@ def _stored_target_nick(detail: dict) -> str | None:
     return None
 
 
+def safe_activity_detail(action: str, detail: dict) -> dict:
+    """The general journal never exposes bank answers or integration secrets."""
+    if action.startswith(("qb_", "question_bank_", "obzvon_")):
+        allowed = {"bank_id", "item_id", "count", "status", "sphere", "actor_name_snapshot", "actor_role_snapshot", "source"}
+        return {k: v for k, v in detail.items() if k in allowed}
+    blocked = ("cookie", "token", "secret", "password", "authorization", "correct_answer", "answer", "body", "headers")
+    def clean(value):
+        if isinstance(value, dict):
+            return {k: clean(v) for k, v in value.items() if not any(word in k.lower() for word in blocked)}
+        if isinstance(value, list):
+            return [clean(v) for v in value]
+        return value
+    return clean(detail)
+
+
+def appointment_label(snapshot: dict) -> str:
+    position = snapshot.get("position") or snapshot.get("access_role_title") or snapshot.get("access_level_name") or ""
+    org = snapshot.get("org_tag") or ""
+    scopes = format_spheres_display(snapshot.get("spheres") or [])
+    if org:
+        position = f"{position} {org}"
+    elif scopes and scopes != "—":
+        position = f"{position} · {scopes}"
+    return position
+
+
+def appointment_genitive(snapshot: dict) -> str:
+    level = snapshot.get("access_level") or 0
+    scopes = snapshot.get("spheres") or []
+    scope_words = {"central_apparatus": "центральным аппаратом", "justice": "Министерством юстиции", "defense": "Министерством обороны", "health": "Министерством здравоохранения", "gov_structures": "государственными организациями", "illegal_structures": "нелегальными организациями"}
+    titles = {1: "помощника следящих", 2: "следящего", 3: "заместителя главного следящего", 4: "главного следящего", 5: "следящего", 6: "заместителя главного следящего", 7: "главного следящего", 8: "куратора сервера", 9: "заместителя главного администратора", 10: "главного администратора", 11: "разработчика"}
+    if level in titles:
+        words = ", ".join(scope_words.get(key, key) for key in scopes if key != "server")
+        return titles[level] + (f" за {words}" if words else "")
+    title = snapshot.get("position") or ""
+    forms = {"Лидер": "лидера", "Заместитель": "заместителя", "Министр": "министра", "Советник": "советника", "Судья": "судьи", "Спикер конгресса": "спикера конгресса", "Вице-спикер конгресса": "вице-спикера конгресса"}
+    return (forms.get(title, f"«{title}»" if title else "без уточнения") + " " + (snapshot.get("org_tag") or "")).strip()
+
+
+def sentence_parts(action: str, detail: dict) -> tuple[str, str]:
+    if detail.get("additional_role"):
+        return "назначил", f"дополнительно на роль «{detail['additional_role']}»."
+    before = detail.get("appointment_before") or {}
+    after = detail.get("appointment_after") or {}
+    if action == "staff_transfer":
+        return "перевёл", f"с должности {appointment_genitive(before)} на должность {appointment_genitive(after)}."
+    if after and action.endswith("_assign"):
+        return "назначил", f"на должность {appointment_genitive(after)}."
+    if action in ("staff_revoke", "leader_remove"):
+        label = appointment_genitive(before) if before else ""
+        return "снял", (f"с должности {label}." if label else "с должности.")
+    if action in ("staff_update", "profile_update", "leader_update"):
+        changes = {k for k, v in detail.items() if isinstance(v, dict) and "from" in v and "to" in v}
+        if changes and changes <= {"senior_spheres", "is_senior", "nickname"} and changes & {"senior_spheres", "is_senior"}:
+            return ("изменил старшинство по сферам у" if detail.get("target_access_level", 2) == 2 else "изменил дополнительные обязанности у"), "."
+        return "обновил профиль", "."
+    return action_label(action), _detail_suffix(action, detail).strip()
+
+
 async def serialize_activity_row(row: PanelAuditLog, names: dict[int, str]) -> dict:
     detail = row.detail or {}
     if not isinstance(detail, dict):
         detail = {}
+    detail = safe_activity_detail(row.action, detail)
     target_vk_id = _detail_target_vk(detail, row)
     stored_nick = _stored_target_nick(detail)
-    actor_name = _name(names, row.actor_vk_id)
+    actor_name = _name(names, row.actor_vk_id, detail.get("actor_name_snapshot"))
     if target_vk_id is not None:
         target_name = _name(names, int(target_vk_id), stored_nick)
     elif stored_nick:
@@ -607,7 +663,10 @@ async def serialize_activity_row(row: PanelAuditLog, names: dict[int, str]) -> d
     else:
         target_name = None
 
+    verb, tail = sentence_parts(row.action, detail)
+    actor_role = detail.get("actor_role_snapshot") or ""
     return {
+        "actor_role": actor_role, "sentence_verb": verb, "sentence_tail": tail,
         "id": row.id,
         "action": row.action,
         "action_label": action_label(row.action),
@@ -617,12 +676,7 @@ async def serialize_activity_row(row: PanelAuditLog, names: dict[int, str]) -> d
         "actor_name": actor_name,
         "target_vk_id": target_vk_id,
         "target_name": target_name,
-        "message": format_activity_message(
-            row.action,
-            actor_name=actor_name,
-            target_name=target_name,
-            detail=detail,
-        ),
+        "message": " ".join(p for p in (actor_role, actor_name, verb, target_name, tail) if p).replace(" .", "."),
         "detail": detail,
         "history_label": history_label(row.action, detail),
         "created_at": row.created_at.isoformat(),
@@ -639,47 +693,44 @@ async def list_activity(
     group: str | None = None,
     about: bool = False,
 ) -> dict:
-    qs = PanelAuditLog.all().order_by("-created_at")
-    prefixes = ACTION_GROUP_PREFIXES.get((group or "").strip())
+    qs = (PanelAuditLog.all()
+          .exclude(action__icontains="cookie")
+          .exclude(Q(action__startswith="loot_case_") & ~Q(action="loot_case_spin"))
+          .order_by("-created_at", "-id"))
+    effective_group = group or ("main" if not actions and vk_id is None else "")
+    prefixes = ACTION_GROUP_PREFIXES.get(effective_group)
     if prefixes:
         prefix_q = Q()
         for prefix in prefixes:
             prefix_q |= Q(action__startswith=prefix)
         qs = qs.filter(prefix_q)
-    elif actions:
+    if actions:
         qs = qs.filter(action__in=actions)
+    # Search and person matching happen before counting/pagination. Older events
+    # may identify their subject only in JSON, so entity_id alone is insufficient.
+    needs_filter = bool(q and q.strip()) or vk_id is not None
+    total = await qs.count() if not needs_filter else 0
+    rows = await qs if needs_filter else await qs.offset(offset).limit(min(limit, 100))
     if vk_id is not None:
-        sid = str(int(vk_id))
-        if about:
-            qs = qs.filter(Q(entity_id=sid))
-        else:
-            qs = qs.filter(Q(actor_vk_id=int(vk_id)) | Q(entity_id=sid))
-    total = await qs.count()
-    rows = await qs.offset(offset).limit(min(limit, 100))
-
-    vk_ids: set[int] = {row.actor_vk_id for row in rows}
+        def matches(row):
+            target = _detail_target_vk(row.detail if isinstance(row.detail, dict) else {}, row)
+            return target == vk_id if about else row.actor_vk_id == vk_id
+        rows = [row for row in rows if matches(row)]
+    vk_ids = {row.actor_vk_id for row in rows}
     for row in rows:
-        detail = row.detail or {}
-        tid = _detail_target_vk(detail if isinstance(detail, dict) else {}, row)
-        if tid is not None:
-            vk_ids.add(int(tid))
-
+        target = _detail_target_vk(row.detail if isinstance(row.detail, dict) else {}, row)
+        if target is not None:
+            vk_ids.add(target)
     names = await resolve_display_names(vk_ids)
     items = [await serialize_activity_row(row, names) for row in rows]
-
-    if q:
-        ql = q.strip().lower()
-        if ql:
-            items = [
-                item
-                for item in items
-                if ql in item["message"].lower()
-                or ql in (item.get("actor_name") or "").lower()
-                or ql in (item.get("target_name") or "").lower()
-                or ql in item["action"].lower()
-                or ql in (item.get("action_label") or "").lower()
-            ]
-
+    if q and q.strip():
+        needle = q.strip().casefold()
+        items = [item for item in items if needle in " ".join(str(item.get(k) or "") for k in
+                 ("message", "actor_name", "target_name", "action_label", "action")).casefold()
+                 or needle in str(item["detail"].get("reason") or "").casefold()]
+    if needs_filter:
+        total = len(items)
+        items = items[offset:offset + min(limit, 100)]
     return {"total": total, "items": items, "limit": limit, "offset": offset}
 
 

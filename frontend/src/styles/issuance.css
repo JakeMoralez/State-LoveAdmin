@@ -420,7 +420,22 @@
 }
 
 .issuance-modal {
+  width: min(36rem, calc(100vw - 2rem));
   max-width: 32rem;
+  max-height: min(92vh, 46rem);
+  overflow: hidden;
+}
+
+.issuance-modal .num-stepper {
+  width: 100%;
+  max-width: none;
+  min-height: 2.375rem;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.issuance-modal textarea.control {
+  min-height: 6rem;
+  resize: vertical;
 }
 
 .issuance-modal-body {

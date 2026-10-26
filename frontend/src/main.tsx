@@ -20,13 +20,15 @@ import './styles/datepicker.css'
 import './styles/cases.css'
 import './styles/dev-settings.css'
 import './styles/profile-cabinet.css'
-import './styles/academy.css'
 import './styles/issuance.css'
 import './styles/knowledge.css'
 import App from './App.tsx'
+import { installProfileHistoryGuard } from './hooks/useProfileDraft'
 import { installGlobalErrorHandlers } from './lib/errorReporter'
 
 installGlobalErrorHandlers()
+const removeProfileHistoryGuard = installProfileHistoryGuard()
+if (import.meta.hot) import.meta.hot.dispose(removeProfileHistoryGuard)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

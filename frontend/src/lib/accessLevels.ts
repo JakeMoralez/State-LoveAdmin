@@ -79,8 +79,6 @@ export function grantableAccessLevelOptions(
 
 /** Назначение нового следящего (/assign staff, /reg) — ЗГС (3)+. */
 export const ASSIGN_STAFF_MIN_LEVEL = 3
-/** Зачисление в академию — Следящий структуры (5)+. */
-export const ACADEMY_ENROLL_MIN_LEVEL = 5
 export const LEADER_REGISTRY_MANAGE_MIN_LEVEL = 2
 
 export function canEditLeadershipRegistry(

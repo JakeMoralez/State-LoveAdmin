@@ -247,6 +247,7 @@ async def record_event(
     *,
     comment: str = "",
     changes: dict | None = None,
+    audit: bool = True,
 ) -> QuestionBankItemEvent:
     event = await QuestionBankItemEvent.create(
         item_id=item_id,
@@ -255,13 +256,14 @@ async def record_event(
         comment=comment or "",
         changes=changes,
     )
-    await log_audit(
-        actor_vk_id,
-        f"qb_item_{action}",
-        "question_bank_item",
-        item_id,
-        {"comment": comment or None, "changes": changes},
-    )
+    if audit:
+        await log_audit(
+            actor_vk_id,
+            f"qb_item_{action}",
+            "question_bank_item",
+            item_id,
+            {"comment": comment or None, "changes": changes},
+        )
     return event
 
 
@@ -327,8 +329,7 @@ async def create_item(
 
     await record_event(item.id, actor["vk_id"], "created")
     if direct:
-        await record_event(item.id, actor["vk_id"], "approved", comment="Опубликовано без проверки")
-    await log_audit(actor["vk_id"], "qb_item_create", "question_bank_item", item.id, {"bank_id": bank.id})
+        await record_event(item.id, actor["vk_id"], "approved", comment="Опубликовано без проверки", audit=False)
     return item
 
 

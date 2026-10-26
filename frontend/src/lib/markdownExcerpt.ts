@@ -5,6 +5,7 @@ export function markdownExcerpt(source: string, maxLen = 160): string {
 
   text = text
     .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/(^|\s)(?:>\s*)?\[!(?:NOTE|INFO|TIP|IMPORTANT|WARNING|CAUTION|DANGER)\](?=\s|$)/gi, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, '')

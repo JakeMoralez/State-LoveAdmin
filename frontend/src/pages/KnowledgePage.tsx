@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { BookOpen, Plus, Search } from 'lucide-react'
+import { BookOpen, Plus, Search, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ApiError, api, type KnowledgeArticleListItem } from '../api'
 import { CreateSphereField, pickDefaultCreateSphere } from '../components/CreateSphereField'
@@ -41,37 +41,25 @@ export function KnowledgePage() {
   const titleId = useId()
   const searchId = useId()
 
-  const load = ({ silent = false } = {}) => {
-    if (!silent) setLoading(true)
-    setError(null)
-    return api
-      .knowledgeArticles({
-        category: category || undefined,
-        q: q || undefined,
-        include_drafts: true,
-        spheres: apiSpheres,
-      })
-      .then((r) => {
-        setArticles(r.articles)
-        setCategories(r.categories)
-        setCanEdit(r.permissions.can_edit)
-        setEditableSpheres(r.permissions.editable_spheres || [])
-        if (r.permissions.access_levels?.length) {
-          setLevelOptions(
-            r.permissions.access_levels.map((l) => ({ value: String(l.value), label: l.label })),
-          )
-        }
-      })
-      .catch((e: unknown) => {
-        setError(e instanceof ApiError || e instanceof Error ? e.message : 'Не удалось загрузить')
-      })
-      .finally(() => setLoading(false))
-  }
-
+  const sphereKey = apiSpheres?.join(',') || ''
   useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, q, apiSpheres?.join(',')])
+    const controller = new AbortController()
+    const signal = controller.signal
+    // Synchronize the external search resource; cleanup cancels the prior request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true); setError(null)
+    api.knowledgeArticles({ category: category || undefined, q: q || undefined, include_drafts: true,
+      spheres: sphereKey ? sphereKey.split(',') : undefined }, signal)
+      .then(r => {
+        if (signal.aborted) return
+        setArticles(r.articles); setCategories(r.categories); setCanEdit(r.permissions.can_edit)
+        setEditableSpheres(r.permissions.editable_spheres || [])
+        if (r.permissions.access_levels?.length) setLevelOptions(r.permissions.access_levels.map(l => ({ value: String(l.value), label: l.label })))
+      })
+      .catch(e => { if (!signal.aborted) setError(e instanceof Error ? e.message : 'Не удалось загрузить') })
+      .finally(() => { if (!signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [category, q, sphereKey])
 
   const categoryOptions = useMemo(
     () => [{ value: '', label: 'Все разделы' }, ...categories.map((c) => ({ value: c.id, label: c.label }))],
@@ -143,23 +131,15 @@ export function KnowledgePage() {
       ) : null}
 
       <div className="kb-toolbar">
-        <div className="kb-search">
-          <Search size={14} aria-hidden />
-          <input
-            id={searchId}
-            className="control"
-            placeholder="Поиск по названию и тексту…"
-            value={qDraft}
-            onChange={(e) => setQDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') setQ(qDraft.trim())
-            }}
-            aria-label="Поиск"
-          />
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setQ(qDraft.trim())}>
-            Найти
-          </button>
-        </div>
+        <form className="kb-search" role="search" onSubmit={e => { e.preventDefault(); setQ(qDraft.trim()) }}>
+          <div className="kb-search-field">
+            <Search size={16} aria-hidden />
+            <input id={searchId} type="search" placeholder="Поиск по названию и тексту…" value={qDraft}
+              aria-label="Поиск по базе знаний" onChange={e => { setQDraft(e.target.value); if (!e.target.value) setQ('') }} />
+            {(qDraft || q) && <button type="button" className="kb-search-clear" aria-label="Очистить поиск" onClick={() => { setQDraft(''); setQ('') }}><X size={14} aria-hidden /></button>}
+          </div>
+          <button type="submit" className="btn btn-secondary">Найти</button>
+        </form>
         <div className="kb-cat-filter" role="tablist" aria-label="Разделы">
           {categoryOptions.map((opt) => (
             <button
@@ -182,9 +162,9 @@ export function KnowledgePage() {
         <PageSkeleton variant="list" label="Загрузка базы знаний" />
       ) : articles.length === 0 ? (
         <div className="page-empty-state page-empty-state--card">
-          <p className="page-empty-state-title">Пока пусто</p>
+          <p className="page-empty-state-title">{q || category ? 'Ничего не найдено' : 'Пока пусто'}</p>
           <p className="page-empty-state-hint">
-            {canEdit
+            {q || category ? 'Измените запрос или выбранный раздел.' : canEdit
               ? 'ЗГС правит статьи своей сферы; следящий структуры (5+) — любой сферы. Поддерживается Markdown.'
               : 'Материалы ещё не опубликованы.'}
           </p>
@@ -196,11 +176,12 @@ export function KnowledgePage() {
           ) : null}
         </div>
       ) : (
-        <ul className="kb-list">
+        <ul className="kb-list resource-grid">
           {articles.map((a) => (
             <li key={a.id}>
-              <Link to={`/knowledge/${a.id}`} className="kb-card">
-                <div className="kb-card-top">
+              <Link to={`/knowledge/${a.id}`} className="kb-card resource-card">
+                <span className="resource-card-icon" aria-hidden><BookOpen size={20} /></span>
+                <div className="resource-card-body"><div className="kb-card-top">
                   <span className="kb-card-cat">{a.category_label}</span>
                   <span className="kb-card-sphere">{a.sphere_label}</span>
                   {(a.min_view_level ?? 1) > 1 ? (
@@ -212,6 +193,7 @@ export function KnowledgePage() {
                 </div>
                 <h2 className="kb-card-title">{a.title}</h2>
                 {a.excerpt ? <p className="kb-card-excerpt">{markdownExcerpt(a.excerpt)}</p> : null}
+                <span className="resource-card-open">Читать статью <span aria-hidden>↗</span></span></div>
               </Link>
             </li>
           ))}

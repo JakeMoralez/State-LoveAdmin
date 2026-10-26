@@ -162,6 +162,7 @@ def _plain_excerpt(body: str, max_len: int = 180) -> str:
         return ""
 
     text = re.sub(r"```[\s\S]*?```", " ", text)
+    text = re.sub(r"(?m)^(?:[ \t]*>[ \t]*)*[ \t]*\[!(?:NOTE|INFO|TIP|IMPORTANT|WARNING|CAUTION|DANGER)\](?=[ \t]|$)", "", text, flags=re.I)
     text = re.sub(r"`([^`]+)`", r"\1", text)
     text = re.sub(r"^#{1,6}\s+", "", text, flags=re.M)
     text = re.sub(r"^\s{0,3}([-*+]|\d+\.)\s+", "", text, flags=re.M)

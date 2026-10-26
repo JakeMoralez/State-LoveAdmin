@@ -4,7 +4,6 @@ import {
   PRIORITY_LABELS,
   STATUS_LABELS,
   TASK_FORM_STATUSES,
-  type Project,
   type StaffMember,
   type WorkSphere,
 } from '../../api'
@@ -33,7 +32,6 @@ export interface TaskCreatePayload {
   priority?: string
   assignee_vk_id?: number | null
   assignee_vk_ids?: number[]
-  project_id?: number | null
   due_date?: string | null
   labels?: TaskLabel[]
   audience?: string | null
@@ -55,8 +53,6 @@ interface TaskCreateModalProps {
   onClose: () => void
   onCreate: (payload: TaskCreatePayload) => Promise<void>
   staff: StaffMember[]
-  projects: Project[]
-  defaultProjectId?: number | null
   defaultStatus?: string
   workSpheres?: WorkSphere[]
   createSphereIds?: string[]
@@ -72,8 +68,6 @@ export function TaskCreateModal({
   onClose,
   onCreate,
   staff,
-  projects,
-  defaultProjectId,
   defaultStatus = 'todo',
   workSpheres = [],
   createSphereIds = [],
@@ -88,7 +82,6 @@ export function TaskCreateModal({
   const [status, setStatus] = useState(defaultStatus)
   const [priority, setPriority] = useState('medium')
   const [assigneeVkIds, setAssigneeVkIds] = useState<number[]>([])
-  const [projectId, setProjectId] = useState('')
   const [dueDate, setDueDate] = useState<string | null>(null)
   const [labels, setLabels] = useState<TaskLabel[]>([])
   const [audience, setAudience] = useState<string>(defaultAudience || 'supervisors')
@@ -106,7 +99,6 @@ export function TaskCreateModal({
   const descFieldId = useId()
   const audienceFieldId = useId()
   const priorityFieldId = useId()
-  const projectFieldId = useId()
   const monthdaysId = useId()
   const datesId = useId()
   const modalTitleId = useId()
@@ -123,11 +115,10 @@ export function TaskCreateModal({
   useEffect(() => {
     if (!open) return
     setStatus(defaultStatus)
-    setProjectId(defaultProjectId ? String(defaultProjectId) : '')
     setAudience(defaultAudience || 'supervisors')
     setRepeat(defaultRepeat)
     setError('')
-  }, [open, defaultProjectId, defaultStatus, createSphere, defaultAudience, defaultRepeat])
+  }, [open, defaultStatus, createSphere, defaultAudience, defaultRepeat])
 
   if (!open) return null
 
@@ -164,7 +155,6 @@ export function TaskCreateModal({
         priority,
         assignee_vk_ids: assigneeVkIds,
         assignee_vk_id: assigneeVkIds[0] ?? null,
-        project_id: projectId ? parseInt(projectId, 10) : null,
         due_date: dueDate,
         labels: labels.length ? labels : undefined,
         audience: isGov ? audience : null,
@@ -303,21 +293,6 @@ export function TaskCreateModal({
                 value={priority}
                 onChange={setPriority}
                 options={Object.entries(PRIORITY_LABELS).map(([value, label]) => ({ value, label }))}
-              />
-            </div>
-            <div>
-              <label className="text-caption mb-1.5 block" htmlFor={projectFieldId}>
-                Проект
-              </label>
-              <Select
-                id={projectFieldId}
-                value={projectId}
-                onChange={setProjectId}
-                placeholder="Без проекта"
-                options={[
-                  { value: '', label: 'Без проекта' },
-                  ...projects.map((p) => ({ value: String(p.id), label: p.title })),
-                ]}
               />
             </div>
           </div>

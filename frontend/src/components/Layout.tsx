@@ -4,9 +4,6 @@ import {
   Bug,
   ChevronsLeft,
   ClipboardList,
-  ClipboardCheck,
-  FolderKanban,
-  GraduationCap,
   Gavel,
   Gift,
   Shield,
@@ -22,7 +19,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -31,6 +28,7 @@ import { MOBILE_NAV_QUERY, useMediaQuery } from '../hooks/useMediaQuery'
 import { getMobilePageTitle } from '../lib/mobilePageTitle'
 import { MobileTopBarTitleProvider, useMobileTopBarTitleOverride } from '../context/MobileTopBarTitleContext'
 import { BrandLogo } from './BrandLogo'
+import { useOverlayFocus } from '../hooks/useOverlayFocus'
 import { cn } from '../lib/utils'
 
 interface NavItem {
@@ -67,11 +65,9 @@ const navCategories: NavCategory[] = [
     title: 'Работа',
     items: [
       { to: '/tasks', label: 'Задачи', icon: ClipboardList },
-      { to: '/academy', label: 'Академия', icon: GraduationCap, minAccessLevel: 1 },
-      { to: '/checklist', label: 'Чеклист', icon: ClipboardCheck },
       { to: '/question-banks', label: 'Банки вопросов', icon: Library },
-      { to: '/issuance', label: 'Выдачи', icon: Gift, minAccessLevel: 3 },
-      { to: '/projects', label: 'Проекты', icon: FolderKanban },
+      { to: '/cases', label: 'Мои кейсы', icon: Gift },
+      { to: '/issuance', label: 'Выдачи', icon: Gift },
       { to: '/knowledge', label: 'База знаний', icon: BookOpen },
     ],
   },
@@ -93,6 +89,7 @@ function SidebarNavLink({
     <NavLink
       to={item.to}
       end={item.end}
+      aria-label={item.label}
       title={collapsed ? item.label : undefined}
       onClick={() => {
         onNavigate?.()
@@ -126,6 +123,8 @@ function LayoutShell() {
     () => localStorage.getItem('sl-sidebar') === '1',
   )
   const [mobileOpen, setMobileOpen] = useState(false)
+  const sidebarRef = useRef<HTMLElement>(null)
+  useOverlayFocus(isMobileNav && mobileOpen, sidebarRef, () => setMobileOpen(false))
   const [qbPendingCount, setQbPendingCount] = useState(0)
 
   const titleOverride = useMobileTopBarTitleOverride()
@@ -211,6 +210,8 @@ function LayoutShell() {
       )}
 
       <aside
+        ref={sidebarRef}
+        inert={isMobileNav && !mobileOpen}
         id="app-sidebar"
         className={cn(
           'sidebar-shell',
@@ -227,6 +228,8 @@ function LayoutShell() {
               'sidebar-edge-toggle',
               sidebarCollapsed && 'sidebar-edge-toggle--collapsed',
             )}
+            aria-expanded={!collapsed}
+            aria-controls="app-sidebar"
             aria-label={collapsed ? 'Развернуть панель' : 'Свернуть панель'}
           >
             <ChevronsLeft className="sidebar-edge-toggle-icon h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />

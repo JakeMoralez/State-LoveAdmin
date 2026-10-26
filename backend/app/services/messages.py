@@ -178,9 +178,7 @@ ASSIGN_JUDGE_POSITION = "Укажите должность судьи."
 ASSIGN_CONGRESS_NEED_SUPERVISOR = "Назначение в конгресс — только Следящий (2) и выше."
 ASSIGN_CONGRESS_POSITION = "Укажите должность в конгрессе."
 
-# --- Projects / banks / forum / uploads -------------------------------------
-PROJECT_CREATE_FORBIDDEN = "Создавать проекты могут Lead+."
-PROJECT_NOT_FOUND = "Проект не найден."
+# --- Banks / forum / uploads -------------------------------------
 BANK_NOT_FOUND = "Банк не найден."
 QUESTION_NOT_FOUND = "Вопрос не найден."
 REVIEW_QUEUE_FORBIDDEN = "Очередь проверки доступна ГС/ЗГС+."
@@ -196,7 +194,6 @@ UPLOAD_NO_FILE = "Файл не выбран."
 UPLOAD_BAD_TYPE = "Допустимы PNG, JPG, GIF, WebP."
 UPLOAD_TOO_LARGE = "Максимум 8 МБ на файл."
 UPLOAD_NEED_IMAGE = "Выберите хотя бы один скрин."
-UPLOAD_ACADEMY_BAD_TYPE = "Допустимы PDF, Word, Excel, PowerPoint, изображения, ZIP и TXT."
 
 ISSUANCE_VIEW_FORBIDDEN = "Выдачи доступны ЗГС и выше."
 ISSUANCE_CREATE_FORBIDDEN = "Создавать заявки на выдачу могут ЗГС и выше."

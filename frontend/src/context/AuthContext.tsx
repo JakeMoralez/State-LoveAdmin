@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { api, ApiError, markSessionEnded, consumeSessionEndedReason, type UserProfile } from '../api'
+import { clearProfileDrafts } from '../hooks/useProfileDraft'
 import { LoadingState } from '../components/ui/LoadingState'
 
 const SESSION_PING_MS = 20 * 60 * 1000
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
+    clearProfileDrafts()
     try {
       await api.logout()
     } catch {
@@ -91,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onExpired = () => {
       if (!userRef.current) return
+      clearProfileDrafts()
       markSessionEnded('session')
       setUser(null)
     }

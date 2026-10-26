@@ -10,12 +10,12 @@ import { StaffProfileModal } from '../components/staff/StaffProfileModal'
 import { useAuth } from '../context/AuthContext'
 import { useMediaQuery, MOBILE_NAV_QUERY } from '../hooks/useMediaQuery'
 import { ACCESS_LEVEL_OPTIONS, ASSIGN_STAFF_MIN_LEVEL } from '../lib/accessLevels'
-import { SPHERE_OPTIONS } from '../lib/spheres'
+import { SPHERE_OPTIONS, formatSpheresDisplay } from '../lib/spheres'
 import { staffLabel } from '../lib/staff'
 import { profilePathFrom } from '../lib/profileLinks'
 import { PageSkeleton } from '../components/ui/LoadingState'
 
-type StaffTab = 'active' | 'inactive'
+type StaffTab = 'active' | 'unassigned' | 'inactive'
 type SortKey = 'index' | 'nickname' | 'role' | 'sphere'
 type SortDir = 'asc' | 'desc'
 
@@ -43,6 +43,7 @@ export function StaffPage() {
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
   const [levelFilter, setLevelFilter] = useState('')
+  const [seniorFilter, setSeniorFilter] = useState('')
   const [sphereFilter, setSphereFilter] = useState('')
   const [tab, setTab] = useState<StaffTab>('active')
   const [loading, setLoading] = useState(true)
@@ -60,7 +61,7 @@ export function StaffPage() {
     let cancelled = false
     setLoading(true)
     setListError(null)
-    const req = tab === 'inactive' ? api.staffInactive({ q: q || undefined }) : api.staff({ q: q || undefined })
+    const req = tab === 'inactive' ? api.staffInactive({ q: q || undefined }) : api.staff({ q: q || undefined, unassigned: tab === 'unassigned' })
     req
       .then((res) => {
         if (cancelled) return
@@ -92,6 +93,7 @@ export function StaffPage() {
 
   const sorted = useMemo(() => {
     const list = members.filter((m) => {
+      if (seniorFilter && (m.access_level !== 2 || !(m.senior_spheres ?? []).includes(seniorFilter))) return false
       if (levelFilter && String(m.access_level) !== levelFilter) return false
       if (sphereFilter && !(m.spheres ?? []).includes(sphereFilter) && m.sphere !== sphereFilter) {
         return false
@@ -122,7 +124,7 @@ export function StaffPage() {
     })
 
     return list
-  }, [members, sortKey, sortDir, levelFilter, sphereFilter])
+  }, [members, sortKey, sortDir, levelFilter, sphereFilter, seniorFilter])
 
   const columns: { key: SortKey; label: string; className: string }[] = [
     { key: 'index', label: '#', className: 'staff-col-num' },
@@ -176,6 +178,7 @@ export function StaffPage() {
           >
             В составе
           </button>
+          <button type="button" role="tab" aria-selected={tab === 'unassigned'} className={tab === 'unassigned' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'} onClick={() => setTab('unassigned')}>Участники без назначения</button>
           <button
             type="button"
             role="tab"
@@ -183,7 +186,7 @@ export function StaffPage() {
             className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
             onClick={() => setTab('inactive')}
           >
-            Без доступа
+            Архив
           </button>
         </div>
         {isMobileNav ? assignButton : null}
@@ -213,6 +216,7 @@ export function StaffPage() {
             ...SPHERE_OPTIONS.map((s) => ({ value: s.value, label: s.label })),
           ]}
         />
+        <Select value={seniorFilter} onChange={setSeniorFilter} options={[{ value: '', label: 'Старшинство: все' }, ...SPHERE_OPTIONS.filter(s => s.value !== 'server').map(s => ({ value: s.value, label: `Старший: ${s.label}` }))]} />
       </PageToolbarRow>
 
       {listError && <Alert className="shrink-0">{listError}</Alert>}
@@ -265,11 +269,6 @@ export function StaffPage() {
                       >
                         {staffLabel(m)}
                       </Link>
-                      {m.is_academy && (
-                        <span className="academy-chip academy-chip--inline" title="В Академии">
-                          Академ
-                        </span>
-                      )}
                     </span>
                     {tab === 'inactive' ? (
                       canAssign ? (
@@ -305,7 +304,13 @@ export function StaffPage() {
                     {m.access_role_title || m.access_level_name}
                   </div>
                   <div className="staff-col-sphere" title={m.sphere || '—'}>
-                    {m.sphere || '—'}
+                    {m.access_level === 2 && (m.senior_spheres?.length ?? 0) > 0 ? <>
+                      <span>Старший: {formatSpheresDisplay(m.senior_spheres)}</span><br />
+                      <span>Следящий: {formatSpheresDisplay((m.spheres ?? []).filter(s => !m.senior_spheres?.includes(s)))}</span>
+                    </> : <>
+                      <span>{m.sphere || '—'}</span>
+                      {m.access_level > 2 && !!m.senior_spheres?.length && <><br /><span>Дополнительно следит: {formatSpheresDisplay(m.senior_spheres)}</span></>}
+                    </>}
                   </div>
                 </div>
               ))}

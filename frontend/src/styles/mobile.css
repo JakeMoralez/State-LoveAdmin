@@ -27,13 +27,13 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     top: 0;
     left: 0;
     z-index: 50;
-    height: 100dvh;
     height: 100vh;
+    height: 100dvh;
     width: min(280px, 85vw) !important;
     max-width: 85vw;
     flex-shrink: 0;
     transform: translateX(-100%);
-    transition: transform var(--motion-slow) var(--ease-out-expo);
+    transition: transform var(--sidebar-motion), visibility 0s linear .32s;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 16px 0 48px rgba(0, 0, 0, 0.45);
@@ -49,6 +49,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     transform: translateX(0);
     pointer-events: auto;
     visibility: visible;
+    transition-delay: 0s, 0s;
   }
 
   .app-shell > .sidebar-shell .sidebar-inner {
@@ -76,7 +77,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   }
 
   .app-shell > .sidebar-shell {
-    transition: transform var(--motion-slow) var(--ease-out-expo);
+    transition: transform var(--sidebar-motion), visibility 0s linear .32s;
   }
 
   .sidebar-shell .sidebar-nav-link {
@@ -202,8 +203,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
 
   /* Office / staff / projects: tabs/sphere + CTA */
   .office-registry-page,
-  .staff-registry-page,
-  .page-stack--projects {
+  .staff-registry-page {
     gap: var(--space-2);
   }
 
@@ -211,12 +211,6 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
       :has(.page-header-crumb)
     ),
   .staff-registry-page > .page-header:not(:has(.page-subtitle)):not(:has(.page-header-hint)):not(
-      :has(.page-header-crumb)
-    ),
-  .page-stack--academy > .page-header:not(:has(.page-subtitle)):not(:has(.page-header-hint)):not(
-      :has(.page-header-crumb)
-    ),
-  .page-stack--projects > .page-header:not(:has(.page-subtitle)):not(:has(.page-header-hint)):not(
       :has(.page-header-crumb)
     ) {
     display: none;
@@ -260,9 +254,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
 
   /* Projects/QB: сфера в control — полная ширина, единый сегмент */
   .page-stack--qb > .sphere-select,
-  .page-stack--qb > .sphere-select--multi,
-  .projects-page-control > .sphere-select,
-  .projects-page-control > .sphere-select--multi {
+  .page-stack--qb > .sphere-select--multi {
     width: 100%;
     max-width: none;
     flex: 1 1 auto;
@@ -272,20 +264,9 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   }
 
   .page-stack--qb > .sphere-select .sphere-select-control,
-  .page-stack--qb > .sphere-select .sphere-filter-trigger,
-  .projects-page-control > .sphere-select .sphere-select-control,
-  .projects-page-control > .sphere-select .sphere-filter-trigger {
+  .page-stack--qb > .sphere-select .sphere-filter-trigger {
     width: 100%;
     min-height: 2.5rem;
-  }
-
-  .page-stack--projects .projects-page-control {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .page-stack--projects .projects-page-control .office-registry-assign {
-    width: 100%;
   }
 
   .page-toolbar,
@@ -295,18 +276,15 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     padding-bottom: 0;
   }
 
-  .qb-bank-grid,
-  .projects-grid {
+  .qb-bank-grid {
     grid-template-columns: 1fr;
   }
 
-  .qb-bank-card,
-  .projects-grid > * {
+  .qb-bank-card {
     min-width: 0;
   }
 
   .page-stack--qb,
-  .page-stack--projects,
   .page-stack {
     min-width: 0;
     overflow-x: hidden;
@@ -475,10 +453,6 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   }
 
   /* Projects */
-  .projects-page-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
 
   /* Profile quick links */
   .profile-links {
@@ -599,11 +573,6 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   }
 
   .qb-bank-grid {
-    gap: var(--space-2);
-    margin-top: 0;
-  }
-
-  .projects-grid {
     gap: var(--space-2);
     margin-top: 0;
   }
@@ -1059,9 +1028,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
 
   /* Office + staff registry: phone chrome — вкладки + CTA в одну линию */
   .office-registry-page,
-  .staff-registry-page,
-  .page-stack--academy,
-  .page-stack--projects {
+  .staff-registry-page {
     gap: var(--space-2);
   }
 
@@ -1072,8 +1039,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     gap: var(--space-2);
   }
 
-  .office-registry-control > .sphere-tabs,
-  .page-stack--academy .academy-main-tabs {
+  .office-registry-control > .sphere-tabs {
     display: flex;
     flex: 1 1 auto;
     width: auto;
@@ -1081,8 +1047,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     max-width: 100%;
   }
 
-  .office-registry-control > .sphere-tabs .sphere-tab,
-  .page-stack--academy .academy-main-tabs .sphere-tab {
+  .office-registry-control > .sphere-tabs .sphere-tab {
     flex: 1 1 auto;
     min-height: var(--touch-min);
     justify-content: center;
@@ -1142,8 +1107,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   }
 
   .office-registry-page > .page-header,
-  .staff-registry-page > .page-header,
-  .page-stack--academy > .page-header {
+  .staff-registry-page > .page-header {
     flex-direction: row;
     align-items: center;
     justify-content: flex-end;
@@ -1153,8 +1117,7 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
   .office-registry-page > .page-header:has(.page-subtitle),
   .office-registry-page > .page-header:has(.page-header-hint),
   .staff-registry-page > .page-header:has(.page-subtitle),
-  .staff-registry-page > .page-header:has(.page-header-hint),
-  .page-stack--academy > .page-header:has(.page-subtitle) {
+  .staff-registry-page > .page-header:has(.page-header-hint) {
     justify-content: space-between;
   }
 
@@ -1182,3 +1145,5 @@ body.mobile-nav-open:not(.modal-open):not(.sl-drawer-open) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+@media(max-width:1023px) and (prefers-reduced-motion:reduce) { .app-shell > .sidebar-shell { transition:none!important; } }

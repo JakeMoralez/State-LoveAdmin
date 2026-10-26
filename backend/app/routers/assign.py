@@ -26,10 +26,13 @@ from app.services.role_assign import (
     normalize_forum_account,
 )
 from app.services.staff import parse_appointment_date
+from app.services.appointments import appointment_snapshot
+from app.services.access import get_access_level
 from app.services.vk_resolve import resolve_vk_id_input
 from app.services.staff_permissions import (
     ASSIGN_STAFF_MIN_LEVEL,
     assert_can_set_level,
+    assert_can_revoke_staff,
     assert_can_set_nickname,
     assert_can_set_spheres,
     LEADER_REGISTRY_EDIT_MIN_LEVEL,
@@ -66,6 +69,7 @@ LEADERSHIP_TYPES = frozenset(LEADERSHIP_POSITIONS)
 
 
 class AssignBody(BaseModel):
+    reason: str = Field(default="", max_length=1000)
     role_type: Literal["staff", "judge", "congress", "leader", "deputy", "minister", "advisor"]
     vk_id: str = Field(min_length=1)
     discord_id: str = ""
@@ -113,6 +117,11 @@ async def post_assign(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     access = await UserServerAccess.get_or_none(user_id=vk_id, server_id=server_id)
+    before = await appointment_snapshot(server_id, vk_id)
+    target_level = await get_access_level(vk_id, server_id)
+    actor_level = int(user.get("access_level") or 0)
+    if user["vk_id"] == vk_id or (target_level > actor_level or (target_level == actor_level and actor_level < 10)):
+        raise HTTPException(status_code=403, detail=messages.FORBIDDEN)
     bot_user = await User.get_or_none(vk_id=vk_id)
     link = await DiscordLink.get_or_none(vk_id=vk_id)
     existing_nick = (access.nickname or "").strip() if access else ""
@@ -131,6 +140,10 @@ async def post_assign(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     discord_raw = discord_raw or existing_discord or None
+    if discord_raw:
+        other = await DiscordLink.get_or_none(discord_id=discord_raw)
+        if other and other.vk_id != vk_id:
+            raise HTTPException(status_code=409, detail="Discord ID уже привязан к другому профилю")
     nickname = (body.nickname or "").strip() or existing_nick
     forum_account = (body.forum_account or "").strip() or existing_forum
     leadership = body.role_type in LEADERSHIP_TYPES
@@ -144,7 +157,13 @@ async def post_assign(
 
     actor_level = int(user.get("access_level") or 0)
     dev_persona = bool(user.get("dev_persona"))
-    appointed = parse_appointment_date(body.granted_at) if body.granted_at else None
+    if target_level > 0 and body.role_type in LEADERSHIP_TYPES:
+        assert_can_revoke_staff(actor_vk_id=user["vk_id"], actor_level=actor_level,
+            target_vk_id=vk_id, target_level=target_level, dev_persona=dev_persona)
+    try:
+        appointed = parse_appointment_date(body.granted_at) if body.granted_at else None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
         if body.role_type == "staff":
@@ -158,9 +177,9 @@ async def post_assign(
                 actor_level=actor_level,
                 actor_panel_role=user.get("panel_role") or "member",
                 target_vk_id=vk_id,
-                target_level=0,
+                target_level=target_level,
                 actor_spheres=list(user.get("spheres") or []),
-                target_spheres=[],
+                target_spheres=list(before.get("spheres") or []),
                 dev_persona=dev_persona,
             )
             if not perms["assign_staff"]:
@@ -176,7 +195,7 @@ async def post_assign(
                 actor_level=actor_level,
                 new_level=body.access_level,
                 target_vk_id=vk_id,
-                target_level=0,
+                target_level=target_level,
                 dev_persona=dev_persona,
             )
             assert_can_set_nickname(actor_level)
@@ -185,7 +204,7 @@ async def post_assign(
                 actor_level=actor_level,
                 actor_panel_role=user.get("panel_role") or "member",
                 actor_spheres=list(user.get("spheres") or []),
-                target_current=[],
+                target_current=list(before.get("spheres") or []),
                 requested=body.spheres,
                 target_level=body.access_level,
                 dev_persona=dev_persona,
@@ -282,56 +301,29 @@ async def post_assign(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if body.role_type == "staff":
-        await log_audit(
-            user["vk_id"],
-            "staff_assign",
-            "staff",
-            vk_id,
-            staff_assign_detail(
-                target_vk_id=vk_id,
-                nickname=nickname,
-                access_level=body.access_level or 0,
-                spheres=list(body.spheres or []),
-            ),
-        )
-    elif body.role_type == "judge":
-        await log_audit(
-            user["vk_id"],
-            "judge_assign",
-            "staff",
-            vk_id,
-            {
-                "target_vk_id": vk_id,
-                "nickname": nickname,
-                "position": (body.judge_position or "").strip(),
-            },
-        )
-    elif body.role_type == "congress":
-        await log_audit(
-            user["vk_id"],
-            "congress_assign",
-            "staff",
-            vk_id,
-            {
-                "target_vk_id": vk_id,
-                "nickname": nickname,
-                "position": CONGRESS_ROLES.get(body.congress_role or "", body.congress_role or ""),
-            },
-        )
+    after = await appointment_snapshot(server_id, vk_id)
+    detail = {
+        "target_vk_id": vk_id, "target_nickname": result.get("nickname", nickname),
+        "appointment_before": before, "appointment_after": after, "reason": body.reason.strip(),
+        "source": "panel", "server_id": server_id,
+    }
+    if before == after and discord_raw == (existing_discord or None) and forum_account == existing_forum:
+        return result
+    primary_changed = before and any(before.get(k) != after.get(k) for k in ("kind", "position", "org_tag", "access_level", "spheres"))
+    if body.role_type in ("judge", "congress") and after.get("kind") == "staff":
+        detail["additional_role"] = result.get("position") or body.judge_position or CONGRESS_ROLES.get(body.congress_role or "", "Конгресс")
+        primary_changed = False
+    if before == after:
+        action = "profile_update"
+        if discord_raw != (existing_discord or None):
+            detail["discord_id"] = {"from": existing_discord, "to": discord_raw}
+        if forum_account != existing_forum:
+            detail["username"] = {"from": existing_forum, "to": forum_account}
     else:
-        await log_audit(
-            user["vk_id"],
-            "leader_assign",
-            "leader",
-            vk_id,
-            {
-                "target_vk_id": vk_id,
-                "nickname": result.get("nickname", nickname),
-                "position": LEADERSHIP_POSITIONS.get(body.role_type, body.role_type),
-                "org_tag": result.get("org_tag"),
-            },
-        )
+        action = "staff_transfer" if primary_changed else {
+            "staff": "staff_assign", "judge": "judge_assign", "congress": "congress_assign",
+        }.get(body.role_type, "leader_assign")
+    await log_audit(user["vk_id"], action, "staff" if body.role_type == "staff" else "leader", vk_id, detail)
 
     actor_name = (user.get("bot_nickname") or user.get("nickname") or str(user["vk_id"]))
     role_label = {

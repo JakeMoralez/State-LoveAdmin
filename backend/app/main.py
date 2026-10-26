@@ -28,12 +28,12 @@ from app.config import (
 )
 from app.routers.uploads import regenerate_all_gallery_pages, uploads_http_exception_handler
 from app.routers import (
-    academy,
     activity,
     assign,
     auth,
     cases,
-    checklist,
+    case_inventory,
+    checklist_archived,
     dashboard,
     dev,
     forum_judge_list,
@@ -41,7 +41,6 @@ from app.routers import (
     issuance,
     knowledge,
     profile,
-    projects,
     question_banks,
     spheres,
     staff,
@@ -76,6 +75,9 @@ async def _ensure_panel_schemas() -> None:
     from tortoise import Tortoise
     from tortoise.utils import generate_schema_for_client
 
+    from app.services.case_inventory_migration import prepare_inventory_schema, finish_inventory_schema
+    await prepare_inventory_schema()
+
     # Колонки на существующих таблицах — до generate_schemas (иначе PG падает на индексах).
     await ensure_task_audience_schema()
     await ensure_question_banks_schema()
@@ -85,6 +87,7 @@ async def _ensure_panel_schemas() -> None:
 
     conn = Tortoise.get_connection("default")
     await generate_schema_for_client(conn, safe=True)
+    await finish_inventory_schema()
 
     try:
         from app.services.profile_ids import renumber_profile_ids_if_needed
@@ -131,9 +134,6 @@ async def lifespan(app: FastAPI):
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     await _ensure_panel_schemas()
     await ensure_defaults()
-    from app.services.academy import ensure_academy_templates
-
-    await ensure_academy_templates()
     await migrate_legacy_task_statuses()
     galleries = regenerate_all_gallery_pages()
     try:
@@ -246,7 +246,6 @@ async def request_id_middleware(request: Request, call_next):
 app.include_router(auth.router)
 app.include_router(internal.router)
 app.include_router(staff.router)
-app.include_router(projects.router)
 app.include_router(tasks.router)
 app.include_router(dashboard.router)
 app.include_router(profile.router)
@@ -255,11 +254,12 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.include_router(uploads.serve_router)
 app.include_router(uploads.router)
 app.include_router(spheres.router)
-app.include_router(checklist.router)
+app.include_router(checklist_archived.router)
 app.include_router(question_banks.router)
 app.include_router(forum_judge_list.router)
 app.include_router(assign.router)
-app.include_router(academy.router)
+app.include_router(case_inventory.router)
+app.include_router(case_inventory.rewards_router)
 app.include_router(issuance.router)
 app.include_router(knowledge.router)
 app.include_router(activity.router)

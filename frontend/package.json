@@ -19,9 +19,10 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.18.0",
+    "react-router-dom": "^7.18.2",
     "remark-breaks": "^4.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "vgpu": "^0.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -38,5 +39,11 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"
+  },
+  "overrides": {
+    "vgpu": {
+      "@modelcontextprotocol/server": "2.3.0",
+      "zod": "4.6.6"
+    }
   }
 }

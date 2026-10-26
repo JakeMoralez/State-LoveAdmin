@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   api,
   ApiError,
@@ -99,8 +99,6 @@ export function PersonProfilePage() {
   const [leader, setLeader] = useState<LeaderMemberDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [staffSettingsOpen, setStaffSettingsOpen] = useState(false)
-  const [leaderSettingsOpen, setLeaderSettingsOpen] = useState(false)
 
   const loadMembers = (resolvedVk: number, resolvedPublic: string | number) => {
     setLoading(true)
@@ -185,8 +183,7 @@ export function PersonProfilePage() {
 
   const staffPerms = staff.permissions
   const canOpenStaffSettings =
-    staffInRegistry &&
-    (staffPerms.edit_nickname ||
+    (!leaderInRegistry || staffInRegistry) && (staffPerms.edit_nickname ||
       staffPerms.edit_access_level ||
       staffPerms.edit_spheres ||
       staffPerms.edit_ca_access ||
@@ -206,32 +203,30 @@ export function PersonProfilePage() {
       ? { label: 'Руководители', href: '/leaders' }
       : { label: 'Назад', href: '/dashboard' }
 
-  const headerActions =
-    canOpenStaffSettings || canOpenLeaderSettings ? (
-      <div className="flex flex-wrap gap-2">
-        {canOpenStaffSettings ? (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setStaffSettingsOpen(true)}>
-            Настройки штата
-          </button>
-        ) : null}
-        {canOpenLeaderSettings ? (
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setLeaderSettingsOpen(true)}>
-            Настройки руководителя
-          </button>
-        ) : null}
-      </div>
-    ) : undefined
+  const canAssign = Boolean(staffPerms.assign_staff || (user && user.access_level >= 2 && vkId !== user.vk_id && staff.access_level < user.access_level))
+  const headerActions = <div className="flex flex-wrap gap-2">
+    {(canOpenStaffSettings || canOpenLeaderSettings) && <button type="button" className="btn btn-secondary btn-sm"
+      onClick={() => navigate(`${profilePath(publicId || key)}?tab=manage`)}>Редактировать</button>}
+    {canAssign && <Link className="btn btn-gold btn-sm" to={`/assign?vk_id=${vkId}&type=staff`}>
+      {staffInRegistry || leaderInRegistry ? 'Перевести' : 'Назначить'}
+    </Link>}
+  </div>
 
   const reload = () => {
     if (vkId != null && publicId) loadMembers(vkId, publicId)
   }
+
+  const managementContent = canOpenStaffSettings ? <StaffProfileModal member={staff} open inline permissions={staff.permissions} onClose={() => {}} onSaved={() => { reload(); if (vkId === user?.vk_id) void refresh() }} />
+    : canOpenLeaderSettings && leader ? <LeaderProfileModal member={leader} open inline onClose={() => {}} onSaved={reload} /> : undefined
 
   return (
     <>
       {preferStaff ? (
         <ProfileView
           headerActions={headerActions}
+          managementContent={managementContent}
           profile={{
+            public_id: staff.public_id,
             vk_id: staff.vk_id,
             nickname: staffLabel(staff),
             username: staff.username,
@@ -252,62 +247,44 @@ export function PersonProfilePage() {
             granted_at: staff.granted_at,
             promoted_at: staff.promoted_at,
             in_registry: staffInRegistry,
+            appointment_history: staff.appointment_history,
+            additional_roles: staff.additional_roles,
           }}
           backTo={backTo}
         />
       ) : leader ? (
         <ProfileView
           headerActions={headerActions}
+          managementContent={managementContent}
           profile={{
+            public_id: leader.public_id,
             vk_id: leader.vk_id,
             nickname: staffLabel(leader),
             username: leader.username,
             avatar_url: leader.avatar_url,
-            access_level: 0,
+            access_level: staff.access_level,
             access_level_name: leaderInRegistry ? 'Руководители' : 'Нет доступа',
             access_role_title:
               leader.access_role_title ||
               (leaderInRegistry ? leader.position || 'Руководители' : 'Без доступа'),
-            has_ca_access: false,
+            has_ca_access: staff.has_ca_access,
             server_id: leader.server_id ?? 30,
             badges: leader.badges?.length ? leader.badges : leaderInRegistry ? ['🛡'] : [],
             discord_id: leader.discord_id,
             discord_username: leader.discord_username,
             discord_display_name: leader.discord_display_name,
-            sphere: leader.note || undefined,
+            spheres: leader.sphere ? [leader.sphere] : [],
+            organization: leader.org_tag || undefined,
+            granted_at: leader.granted_at,
+            promoted_at: leader.promoted_at,
             in_registry: leaderInRegistry,
+            appointment_history: staff.appointment_history,
+            additional_roles: staff.additional_roles,
           }}
           backTo={backTo}
         />
       ) : null}
 
-      {canOpenStaffSettings ? (
-        <StaffProfileModal
-          member={staff}
-          open={staffSettingsOpen}
-          onClose={() => setStaffSettingsOpen(false)}
-          onSaved={(result) => {
-            if (result?.removed) {
-              navigate('/staff')
-              return
-            }
-            reload()
-            if (staff.vk_id === user?.vk_id) {
-              void refresh()
-            }
-          }}
-          permissions={staff.permissions}
-        />
-      ) : null}
-
-      {canOpenLeaderSettings && leader ? (
-        <LeaderProfileModal
-          member={leader}
-          open={leaderSettingsOpen}
-          onClose={() => setLeaderSettingsOpen(false)}
-          onSaved={reload}
-        />
-      ) : null}
     </>
   )
 }

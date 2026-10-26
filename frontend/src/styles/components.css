@@ -486,7 +486,6 @@ textarea.control::-webkit-scrollbar-button,
   letter-spacing: -0.03em;
 }
 
-.project-card,
 .qb-bank-card {
   display: flex;
   align-items: flex-start;
@@ -503,7 +502,6 @@ textarea.control::-webkit-scrollbar-button,
     background var(--motion-fast) var(--ease);
 }
 
-a.project-card:hover,
 .qb-bank-card:hover {
   transform: none;
   box-shadow: none;
@@ -511,19 +509,6 @@ a.project-card:hover,
   background: var(--sl-surface-hover);
 }
 
-.project-card-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: var(--radius-sm);
-  background: var(--accent-gold-soft);
-  color: var(--accent-gold);
-}
-
-.project-card-body,
 .qb-bank-card-body {
   display: flex;
   flex-direction: column;
@@ -533,7 +518,6 @@ a.project-card:hover,
   flex: 1;
 }
 
-.project-card-title,
 .qb-bank-card-title {
   margin: 0;
   font-size: 0.9375rem;
@@ -543,7 +527,6 @@ a.project-card:hover,
   color: var(--sl-text);
 }
 
-.project-card-desc,
 .qb-bank-card-desc {
   margin: 0;
   font-size: 0.8125rem;
@@ -555,7 +538,6 @@ a.project-card:hover,
   overflow: hidden;
 }
 
-.project-card-meta,
 .qb-bank-card-meta {
   margin-top: 0.15rem;
   font-size: 0.75rem;
@@ -563,30 +545,14 @@ a.project-card:hover,
   color: var(--sl-text-faint);
 }
 
-.project-card .sphere-badge,
 .qb-bank-card .sphere-badge {
   margin-top: 0.1rem;
 }
 
-.projects-grid,
 .qb-bank-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-3);
-}
-
-.projects-create-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  max-width: 28rem;
-}
-
-.projects-create-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 .qb-bank-card-icon,
@@ -1420,7 +1386,7 @@ a.project-card:hover,
 
 @media (min-width: 1024px) {
   .dashboard-stats-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

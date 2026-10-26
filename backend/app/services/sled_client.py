@@ -172,13 +172,22 @@ async def _bot_request(
             timeout=timeout,
         )
         if resp.status_code >= 400:
+            if path.startswith("/internal/forum/"):
+                # Do not return arbitrary upstream bodies, URLs or exception text.
+                if resp.status_code in (401, 403):
+                    return None, "Бот отклонил межсервисную авторизацию. Проверьте настройку интеграции."
+                if resp.status_code == 504:
+                    return None, "Истекло время операции форума. Часть изменений могла быть выполнена; проверьте статус перед повтором."
+                return None, f"Бот не выполнил операцию форума (HTTP {resp.status_code}). Проверьте параметры и состояние подключения."
             return None, _bot_error(resp, "Ошибка бота")
         data = resp.json()
         if not isinstance(data, dict):
             return None, "Бот вернул некорректный ответ."
         return data, None
+    except httpx.TimeoutException:
+        return None, "Бот не успел ответить. Результат операции не подтверждён; обновите статус перед повтором."
     except Exception as exc:
-        logger.warning("bot_request %s %s: %s", method, path, exc)
+        logger.warning("bot_request %s %s: %s", method, path, type(exc).__name__)
         return None, "Не удалось связаться с ботом (SLED_INTERNAL_URL)."
 
 

@@ -31,6 +31,7 @@ function memberSphere(m: LeaderMember): string | null {
 }
 
 function memberPosition(m: LeaderMember): string {
+  if (m.in_registry === false) return m.position || 'Без назначения'
   return (
     m.position?.trim() ||
     inferLeadershipFromNickname(m.bot_nickname || m.nickname).position ||
@@ -38,7 +39,7 @@ function memberPosition(m: LeaderMember): string {
   )
 }
 
-type OfficeTab = 'active' | 'inactive'
+type OfficeTab = 'active' | 'unassigned' | 'inactive'
 type SortKey = 'index' | 'nickname' | 'position' | 'sphere'
 type SortDir = 'asc' | 'desc'
 
@@ -68,7 +69,7 @@ export function OfficeRegistryPage({
   icon: LucideIcon
   badge: string
   assignType: string
-  list: (params?: { q?: string; inactive?: boolean }) => Promise<{ members: LeaderMember[]; total: number }>
+  list: (params?: { q?: string; inactive?: boolean; unassigned?: boolean }) => Promise<{ members: LeaderMember[]; total: number; warning?: string | null }>
   loadOne: (vkId: number) => Promise<LeaderMemberDetail>
   sphereFilter?: boolean
   subtitleActive?: string
@@ -79,6 +80,7 @@ export function OfficeRegistryPage({
   const actorLevel = user?.access_level ?? 0
   const actorVkId = user?.vk_id ?? 0
   const [members, setMembers] = useState<LeaderMember[]>([])
+  const [warning, setWarning] = useState('')
   const [total, setTotal] = useState(0)
   const [q, setQ] = useState('')
   const [sphere, setSphere] = useState('')
@@ -92,11 +94,13 @@ export function OfficeRegistryPage({
 
   const load = useCallback(() => {
     setLoading(true)
-    list({ q: q || undefined, inactive: tab === 'inactive' })
+    list({ q: q || undefined, inactive: tab === 'inactive', unassigned: tab === 'unassigned' })
       .then((res) => {
+        setWarning(res.warning || '')
         setMembers(res.members)
         setTotal(res.total)
       })
+      .catch((e: unknown) => { setMembers([]); setTotal(0); setWarning(e instanceof Error ? e.message : 'Не удалось загрузить реестр') })
       .finally(() => setLoading(false))
   }, [q, tab, list])
 
@@ -197,6 +201,10 @@ export function OfficeRegistryPage({
           >
             В реестре
           </button>
+          <button type="button" role="tab" aria-selected={tab === 'unassigned'}
+            className={tab === 'unassigned' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'} onClick={() => setTab('unassigned')}>
+            Участники без назначения
+          </button>
           <button
             type="button"
             role="tab"
@@ -204,7 +212,7 @@ export function OfficeRegistryPage({
             className={tab === 'inactive' ? 'sphere-tab sphere-tab--active' : 'sphere-tab'}
             onClick={() => setTab('inactive')}
           >
-            Без доступа
+            Архив
           </button>
         </div>
         {isMobileNav ? assignButton : null}
@@ -241,6 +249,7 @@ export function OfficeRegistryPage({
         />
       )}
 
+      {warning && <p className="staff-profile-hint" role="status">{warning}</p>}
       {settingsError && <Alert className="shrink-0">{settingsError}</Alert>}
 
       {loading ? (
@@ -293,7 +302,7 @@ export function OfficeRegistryPage({
                         {staffLabel(m)}
                       </Link>
                     </span>
-                    {tab === 'inactive' && canAssign ? (
+                    {tab !== 'active' && canAssign ? (
                       <Link
                         to={`/assign?type=${assignType}&vk_id=${m.vk_id}`}
                         className="staff-settings-btn no-underline"
