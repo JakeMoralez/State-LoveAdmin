@@ -55,15 +55,49 @@ class AppointmentsTest(unittest.IsolatedAsyncioTestCase):
         await Chat.create(server_id=30, peer_id=2_000_000_101, title="  Руководители | LSPD  ")
         await Chat.create(server_id=30, peer_id=2_000_000_102, title="", alias="Суды Love")
         await Chat.create(server_id=31, peer_id=2_000_000_103, title="Чужой сервер")
-        async def members(peers):
-            return ({200}, None) if peers == [2_000_000_101] else (set(), "unavailable")
-        with patch("app.services.staff.collect_peer_members", members):
+        async def members(peer):
+            return ([200], None) if peer == 2_000_000_101 else ([], "unavailable")
+        with patch("app.services.sled_client.fetch_chat_members", members):
             rows = (await get_profile_chats(200, 30, {"vk_id": 100}))["chats"]
         self.assertEqual(len(rows), 4)
         self.assertEqual([r["title"] for r in rows], ["Руководители | LSPD", "Суды Love", "Беседа №103", "Беседа №104"])
         self.assertTrue(rows[0]["present"])
         self.assertIsNone(rows[1]["present"])
         self.assertEqual(rows[0]["label"], "Руководители")
+
+    async def test_partial_membership_warning_names_only_failed_chats(self):
+        await Chat.create(server_id=30, peer_id=2_000_000_101, title="Рабочая беседа")
+        await Chat.create(server_id=30, peer_id=2_000_000_102, title="Старая беседа")
+        fetch = AsyncMock(side_effect=[([200], None), ([], "VK: 917"), ([], "VK: 5")])
+        with patch("app.services.sled_client.fetch_chat_members", fetch):
+            ids, warning = await staff.collect_peer_members([2_000_000_101, 2_000_000_102, 2_000_000_103, 2_000_000_101])
+        self.assertEqual(ids, {200})
+        self.assertEqual(fetch.await_count, 3)
+        self.assertIn("загружен частично", warning)
+        self.assertIn("Старая беседа", warning)
+        self.assertIn("2000000102", warning)
+        self.assertIn("№103", warning)
+        self.assertNotIn("Рабочая беседа", warning)
+
+    async def test_empty_success_is_not_a_membership_failure(self):
+        with patch("app.services.sled_client.fetch_chat_members", AsyncMock(return_value=([], None))):
+            self.assertEqual(await staff.collect_peer_members([2_000_000_101]), (set(), None))
+
+    async def test_inaccessible_chats_do_not_affect_available_members(self):
+        with patch("app.services.sled_client.fetch_chat_members", AsyncMock(side_effect=[([200], None), (None, None)])):
+            self.assertEqual(await staff.collect_peer_members([2_000_000_101, 2_000_000_102]), ({200}, None))
+        with patch("app.services.sled_client.fetch_chat_members", AsyncMock(return_value=(None, None))):
+            self.assertEqual(await staff.collect_peer_members([2_000_000_101]), (set(), None))
+
+    async def test_profile_omits_inaccessible_chat_without_false_absence(self):
+        from app.routers.staff import get_profile_chats
+        await RoleChat.create(role="leader", server_id=30, peer_id=2_000_000_101)
+        await RoleChat.create(role="leader", server_id=30, peer_id=2_000_000_102)
+        with patch("app.services.sled_client.fetch_chat_members", AsyncMock(side_effect=[([200], None), (None, None)])):
+            rows = (await get_profile_chats(200, 30, {"vk_id": 100}))["chats"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["peer_id"], 2_000_000_101)
+        self.assertTrue(rows[0]["present"])
 
     async def test_chat_member_is_unassigned_and_reads_do_not_write(self):
         before = await UserServerAccess.all().values()

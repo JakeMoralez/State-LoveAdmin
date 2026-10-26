@@ -469,22 +469,31 @@ async def list_role_kind_peers(server_id: int, role: str, kind: str) -> list[int
 
 
 async def collect_peer_members(peer_ids: list[int]) -> tuple[set[int], str | None]:
+    from app.models.bot import Chat
     from app.services.sled_client import fetch_chat_members
 
     members: set[int] = set()
-    warnings: list[str] = []
-    failed = False
-    for peer_id in peer_ids:
+    failures: list[tuple[int, str]] = []
+    checked = 0
+    for peer_id in dict.fromkeys(peer_ids):
         ids, err = await fetch_chat_members(peer_id)
         if err:
-            warnings.append(err)
-            failed = True
+            failures.append((peer_id, err))
             continue
+        if ids is None:
+            continue
+        checked += 1
         members.update(ids)
-    if failed and not members:
-        return members, warnings[0]
-    warning = warnings[0] if warnings else None
-    return members, warning
+    if not failures:
+        return members, None
+    titles = {
+        int(row["peer_id"]): (row["title"] or "").strip() or (row["alias"] or "").strip()
+        for row in await Chat.filter(peer_id__in=[peer for peer, _ in failures]).values("peer_id", "title", "alias")
+    }
+    prefix = "Состав бесед загружен частично. " if checked else ""
+    warnings = [f"Беседа «{titles.get(peer) or f'№{peer - 2_000_000_000}'}» (ID {peer}): {error}"
+                for peer, error in failures]
+    return members, prefix + "\n".join(warnings)
 
 
 async def collect_office_members(server_id: int) -> tuple[set[int], str | None, bool]:

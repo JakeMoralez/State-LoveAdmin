@@ -829,7 +829,7 @@ async def get_staff_one(
 async def get_profile_chats(vk_id: int, server_id: int = Query(DEFAULT_SERVER_ID), user: dict = Depends(require_ca_user)):
     import asyncio
     from app.models.bot import Chat, ChatPeerSettings, RoleChat
-    from app.services.staff import collect_peer_members
+    from app.services.sled_client import fetch_chat_members
     labels = {"leader": "Руководители", "judge": "Судьи", "staff": "Следящие", "sled_ca": "Следящие ЦА", "congress": "Конгресс", "structure_lead": "Руководители структур", "managers": "Руководство сервера"}
     peers = {int(r.peer_id): r.role for r in await RoleChat.filter(server_id=server_id)}
     peers.update({int(r.peer_id): r.chat_kind for r in await ChatPeerSettings.filter(server_id=server_id) if r.chat_kind in labels})
@@ -839,13 +839,16 @@ async def get_profile_chats(vk_id: int, server_id: int = Query(DEFAULT_SERVER_ID
     }
     async def check(peer, kind):
         try:
-            ids, warning = await asyncio.wait_for(collect_peer_members([peer]), timeout=4)
+            ids, warning = await asyncio.wait_for(fetch_chat_members(peer), timeout=4)
+            if ids is None:
+                return None
             present = None if warning else vk_id in ids
         except TimeoutError:
             present = None
         return {"peer_id": peer, "label": labels.get(kind, kind),
                 "title": titles.get(peer) or f"Беседа №{peer - 2_000_000_000}", "present": present}
-    return {"chats": await asyncio.gather(*(check(peer, kind) for peer, kind in peers.items()))}
+    chats = await asyncio.gather(*(check(peer, kind) for peer, kind in peers.items()))
+    return {"chats": [chat for chat in chats if chat is not None]}
 
 
 @router.patch("/{vk_id}")

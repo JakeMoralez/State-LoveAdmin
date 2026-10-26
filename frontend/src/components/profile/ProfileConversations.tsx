@@ -22,6 +22,6 @@ export function ProfileConversations({ vkId }: { vkId: number }) {
     {chats && <ul>{chats.map(chat => <li key={chat.peer_id}>
       <span>{chat.title || `Беседа №${chat.peer_id - 2_000_000_000}`}</span><span>{chat.present === null ? 'Не удалось проверить' : chat.present ? 'Участвует' : 'Не участвует'}</span>
     </li>)}</ul>}
-    {chats?.length === 0 && <p>Зарегистрированных бесед нет.</p>}
+    {chats?.length === 0 && <p>Нет доступных бесед для проверки.</p>}
   </details>
 }

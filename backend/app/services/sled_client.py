@@ -20,7 +20,8 @@ def _sled_headers() -> dict[str, str]:
     }
 
 
-async def fetch_chat_members(peer_id: int) -> tuple[list[int], str | None]:
+async def fetch_chat_members(peer_id: int) -> tuple[list[int] | None, str | None]:
+    """None members means an inaccessible chat to skip, never a confirmed empty chat."""
     if not SLED_BOT_SECRET:
         return [], "SLED_BOT_SECRET не настроен — список участников недоступен."
 
@@ -44,11 +45,27 @@ async def fetch_chat_members(peer_id: int) -> tuple[list[int], str | None]:
                 attempts = diagnostics.get("attempts", []) if isinstance(diagnostics, dict) else []
                 codes = sorted({row["vk_error_code"] for row in attempts if isinstance(row, dict)
                                 and type(row.get("vk_error_code")) is int and 0 < row["vk_error_code"] < 10000}) if isinstance(attempts, list) else []
+                access_codes = {7, 15, 917, 922, 925, 927, 932}
+                request_failed = isinstance(attempts, list) and any(
+                    isinstance(row, dict) and row.get("error_kind") == "request_failed" for row in attempts
+                )
+                if not request_failed and (access_codes.intersection(codes) or not attempts):
+                    return None, None
                 suffix = f" Код VK: {', '.join(map(str, codes))}." if codes else ""
-                return [], ("VK не предоставил боту список участников беседы. "
-                            "Проверьте, что бот находится в нужной беседе и имеет права администратора. "
-                            "Если настроен VK_USER_TOKEN, проверьте его действительность и доступ аккаунта к беседе."
-                            + suffix)
+                if 917 in codes:
+                    message = ("VK не дал доступа к зарегистрированной беседе. "
+                               "Проверьте сохранённый ID беседы и соответствие VK_GROUP_ID сообществу бота. "
+                               "Если /members в этой беседе работает, сравните ID успешного и неуспешного запросов в логе бота.")
+                elif 925 in codes:
+                    message = "VK сообщает, что бот не администратор этой беседы. Проверьте его права в участниках беседы."
+                elif 5 in codes or 27 in codes:
+                    message = "VK отклонил авторизацию запроса участников. Проверьте соответствие VK_GROUP_TOKEN и VK_GROUP_ID бота."
+                else:
+                    message = ("VK не предоставил боту список участников беседы. "
+                               "Проверьте, что бот находится в нужной беседе и имеет права администратора.")
+                if isinstance(diagnostics, dict) and diagnostics.get("user_token_configured") is True:
+                    message += " Также проверьте действительность VK_USER_TOKEN и доступ его аккаунта к беседе."
+                return [], message + suffix
             return [], f"Не удалось получить участников беседы: бот вернул HTTP {resp.status_code}."
         data = resp.json()
         if not isinstance(data, dict) or not isinstance(data.get("member_ids"), list):
