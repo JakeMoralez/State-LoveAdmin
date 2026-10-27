@@ -115,6 +115,42 @@ class AppointmentsTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await staff.list_ca_leaders(30))[0], [])
         self.assertEqual(before, await UserServerAccess.all().values())
 
+    async def test_site_edit_preserves_formatted_nickname_and_scopes(self):
+        from app.routers.staff import patch_staff_member, StaffMemberUpdate
+        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+            spheres=['justice'], granted_by=100)
+        actor = {'vk_id': 100, 'access_level': 11, 'dev_persona': True}
+        for body in [StaffMemberUpdate(nickname='Bob_Burmalda'),
+                     StaffMemberUpdate(nickname='Bob_Burmalda', spheres=['justice'], resync_nickname=True)]:
+            result = await patch_staff_member(200, body, 30, actor)
+            self.assertEqual(result['bot_nickname'], '[След. МЮ] Bob_Burmalda')
+            self.assertEqual(result['spheres'], ['justice'])
+            self.assertEqual((await UserServerAccess.get(user_id=200, server_id=30)).nickname, result['bot_nickname'])
+            row = next(r for r in await staff.list_staff(30) if r['vk_id'] == 200)
+            self.assertEqual(row['bot_nickname'], result['bot_nickname'])
+
+    async def test_nickname_sync_failure_does_not_partially_save_staff_form(self):
+        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+            spheres=['justice'], granted_by=100)
+        before = await UserServerAccess.get(user_id=200, server_id=30)
+        with patch.object(staff, '_sync_formatted_staff_nickname', AsyncMock(side_effect=ValueError('Этот ник уже занят'))):
+            with self.assertRaisesRegex(ValueError, 'ник уже занят'):
+                await staff.update_staff_member(30, 200, nickname='Bob_New', access_level=3,
+                    spheres=['defense'], granted_by=100)
+        after = await UserServerAccess.get(user_id=200, server_id=30)
+        self.assertEqual((after.nickname, after.access_level), (before.nickname, before.access_level))
+        self.assertEqual((await StaffNote.get(vk_id=200, server_id=30)).spheres, ['justice'])
+
+    async def test_failed_assignment_does_not_leave_level_or_archive(self):
+        before = await UserServerAccess.get(user_id=200, server_id=30)
+        with patch.object(staff, '_persist_member_nickname', AsyncMock(side_effect=ValueError('Ошибка записи ника'))):
+            with self.assertRaisesRegex(ValueError, 'Ошибка записи ника'):
+                await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+                    spheres=['justice'], granted_by=100)
+        after = await UserServerAccess.get(user_id=200, server_id=30)
+        self.assertEqual((after.nickname, after.access_level), (before.nickname, before.access_level))
+        self.assertEqual(await StaffAppointmentArchive.filter(vk_id=200).count(), 0)
+
     async def test_active_office_is_excluded_from_staff_unassigned(self):
         from app.services.appointments import active_appointment_ids
         await UserServerAccess.filter(user_id=200).update(is_leader=True, nickname="[LSPD][9] Ivan_Volkov")

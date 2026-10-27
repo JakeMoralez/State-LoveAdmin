@@ -52,7 +52,7 @@ export interface StaffProfileModalProps {
   open: boolean
   inline?: boolean
   onClose: () => void
-  onSaved: (result?: { removed?: boolean }) => void
+  onSaved: (result?: { removed?: boolean; member?: StaffMemberDetail }) => void
   permissions: StaffMemberPermissions
 }
 
@@ -271,7 +271,7 @@ export function StaffProfileModal({
     setSaving(true)
     setError(null)
     try {
-      const body: Record<string, unknown> = { reason }
+      const body: Record<string, unknown> = {}
       const cleanNick = stripStaffNicknameTags(nickname).trim()
 
       if (permissions.edit_nickname && cleanNick !== savedCleanName) {
@@ -326,9 +326,10 @@ export function StaffProfileModal({
         return
       }
 
-      await api.updateStaffMember(member.vk_id, body)
+      body.reason = reason
+      const savedMember = await api.updateStaffMember(member.vk_id, body)
       draft.clear()
-      onSaved()
+      onSaved({ member: savedMember })
       if (!inline) onClose()
     } catch (e: unknown) {
       setError(formatError(e))

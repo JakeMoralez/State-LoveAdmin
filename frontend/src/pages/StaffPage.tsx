@@ -325,6 +325,11 @@ export function StaffPage() {
         onClose={() => setSettingsMember(null)}
         onSaved={(result) => {
           if (result?.removed) setSettingsMember(null)
+          if (result?.member) {
+            const saved = result.member
+            setMembers(current => current.map(row => row.vk_id === saved.vk_id ? { ...row, ...saved } : row))
+            setSettingsMember(saved)
+          }
           setReloadTick((n) => n + 1)
           if (settingsMember?.vk_id === user?.vk_id) {
             void refresh()

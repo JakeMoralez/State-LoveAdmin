@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import logging
 import re
@@ -47,6 +48,9 @@ def current_data(snapshot):
 async def state():
     settings, snapshot = await rows()
     data = current_data(snapshot)
+    if data:
+        from app.services.forum_list_contacts import supplement_contacts
+        data = await supplement_contacts(copy.deepcopy(data), DEFAULT_SERVER_ID)
     busy = bool(snapshot.lease_until and snapshot.lease_until > now())
     return {
         "configured": bool(FORUM_LIST_API_KEY), "server_id": DEFAULT_SERVER_ID,
@@ -78,8 +82,6 @@ async def _refresh(token: str, key_hash: str):
         async with asyncio.timeout(900):
             external_id, sources = await provider.load()
             data = engine.normalize(sources, external_id)
-            from app.services.forum_list_contacts import supplement_contacts
-            data = await supplement_contacts(data, DEFAULT_SERVER_ID)
             # Previously known empty admin groups remain valid vacant slots, not unknown tokens.
             prior = await ForumListSnapshot.get(server_id=DEFAULT_SERVER_ID)
             if prior.key_fingerprint == key_hash:
@@ -147,6 +149,8 @@ async def preview(user, template=None):
     data = current_data(snapshot)
     if not data:
         raise HTTPException(409, "Сначала загрузите полный снимок из API.")
+    from app.services.forum_list_contacts import supplement_contacts
+    data = await supplement_contacts(copy.deepcopy(data), DEFAULT_SERVER_ID)
     return engine.render(settings.template if template is None else template, data)
 
 

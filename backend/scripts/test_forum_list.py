@@ -51,6 +51,7 @@ class EngineTests(unittest.TestCase):
         apply_contacts(self.data, [('[LSPD][9] Ivan_Volkov', 'LSPD', 'deputy', 100),
                                    ('Ivan_Volkov', 'FBI', 'leader', 200)])
         self.assertEqual(row['vk_url'], '')
+
         apply_contacts(self.data, [('[LSPD][10] Ivan Volkov', 'LSPD', 'leader', 300)])
         self.assertEqual(row['vk_url'], 'https://vk.ru/id300')
         apply_contacts(self.data, [('Ivan_Volkov', 'LSPD', 'leader', 400)])
@@ -58,6 +59,19 @@ class EngineTests(unittest.TestCase):
         row.update(vk_id='', vk_url='')
         apply_contacts(self.data, [('Ivan_Volkov', 'LSPD', 'leader', 300), ('Ivan_Volkov', 'LSPD', 'leader', 400)])
         self.assertEqual(row['vk_url'], '')
+
+    def test_contact_organization_aliases_do_not_mix_other_departments(self):
+        from app.services.forum_list_contacts import apply_contacts
+        f = self.data['fractions'][0]
+        f['fraction_name'] = 'DES'
+        row = f['leaders'][0]
+        row.update(nickname='Tayler_Trace', vk_id='', vk_url='')
+        apply_contacts(self.data, [('Tayler_Trace', 'SFFD', 'leader', 500)])
+        self.assertEqual(row['vk_url'], 'https://vk.ru/id500')
+        row.update(vk_id='', vk_url='')
+        f['fraction_name'] = 'MSP'
+        apply_contacts(self.data, [('Tayler_Trace', 'FP', 'leader', 600)])
+        self.assertEqual(row['vk_url'], 'https://vk.ru/id600')
 
     def test_explicit_slots_are_repeatable_and_independent_of_token_order(self):
         result = engine.render("{{fraction.1.deputies.2.vk_url}} {{fraction.1.deputies.1.nickname}} {{fraction.1.deputies.1.nickname}}", self.data)
@@ -115,6 +129,10 @@ class EngineTests(unittest.TestCase):
         self.assertIn("&lt;x&gt;", text)
         self.assertTrue(text.endswith("— —"))
 
+    def test_vk_links_use_canonical_url_bbcode_in_saved_and_new_templates(self):
+        result = engine.render("{{fraction.1.leaders.1.vk_link}} [URL='{{fraction.1.leaders.1.vk_url}}']VK[/URL] [URL=\"{{fraction.1.leaders.1.vk_url}}\"]VK[/URL]", self.data)
+        self.assertEqual(result['rendered'], ' '.join(['[URL=https://vk.ru/id10]VK[/URL]'] * 3))
+
     def test_missing_and_overflow(self):
         result = engine.render("{{fraction.1.deputies.1.nickname}} {{fraction.1.deputies.8.post_date}}", self.data)
         self.assertEqual(result["rendered"], "User_20 —")
@@ -129,6 +147,40 @@ class EngineTests(unittest.TestCase):
 
 
 class ServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_current_registry_contact_is_used_without_refreshing_external_snapshot(self):
+        from app.models.bot import User, UserServerAccess
+        await User.create(vk_id=702, username='User', added_at=svc.now())
+        await UserServerAccess.create(user_id=702, server_id=30, access_level=0, is_leader=True,
+            nickname='[LSPD][10] User_10', granted_at=svc.now())
+        row = self.data['fractions'][0]['leaders'][0]
+        row.update(vk_id='0', vk_url='')
+        await ForumListSnapshot.filter(server_id=30).update(data=self.data)
+        await ForumListSettings.filter(server_id=30).update(template='{{fraction.1.leaders.1.vk_link}}')
+        expected = '[URL=https://vk.ru/id702]VK[/URL]'
+        self.assertEqual((await svc.state())['result']['rendered'], expected)
+        self.assertEqual((await svc.preview(self.editor))['rendered'], expected)
+        # The external source snapshot is not overwritten by a local fallback.
+        snapshot = await ForumListSnapshot.get(server_id=30)
+        self.assertEqual(snapshot.data['fractions'][0]['leaders'][0]['vk_id'], '0')
+
+    async def test_registered_contact_without_flag_requires_current_api_match_and_no_closed_appointment(self):
+        from app.models.bot import User, UserServerAccess
+        from app.models.panel import StaffAppointmentArchive
+        from app.services.forum_list_contacts import supplement_contacts
+        await User.create(vk_id=701, username='User', added_at=svc.now())
+        await UserServerAccess.create(user_id=701, server_id=30, access_level=0, is_leader=False, nickname='[LSa][10] Ivan_Volkov', granted_at=svc.now())
+        f = next(f for f in self.data['fractions'] if f['id'] == 20)
+        f['fraction_name'] = 'LSa'
+        row = engine.person({'nickname': 'Ivan_Volkov', 'rank': 10})
+        f['leaders'].append(row)
+        await supplement_contacts(self.data, 30)
+        self.assertEqual(row['vk_url'], 'https://vk.ru/id701')
+        self.assertFalse((await UserServerAccess.get(user_id=701)).is_leader)
+        row.update(vk_id='', vk_url='')
+        await StaffAppointmentArchive.create(server_id=30, vk_id=701, kind='leader', snapshot={})
+        await supplement_contacts(self.data, 30)
+        self.assertEqual(row['vk_url'], '')
+
     async def test_contacts_use_only_active_local_offices_on_same_server(self):
         from app.models.bot import User, UserServerAccess
         from app.services.forum_list_contacts import supplement_contacts

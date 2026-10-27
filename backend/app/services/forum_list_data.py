@@ -62,6 +62,8 @@ def person(raw: dict) -> dict:
     if result["post_date"] and type(result["term_days"]) is int and 0 < result["term_days"] <= 36500:
         result["planned_end_date"] = (datetime.fromisoformat(result["post_date"]) + timedelta(days=result["term_days"])).date().isoformat()
     url = result["vk_url"]
+    if not re.fullmatch(r"[1-9]\d*", result["vk_id"]):
+        result["vk_id"] = ""
     if not re.fullmatch(r"https://(?:www\.)?vk\.(?:ru|com)/[\w.-]+", url, re.ASCII):
         result["vk_url"] = f"https://vk.ru/id{result['vk_id']}" if re.fullmatch(r"[1-9]\d*", result["vk_id"]) else ""
     return result
@@ -144,7 +146,7 @@ def field_value(row: dict | None, field: str) -> str:
         return "Вакантно" if field == "nickname" else "—"
     if field == "vk_link":
         url = row.get("vk_url")
-        return f"[URL='{url}']VK[/URL]" if url else "—"
+        return f"[URL={url}]VK[/URL]" if url else "—"
     value = row.get(field)
     if value is None or value == "" or value == []:
         return "Вакантно" if field == "nickname" else "—"
@@ -194,6 +196,10 @@ def render(template: str, data: dict, now: datetime | None = None) -> dict:
             warnings.append(f"{group['label']}: не вошло сотрудников — {omitted}. Добавьте места в шаблоне.")
     # Prevent legacy/manual URL wrappers from linking a vacant slot.
     result = re.sub(r"\[url\s*=\s*['\"]?(?:https?://)?—['\"]?\].*?\[/url\]", "—", result, flags=re.I | re.S)
+    # Canonical URL syntax also fixes already-saved templates containing quoted
+    # VK parameters. The URL itself has already passed the person allowlist.
+    result = re.sub(r"\[url\s*=\s*['\"](https://(?:www\.)?vk\.(?:ru|com)/[\w.-]+)['\"]\]",
+                    r"[URL=\1]", result, flags=re.I | re.ASCII)
     if "{{" in TOKEN.sub("", template) or "}}" in TOKEN.sub("", template):
         errors.append("Незакрытый плейсхолдер")
     return {"rendered": result if not errors else None, "errors": sorted(set(errors)), "warnings": warnings}
