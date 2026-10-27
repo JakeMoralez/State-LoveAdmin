@@ -240,7 +240,7 @@ export function StaffProfileModal({
     if (permissions.edit_nickname) {
       body.nickname = cleanNick || savedCleanName
     }
-    if (canEditAccessLevel) {
+    if (canEditAccessLevel && parseInt(accessLevel, 10) !== member.access_level) {
       body.access_level = parseInt(accessLevel, 10)
     }
     if (canEditSpheres) {

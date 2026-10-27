@@ -863,7 +863,8 @@ async def patch_staff_member(
     actor_level = _session_access_level(user)
     dev_persona = bool(user.get("dev_persona"))
     row_before = await get_staff_member_profile(server_id, vk_id)
-    if not row_before.get("in_registry") and body.model_fields_set - {"nickname", "discord_id", "forum_account", "reason"}:
+    in_registry = bool(row_before.get("in_registry"))
+    if not in_registry and body.model_fields_set - {"nickname", "discord_id", "forum_account", "reason"}:
         raise HTTPException(status_code=400, detail="Сначала назначьте пользователя через действие «Назначить»")
     target_level = int(row_before["access_level"])
     perms = _build_staff_perms(
@@ -933,8 +934,7 @@ async def patch_staff_member(
             raise HTTPException(status_code=400, detail=messages.LEVEL_REQUIRED)
         if not perms["edit_access_level"]:
             raise HTTPException(status_code=403, detail=messages.LEVEL_EDIT_FORBIDDEN)
-        row_before = await get_staff_member(server_id, vk_id)
-        prev_level = int(row_before["access_level"]) if row_before else 0
+        prev_level = target_level
         if prev_level <= 0 and body.access_level > 0:
             raise HTTPException(status_code=400, detail=assign_via_site_message())
         assert_can_set_level(
@@ -1083,11 +1083,13 @@ async def patch_staff_member(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     if kwargs:
         try:
-            if row_before.get("in_registry"):
+            if in_registry:
                 await update_staff_member(server_id, vk_id, granted_by=user["vk_id"], **kwargs)
             elif "nickname" in kwargs:
                 from app.services.staff import _persist_member_nickname
                 await _persist_member_nickname(vk_id, server_id, kwargs["nickname"])
+            else:
+                raise HTTPException(status_code=400, detail=messages.NOTHING_TO_UPDATE)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1126,7 +1128,7 @@ async def patch_staff_member(
         if old != new:
             audit_detail[key] = {"from": old, "to": new}
     if any(isinstance(v, dict) and "from" in v for v in audit_detail.values()):
-        await log_audit(user["vk_id"], "staff_update" if row_before.get("in_registry") else "profile_update", "user", vk_id, audit_detail)
+        await log_audit(user["vk_id"], "staff_update" if in_registry else "profile_update", "user", vk_id, audit_detail)
     from app.services.access import panel_role
 
     row["server_id"] = server_id

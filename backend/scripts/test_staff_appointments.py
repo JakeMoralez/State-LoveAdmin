@@ -1,6 +1,8 @@
 """Regression checks using two disposable in-memory databases only."""
 
 import asyncio
+import json
+import os
 import sys
 import unittest
 from datetime import UTC, datetime
@@ -128,6 +130,120 @@ class AppointmentsTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((await UserServerAccess.get(user_id=200, server_id=30)).nickname, result['bot_nickname'])
             row = next(r for r in await staff.list_staff(30) if r['vk_id'] == 200)
             self.assertEqual(row['bot_nickname'], result['bot_nickname'])
+
+    async def test_http_senior_defense_and_ordinary_justice_with_legacy_level(self):
+        import httpx
+        from fastapi import FastAPI
+        from app.routers import staff as routes
+        actor = {'vk_id': 100, 'access_level': 11, 'panel_role': 'owner', 'spheres': ['server']}
+        app = FastAPI()
+        app.include_router(routes.router)
+        app.dependency_overrides[routes.require_ca_user] = lambda: actor
+        payload_path = os.environ.get('STAFF_SPHERE_PAYLOAD_PATH')
+        captured = json.loads(Path(payload_path).read_text(encoding='utf-8')) if payload_path else {
+            'nickname': 'Bob_Burmalda', 'spheres': ['justice', 'defense'],
+            'is_senior': True, 'senior_spheres': ['defense'], 'resync_nickname': True}
+        expected = '[Ст. След. МО | След. МЮ] Bob_Burmalda'
+        with patch.object(routes, 'resolve_vk_photos', AsyncMock(return_value={})):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+                for include_level in (False, True):
+                    with self.subTest(include_level=include_level):
+                        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+                            spheres=['justice'], granted_by=100)
+                        await PanelAuditLog.all().delete()
+                        body = {**captured, **({'access_level': 2} if include_level else {})}
+                        if not include_level:
+                            body.pop('access_level', None)
+                        response = await client.patch('/api/staff/200', json=body)
+                        self.assertEqual(response.status_code, 200, response.text)
+                        for row in [response.json(), (await client.get('/api/staff/200')).json(),
+                                    next(r for r in (await client.get('/api/staff')).json()['members'] if r['vk_id'] == 200)]:
+                            self.assertEqual(row['bot_nickname'], expected)
+                            self.assertEqual(set(row['spheres']), {'justice', 'defense'})
+                            self.assertTrue(row['is_senior'])
+                            self.assertEqual(row['senior_spheres'], ['defense'])
+                        access = await UserServerAccess.get(user_id=200, server_id=30)
+                        self.assertEqual(access.nickname, expected)
+                        self.assertEqual(access.senior_spheres, ['defense'])
+                        self.assertEqual(set((await StaffNote.get(vk_id=200, server_id=30)).spheres), {'justice', 'defense'})
+                        events = await PanelAuditLog.all()
+                        self.assertEqual(len(events), 1)
+                        self.assertEqual(events[0].action, 'staff_update')
+                        self.assertEqual(events[0].detail['nickname']['from'], '[След. МЮ] Bob_Burmalda')
+                        self.assertEqual(events[0].detail['spheres']['from'], ['justice'])
+                        response = await client.patch('/api/staff/200', json=body)
+                        self.assertEqual(response.status_code, 200, response.text)
+                        self.assertEqual(await PanelAuditLog.all().count(), 1)
+
+    async def test_patch_actual_level_change_uses_staff_service_and_original_audit(self):
+        from app.routers.staff import patch_staff_member, StaffMemberUpdate
+        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+            spheres=['justice', 'defense'], is_senior=True, senior_spheres=['defense'], granted_by=100)
+        row = await patch_staff_member(200, StaffMemberUpdate(access_level=3), 30,
+            {'vk_id': 100, 'access_level': 11, 'panel_role': 'owner', 'spheres': ['server']})
+        self.assertEqual(row['access_level'], 3)
+        self.assertFalse(row['is_senior'])
+        self.assertEqual(row['senior_spheres'], [])
+        event = await PanelAuditLog.first()
+        self.assertEqual(event.action, 'staff_update')
+        self.assertEqual(event.detail['access_level'], {'from': 2, 'to': 3})
+
+    async def test_patch_spheres_matches_setsphere_and_removes_only_seniority(self):
+        from app.routers.staff import patch_staff_member, StaffMemberUpdate
+        from app.routers import internal
+        actor = {'vk_id': 100, 'access_level': 11, 'panel_role': 'owner', 'spheres': ['server']}
+        selection = {'spheres': ['justice', 'defense'], 'is_senior': True, 'senior_spheres': ['defense']}
+        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+            spheres=['justice'], granted_by=100)
+        saved = await patch_staff_member(200, StaffMemberUpdate(access_level=2, **selection), 30, actor)
+        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+            spheres=['justice'], granted_by=100)
+        with patch.object(internal, 'SLED_BOT_SECRET', 'offline-test-secret'):
+            await internal.put_staff_spheres(200, internal.StaffSpheresBody(actor_vk_id=100, **selection), 30, 'offline-test-secret')
+        bot_result = await staff.get_staff_member_profile(30, 200)
+        for field in ('bot_nickname', 'spheres', 'is_senior', 'senior_spheres'):
+            self.assertEqual(bot_result[field], saved[field])
+        row = await patch_staff_member(200, StaffMemberUpdate(access_level=2, is_senior=False,
+            senior_spheres=[]), 30, actor)
+        self.assertEqual(set(row['spheres']), {'justice', 'defense'})
+        self.assertFalse(row['is_senior'])
+        self.assertEqual(row['senior_spheres'], [])
+        self.assertEqual(row['bot_nickname'], '[След. МЮ&МО] Bob_Burmalda')
+
+    async def test_full_sphere_patch_rejection_keeps_original_appointment(self):
+        from fastapi import HTTPException
+        from app.routers.staff import patch_staff_member, StaffMemberUpdate
+        await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
+            spheres=['justice'], granted_by=100)
+        body = StaffMemberUpdate(access_level=2, nickname='Bob_Burmalda', spheres=['justice', 'defense'],
+            is_senior=True, senior_spheres=['defense'], resync_nickname=True)
+        actor = {'vk_id': 100, 'access_level': 11, 'panel_role': 'owner', 'spheres': ['server']}
+        with patch.object(staff, '_sync_formatted_staff_nickname', AsyncMock(side_effect=ValueError('Этот ник уже занят'))):
+            with self.assertRaises(HTTPException) as failure:
+                await patch_staff_member(200, body, 30, actor)
+            self.assertEqual(failure.exception.status_code, 400)
+        with self.assertRaises(HTTPException) as failure:
+            await patch_staff_member(200, body, 30, {'vk_id': 300, 'access_level': 1, 'spheres': ['justice']})
+        self.assertEqual(failure.exception.status_code, 403)
+        access = await UserServerAccess.get(user_id=200, server_id=30)
+        self.assertEqual(access.nickname, '[След. МЮ] Bob_Burmalda')
+        self.assertFalse(access.is_senior)
+        self.assertEqual(access.senior_spheres, [])
+        self.assertEqual((await StaffNote.get(vk_id=200, server_id=30)).spheres, ['justice'])
+        self.assertEqual(await PanelAuditLog.all().count(), 0)
+
+    async def test_nonassigned_profile_stays_separate_from_staff_updates(self):
+        from fastapi import HTTPException
+        from app.routers.staff import patch_staff_member, StaffMemberUpdate
+        actor = {'vk_id': 100, 'access_level': 11, 'panel_role': 'owner', 'spheres': ['server']}
+        row = await patch_staff_member(300, StaffMemberUpdate(nickname='Guest_Name'), 30, actor)
+        self.assertFalse(row['in_registry'])
+        self.assertEqual(row['bot_nickname'], 'Guest_Name')
+        self.assertEqual((await PanelAuditLog.first()).action, 'profile_update')
+        with self.assertRaises(HTTPException) as failure:
+            await patch_staff_member(300, StaffMemberUpdate(access_level=2, spheres=['justice']), 30, actor)
+        self.assertEqual(failure.exception.status_code, 400)
+        self.assertEqual((await UserServerAccess.get(user_id=300, server_id=30)).access_level, 0)
 
     async def test_nickname_sync_failure_does_not_partially_save_staff_form(self):
         await staff.assign_staff_member(30, 200, nickname='Bob_Burmalda', access_level=2,
